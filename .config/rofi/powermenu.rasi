@@ -1,0 +1,70 @@
+configuration {
+    modi: "window,run,drun";
+    show-icons: true;
+    font: "JetBrainsMono Nerd Font 10";
+}
+
+* {
+		dark: #262626;
+		white: #262626;
+		dark-trans: #E6262626;
+		white-trans: #E6bababa;
+		trans: #00000000;
+    red:                  #BF616A;
+    blue:                 #5E81AC;
+}
+
+* {
+	dark: #262626;
+	white: #bababa;
+}
+
+#window {
+    width: 750px;
+    height: 120px;
+    background-color: @trans;
+    padding: 1px;
+		border-radius: 12px;
+}
+
+#mainbox {
+    border:  0;
+    padding: 0;
+    children: [listview];
+    background-color: @white-trans;
+		border-radius: 12px;
+}
+
+#listview {
+    columns: 6;
+    layout: vertical;
+    background-color: @trans;
+}
+
+element {
+    margin: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    orientation: vertical;
+		background-color: @trans;
+}
+
+element-icon {
+    size: 48px;
+    margin: 2px;
+}
+
+element-text {
+    horizontal-align: 0.5;
+    vertical-align: 0.5;
+}
+
+#element.selected.normal {
+    background-color: @dark;
+    text-color:       @white;
+}
+
+#button.selected {
+	background-color: @dark;
+	text-color: @white;
+}

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd ~/.config
+cp -r alacritty compton gtk-3.0 i3 polybar ranger zathura dconf gtk-2.0 htop neofetch rofi ~/github/arch-install-script/.config
+cp betterlockscreenrc pulse
