@@ -57,6 +57,7 @@ alert = #bd2c40
 [bar/example]
 ;monitor = ${env:MONITOR:HDMI-1}
 width = 95%
+;bottom = true
 height = 30
 offset-x = 2.5%
 ;offset-x = 1%
@@ -83,14 +84,15 @@ module-margin-right = 1
 font-0 = "JetBrainsMono Nerd Font:size=10;2"
 font-1 = "JetBrainsMono Nerd Font:size=12;2.5"
 font-2 = "JetBrainsMono Nerd Font:size=13;2"
-font-3 = "JetBrainsMono Nerd Font:size=15;3.5"
+font-3 = "JetBrainsMono Nerd Font:size=14;3.5"
+font-4 = "JetBrainsMono Nerd Font:size=11;2.5"
 ;font-0 = fixed:pixelsize=10;1
 ;font-1 = unifont:fontformat=truetype:size=8:antialias=false;0
 ;font-2 = siji:pixelsize=10;1
 
-modules-left = launcher sep xwindow mpd
+modules-left = launcher sep xwindow
 modules-center = i3
-modules-right = xkeyboard alsa battery date sep power
+modules-right = xkeyboard pulseaudio battery eth wlan date sep power
 
 ;tray-position = right
 ;tray-padding = 2
@@ -171,16 +173,16 @@ type = internal/i3
 ws-icon-0 = 1;%{T4}%{T-}
 ws-icon-1 = 2;%{T2}%{T-}
 ws-icon-2 = 3;%{T1}%{T-}
-ws-icon-3 = 4;%{T2}%{T-}
-ws-icon-4 = 5;%{T2}%{T-}
-ws-icon-5 = 6;%{T2}ﭮ%{T-}
-ws-icon-6 = 7;%{T3}%{T-}
+ws-icon-3 = 4;%{T1}%{T-}
+ws-icon-4 = 5;%{T2}%{T-}
+ws-icon-5 = 6;%{T5}%{T-}
+ws-icon-6 = 7;%{T5}%{T-}
 ws-icon-7 = 8;%{T3}%{T-}
 ws-icon-8 = 9;%{T3}%{T-}
 ws-icon-9 = 10;%{T3}%{T-}
 ws-icon-default = " "
 format = <label-state> 
-;<label-mode>
+<label-mode>
 index-sort = true
 wrapping-scroll = false
 
@@ -215,7 +217,7 @@ label-visible-padding = ${self.label-focused-padding}
 ; urgent = Workspace with urgency hint set
 label-urgent = %icon%
 label-urgent-foreground = ${colors.alert}
-label-urgent-padding = 2
+label-urgent-padding = 1
 
 ; Separator in between workspaces
 ; label-separator = |
@@ -251,16 +253,16 @@ content = |
 ;[moduel/xbacklight]
 ;type = module/xbacklight
 ;
-;[module/xbacklight-acpi]
-;inherit = module/xbacklight
-;type = internal/backlight
-;card = intel_backlight
-;;format-prefix = "%{T2}%{T-} "
-;format = <ramp> <label>
-;label = %percentage%
-;ramp-0 = %{T2}%{T-}
-;ramp-1 = %{T2}%{T-}
-;ramp-2 = %{T2}%{T-}
+[module/xbacklight-acpi]
+; inherit = module/xbacklight
+; type = internal/backlight
+card = intel_backlight
+;format-prefix = "%{T2}%{T-} "
+format = <ramp> <label>
+label = %percentage%
+ramp-0 = %{T2}%{T-}
+ramp-1 = %{T2}%{T-}
+ramp-2 = %{T2}%{T-}
 
 [module/cpu]
 type = internal/cpu
@@ -310,14 +312,14 @@ interval = 3.0
 
 format-connected = <label-connected>
 ;format-connected-underline = #9f78e1
-label-connected = %{T2} %{T-}
-;%{A1:nmtui:}%essid%%{A} 
+label-connected = %{T2}直 %{T-}%essid%
+;%{A1:nmtui:}%essid%%{A}
 ;%essid%
 
-format-disconnected = %{T1} %{T-}
+format-disconnected = %{T2}睊 %{T-}
 ;format-disconnected = <label-disconnected>
 ;format-disconnected-underline = ${self.format-connected-underline}
-;label-disconnected = %ifname% disconnected
+label-disconnected = %ifname% disconnected
 ;label-disconnected-foreground = ${colors.foreground-alt}
 
 ramp-signal-0 = 
@@ -327,28 +329,32 @@ ramp-signal-3 = 
 ramp-signal-4 = 
 ramp-signal-foreground = ${colors.foreground-alt}
 
+click-left = "nmtui"
+
 [module/eth]
 type = internal/network
 interface = enp0s25
 interval = 3.0
 
-format-connected-underline = #55aa55
-format-connected-prefix = " "
-format-connected-prefix-foreground = ${colors.foreground-alt}
-label-connected = %local_ip%
+;format-connected-underline = #55aa55
+; format-connected-prefix = " "
+; format-connected-prefix-foreground = ${colors.foreground-alt}
+format-connected = <label-connected>
+label-connected = %{T2}%{T-}
 
-format-disconnected =
+format-disconnected = %{T2}%{T-}
+; label-disconnected = %{T2} %{T-}
 ;format-disconnected = <label-disconnected>
 ;format-disconnected-underline = ${self.format-connected-underline}
-;label-disconnected = %ifname% disconnected
+label-disconnected = %ifname% disconnected
 ;label-disconnected-foreground = ${colors.foreground-alt}
 
 [module/date]
 type = internal/date
 interval = 5
 
-date ="%{T2}%{T-} %a, %e %b "
-date-alt = "%{T2}%{T-} %Y "
+date ="%{T2}%{T-} %a, %d %b"
+date-alt = "%{T2}%{T-} %a, %d %b"
 
 time = "%{T2}%{T-} %H:%M"
 time-alt = "%{T2}%{T-} %I:%M %p"
@@ -363,10 +369,10 @@ label = %date% %time%
 type = internal/pulseaudio
 
 format-volume = <ramp-volume> <label-volume>
-label-volume = %percentage%
+label-volume = %percentage%%
 label-volume-foreground = ${root.foreground}
 
-label-muted = %{T3}%{T-}
+label-muted = %{T3}%{T-}  00%
 label-muted-foreground = #666
 
 ramp-volume-0 = %{T3}%{T-}
@@ -493,7 +499,7 @@ type = custom/text
 format-spacing = 2
 content = %{T2}%{T-}
 content-foreground = ${colors.alert}
-click-left = "sudo rofi -modi 'Powermenu: /home/hllvc/.config/rofi/scripts/rofi-powermenu.sh' -show Powermenu -theme /home/hllvc/.config/rofi/powermenu.rasi"
+click-left = "shutdown now"
 
 [module/powermenu]
 type = custom/menu

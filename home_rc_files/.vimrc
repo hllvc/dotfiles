@@ -24,6 +24,7 @@ Plugin 'neoclide/coc.nvim'
 Plugin 'flazz/vim-colorschemes'
 Plugin 'morhetz/gruvbox'
 
+Plugin 'tpope/vim-commentary'
 
 " All of your Plugins must be added before the following line
 call vundle#end()            " required
@@ -47,11 +48,12 @@ set enc=utf-8
 set incsearch
 set showmatch
 set confirm
-set number
+set relativenumber
 set ruler
 set ttyfast
 set ignorecase
 set smartcase
+set cursorline
 
 set exrc
 se secure
@@ -112,11 +114,8 @@ set signcolumn=yes
 
 " Use tab for trigger completion with characters ahead and navigate.
 " Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
-inoremap <silent><expr> <TAB>
-      \ pumvisible() ? "\<C-n>" :
-      \ <SID>check_back_space() ? "\<TAB>" :
-      \ coc#refresh()
-inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+inoremap <Nul> <c-n>
+inoremap <expr><TAB> pumvisible() ? "\<C-n>" : "\<TAB>"
 
 function! s:check_back_space() abort
 	let col = col('.') - 1
@@ -218,3 +217,36 @@ highlight LineNr     ctermbg=NONE guibg=NONE
 highlight SignColumn ctermbg=NONE guibg=NONE
 
 autocmd CursorHold * silent call CocActionAsync('highlight')
+
+let g:coc_snippet_next = '<tab>'
+
+function ShowLineNumber()
+	if &number == 1
+		set nonumber
+	else
+		set number
+	endif
+endf
+
+function ToggleRelativeNumbers()
+	if &relativenumber == 1
+		set norelativenumber
+		set number
+	else
+		set relativenumber
+		set nonumber
+	endif
+endf
+
+nnoremap <silent> <F3> :call ShowLineNumber()<CR>
+nnoremap <silent> <F4> :call ToggleRelativeNumbers()<CR>
+
+function s:updateCursorLine()
+	if &background == "dark"
+		highlight CursorLineNr guifg=#839496 guibg=#002b36 gui=NONE
+	else
+		highlight CursorLineNr guifg=#073642 guibg=#fdf6e3 gui=NONE
+	endif
+endf
+
+autocmd ColorScheme * call s:updateCursorLine()

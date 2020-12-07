@@ -19,7 +19,7 @@ for_window [title="^.*"] border pixel 0
 # Set inner/outer gaps
 gaps inner 30
 gaps outer 10
-gaps top   35
+gaps top 35
 gaps bottom 0
 # smart_gaps on
 
@@ -52,8 +52,8 @@ exec --no-startup-id nm-applet
 exec_always --no-startup-id "killall -q compton ; compton -b --config ~/.config/compton/compton.conf"
 
 # # Sreen brightness controls
-bindsym XF86MonBrightnessUp exec bash ~/.config/dunst/brightness.sh up # increase screen brightness
-bindsym XF86MonBrightnessDown exec bash ~/.config/dunst/brightness.sh down # decrease screen brightness
+bindsym XF86MonBrightnessUp exec --no-startup-id light -A 5 # increase screen brightness
+bindsym XF86MonBrightnessDown exec --no-startup-id light -U 5 # decrease screen brightness
 
 # # Touchpad controls
 bindsym XF86TouchpadToggle exec ~/.config/i3/toggletouchpad.sh # toggle touchpad
@@ -66,19 +66,25 @@ bindsym XF86AudioPrev exec playerctl previous
 
 # Use pactl to adjust volume in PulseAudio.
 # set $refresh_i3status killall -SIGUSR1 i3status
-# bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10% && $refresh_i3status
-# bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -10% && $refresh_i3status
-# bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle && $refresh_i3status
+bindsym XF86AudioRaiseVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ +10%
+bindsym XF86AudioLowerVolume exec --no-startup-id pactl set-sink-volume @DEFAULT_SINK@ -10%
+bindsym XF86AudioMute exec --no-startup-id pactl set-sink-mute @DEFAULT_SINK@ toggle
 # bindsym XF86AudioMicMute exec --no-startup-id pactl set-source-mute @DEFAULT_SOURCE@ toggle && $refresh_i3status
+# pactl -- set-sink-volume 0 +50%
+
+# Use pulseaudio-ctl
+# bindsym XF86AudioRaiseVolume exec --no-startup-id pulseaudio-ctl up 
+# bindsym XF86AudioLowerVolume exec --no-startup-id pulseaudio-ctl down
+# bindsym XF86AudioMute exec --no-startup-id pulseaudio-ctl mute
 
 # volume control using amixer and dusnt
 # bindsym XF86AudioRaiseVolume exec sudo ~/.config/dunst/volume.sh up
 # bindsym XF86AudioLowerVolume exec sudo ~/.config/dunst/volume.sh down
 # bindsym XF86AudioMute exec sudo ~/.config/dunst/volume.sh mute
 
-bindsym XF86AudioRaiseVolume exec bash ~/.config/dunst/volp.sh up
-bindsym XF86AudioLowerVolume exec bash ~/.config/dunst/volp.sh down
-bindsym XF86AudioMute exec bash ~/.config/dunst/volp.sh mute
+# bindsym XF86AudioRaiseVolume exec bash ~/.config/dunst/volp.sh up
+# bindsym XF86AudioLowerVolume exec bash ~/.config/dunst/volp.sh down
+# bindsym XF86AudioMute exec bash ~/.config/dunst/volp.sh mute
 
 # Print screen for screenshots
 bindsym Print exec scrot -q 100 '%S:%M:%H_%Y-%m-%d_$wx$h.png' -e 'mv $f ~/Pictures/Screenshots/ && dunstify "Screenshot Captured!!"'
@@ -87,18 +93,18 @@ bindsym --release Shift+Print exec scrot -sb -q 100 '%S:%M:%H_%Y-%m-%d_$wx$h.png
 floating_modifier $mod
 
 # start a terminal
-bindsym $mod+Return exec i3-sensible-terminal
+bindsym $mod+Return exec /usr/bin/alacritty
 
 # kill focused window
 bindsym $mod+Shift+q kill
 
 # start dmenu (a program launcher)
 #bindsym $mod+d exec "rofi -modi drun -show"
-bindsym $mod+d exec "rofi -theme nord -modi drun -show"
+#bindsym $mod+d exec "rofi -theme nord -modi drun -show"
 # There also is the (new) i3-dmenu-desktop which only displays applications
 # shipping a .desktop file. It is a wrapper around dmenu, so you need that
 # installed.
-# bindsym $mod+d exec --no-startup-id i3-dmenu-desktop
+bindsym $mod+d exec --no-startup-id i3-dmenu-desktop
 
 # change focus
 bindsym $mod+j focus left
@@ -192,8 +198,17 @@ bindsym $mod+Shift+9 move container to workspace number $ws9
 bindsym $mod+Shift+0 move container to workspace number $ws10
 
 #Assign programs to workspaces use xprop for class name
-#for_window [class="firefox"] move to workspace $ws3
+for_window [class="Youtube"] move to workspace $ws7
+for_window [class="firefox"] move to workspace $ws3; workspace number $ws3
+for_window [class="Google-chrome"] move to workspace $ws4; workspace $ws4
+for_window [class="Mailspring"] move to workspace $ws5
+# for_window [class="Alacritty"] move to workspace $ws1; workspace $ws1
+for_window [class="Alacritty" title="ranger"] move to workspace $ws6; workspace number $ws6
+# for_window [class="Alacritty" title="vim"] move to workspace $ws2; workspace $ws2
+
 for_window [class="feh"] fullscreen
+
+bindsym $mod+q "exec /usr/bin/alacritty --title=ranger -e ranger "
 
 # reload the configuration file
 bindsym $mod+Shift+c reload
@@ -229,7 +244,7 @@ mode "resize" {
 bindsym $mod+r mode "resize"
 
 # Playing youtube videos in from anywhere else by just copying the link
-bindsym $mod+y exec "bash /home/hllvc/.config/mpv/scripts/yt.sh"
+# bindsym $mod+y exec "bash /home/hllvc/.config/mpv/scripts/yt.sh"
 
 # Wallpaper
 exec_always --no-startup-id feh --bg-fill /home/hllvc/Pictures/Wallpapers/orange.jpg
@@ -250,7 +265,7 @@ set $white #bababa
 client.focused		$dark	$dark	$white	$white $whitetrans
 client.unfocused	$dark	$whitetrans	$dark	$white $trans
 client.focused_inactive	$trans	$dark	$white	$white $trans
-client.urgent $trans $trasn $trans $trans $trans
+client.urgent $trans $trans $trans $trans $trans
 
 # Start i3bar to display a workspace bar (plus the system information i3status
 # finds out, if available)
@@ -260,5 +275,7 @@ client.urgent $trans $trasn $trans $trans $trans
 
 exec_always --no-startup-id "xrdb ~/.Xresources"
 
-exec --no-startup-id i3-msg 'workspace $ws5; exec /usr/bin/firefox https://www.facebook.com/groups/1009757919491865 https://www.youtube.com'
-
+exec --no-startup-id /usr/bin/alacritty
+exec --no-startup-id /usr/bin/youtube
+exec --no-startup-id /usr/bin/mailspring
+exec --no-startup-id /usr/bin/firefox https://www.facebook.com/groups/eestecers

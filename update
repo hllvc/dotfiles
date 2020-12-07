@@ -1,5 +1,8 @@
 #!/bin/bash
 
 cd ~/.config
-cp -r alacritty compton gtk-3.0 i3 polybar ranger zathura dconf gtk-2.0 htop neofetch rofi ~/github/arch-install-script/.config
-cp betterlockscreenrc pulse
+cp -r alacritty compton gtk-3.0 i3 polybar ranger zathura Mailspring pulse pulseaudio-ctl dconf gtk-2.0 htop neofetch rofi ~/github/arch-install-script/.config
+cp betterlockscreenrc pavucontrol.ini user-dirs.dirs user-dirs.locale ~/github/arch-install-script/.config
+cd ~
+cp -r .gitconfig .local/share/fonts ~/github/arch-install-script/home_rc_files
+cp .extend.Xresources .gtkrc-2.0 .vimrc .Xauthority .xinitrc .Xresources .zprofile .zsh* ~/github/arch-install-script/home_rc_files
