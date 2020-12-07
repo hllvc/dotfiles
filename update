@@ -1,7 +1,8 @@
 #!/bin/sh
 
+cp /bin/update_pacman scripts
 cd ~/.config
-cp -r alacritty compton gtk-3.0 i3 polybar ranger zathura Mailspring pulse pulseaudio-ctl dconf gtk-2.0 htop neofetch rofi ~/github/arch-install-script/.config
+cp -r alacritty compton gtk-3.0 i3 polybar ranger zathura pulse pulseaudio-ctl dconf gtk-2.0 htop neofetch rofi ~/github/arch-install-script/.config
 cp betterlockscreenrc pavucontrol.ini user-dirs.dirs user-dirs.locale ~/github/arch-install-script/.config
 cd ~
 cp -r .gitconfig .local/share/fonts ~/github/arch-install-script/home_rc_files

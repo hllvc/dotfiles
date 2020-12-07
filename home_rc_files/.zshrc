@@ -121,6 +121,7 @@ alias ginit='git init'
 alias gs='git status'
 alias u='git add .'
 alias com='git commit -m'
+alias gpush='git push'
 
 alias ghub='cd ~/github'
 alias ..='cd ..'
