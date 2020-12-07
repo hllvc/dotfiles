@@ -21,6 +21,9 @@ mkdir /mnt/boot ; mount /dev/sda1 /mnt/boot
 echo 'Mounting home...'
 mkdir /mnt/home ; mount /dev/sda4 /mnt/home
 
+# configure mirrorlist
+vim /etc/pacman.d/mirrorlist
+
 # install base packages
 
 pacstrap /mnt base base-devel linux linux-headers linux-firmware intel-ucode vim

@@ -32,7 +32,7 @@ passwd
 
 yes | pacman -S reflector
 reflector --verbose --latest 5 --sort rate --save /etc/pacman.d/mirrorlist
-yes | pacman -S grub networkmanager bluez bluez-utils pulseaudio-bluetooth xdg-user-dirs bash-completion
+yes | pacman -S grub networkmanager bluez bluez-utils pulseaudio-bluetooth xdg-user-dirs
 
 # install grub
 
