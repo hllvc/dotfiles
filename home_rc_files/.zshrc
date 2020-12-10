@@ -103,10 +103,11 @@ alias zshrc="vim ~/.zshrc"
 alias ohmyzsh="vim ~/.oh-my-zsh"
 alias zsu="source .zshrc"
 
+# editor aliases
 export EDITOR=vim
 alias svim='sudo vim'
 
-alias evrc='vim ~/.vimrc'
+# other aliases
 alias mkdir='mkdir -p'
 alias ping='ping -c 5'
 alias pacman='sudo pacman'
@@ -116,6 +117,7 @@ alias q='exit'
 alias c='clear'
 alias die='shutdown now'
 
+# git aliases
 alias g='git'
 alias ginit='git init'
 alias gs='git status'
@@ -123,21 +125,22 @@ alias u='git add .'
 alias com='git commit -m'
 alias gpush='git push'
 
+# navigation aliases
 alias ghub='cd ~/github'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
 alias .....='cd ../../../..'
 
+# directory aliases
 alias rmd='rm -rfv'
 alias srmd='sudo rm -rfv'
-
 alias la='ls -a'
+alias f='find . | grep'
 
 alias topcpu='/bin/ps -eo pcpu,pid,user,args | sort -k 1 -r | head -10'
 
-alias f='find . | grep'
-
+# archive aliases
 alias mktar='tar -cvf'
 alias mkbz2='tar -cvjf'
 alias mkgz='tar -cvzf'
@@ -166,12 +169,18 @@ mkdirg () {
 	cd $1
 }
 
-mkbash () {
-	echo -e "#!/bin/bash\n\n" > $1
+mksh () {
+	echo -e "#!/bin/sh\n\n" > $1
 	sudo chmod +x $1
 	vim +3 $1
 }
 
 clip () {
 	cat $1 | xclip -selection clipboard
+}
+
+cpp () {
+	IFS=. 
+	read BEFORE AFTER <<< $1
+	c++ $1 -o $BEFORE
 }

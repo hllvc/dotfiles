@@ -26,6 +26,9 @@ Plugin 'morhetz/gruvbox'
 
 Plugin 'tpope/vim-commentary'
 
+Plugin 'lervag/vimtex'
+Plugin 'alvan/vim-closetag'
+
 " All of your Plugins must be added before the following line
 call vundle#end()            " required
 filetype plugin indent on    " required
@@ -112,10 +115,17 @@ set shortmess+=c
 " always show signcolumns
 set signcolumn=yes
 
+let g:markdown_fenced_languages = [
+      \ 'vim',
+      \ 'help'
+      \]
+
 " Use tab for trigger completion with characters ahead and navigate.
 " Use command ':verbose imap <tab>' to make sure tab is not mapped by other plugin.
-inoremap <Nul> <c-n>
-inoremap <expr><TAB> pumvisible() ? "\<C-n>" : "\<TAB>"
+
+inoremap <silent><expr> <TAB> pumvisible() ? "\<C-n>" : "<TAB>"
+inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+inoremap <silent><expr> <c-@> coc#refresh()
 
 function! s:check_back_space() abort
 	let col = col('.') - 1
@@ -123,7 +133,8 @@ function! s:check_back_space() abort
 endfunction
 
 " Use <c-space> to trigger completion.
-inoremap <silent><expr> <c-space> coc#refresh()
+let g:coc_snippet_next = '<tab>'
+let g:UltiSnipsExpandTrigger="<tab>"
 
 " Use <cr> to confirm completion, `<C-g>u` means break undo chain at current position.
 " Coc only does snippet and additional edit on confirm.
@@ -250,3 +261,10 @@ function s:updateCursorLine()
 endf
 
 autocmd ColorScheme * call s:updateCursorLine()
+
+" let g:closetag_filenames = '*.html,*.xhtml,*.phtml'
+" let g:closetag_xhtml_filenames = '*.xhtml,*.jsx'
+" let g:closetag_filetypes = 'html,xhtml,phtml'
+" let g:closetag_xhtml_filetypes = 'xhtml,jsx'
+" let g:closetag_shortcut = '>'
+" let g:closetag_close_shortcut = '<leader9>'
