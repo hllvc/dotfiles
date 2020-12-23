@@ -1,8 +1,10 @@
-# Colors
+# Colors (Gruvbox dark)
 colors:
   # Default colors
   primary:
-    background: '#262626'
+    # hard contrast: background = '#1d2021'
+    background: '#282828'
+    # soft contrast: background = '#32302f'
     foreground: '#ebdbb2'
 
   # Normal colors
@@ -15,6 +17,7 @@ colors:
     magenta: '#b16286'
     cyan:    '#689d6a'
     white:   '#a89984'
+
   # Bright colors
   bright:
     black:   '#928374'
@@ -26,7 +29,7 @@ colors:
     cyan:    '#8ec07c'
     white:   '#ebdbb2'
 
-background_opacity: 0.9
+# background_opacity: 0.9
 
 font:
   normal:

@@ -230,10 +230,10 @@ mode "resize" {
         bindsym semicolon resize grow width 10 px or 10 ppt
 
         # same bindings, but for the arrow keys
-        bindsym Left resize shrink width 20 px or 20 ppt
-        bindsym Down resize grow height 20 px or 20 ppt
-        bindsym Up resize shrink height 20 px or 20 ppt
-        bindsym Right resize grow width 20 px or 20 ppt
+        bindsym Left resize shrink width 50 px or 50 ppt
+        bindsym Down resize grow height 50 px or 50 ppt
+        bindsym Up resize shrink height 50 px or 50 ppt
+        bindsym Right resize grow width 50 px or 50 ppt
 
         # back to normal: Enter or Escape or $mod+r
         bindsym Return mode "default"
@@ -247,7 +247,7 @@ bindsym $mod+r mode "resize"
 # bindsym $mod+y exec "bash /home/hllvc/.config/mpv/scripts/yt.sh"
 
 # Wallpaper
-exec_always --no-startup-id feh --bg-fill /home/hllvc/Pictures/Wallpapers/orange.jpg
+exec_always --no-startup-id feh --bg-fill /home/hllvc/Pictures/orange.jpg
 
 # i3Lock key-map
 #bindsym $mod+x exec --no-startup-id betterlockscreen -u /home/hllvc/Downloads/wallhaven-p8drxp.jpg -l blur
@@ -255,15 +255,15 @@ exec_always --no-startup-id betterlockscreen -u /home/hllvc/Pictures/Wallpapers/
 bindsym $mod+x exec --no-startup-id betterlockscreen -l blur -t ""
 
 #Theme
-set $darktrans #E6262626
-set $whitetrans #E6bababa
+set $darktrans #26262680
+set $whitetrans #bababa80
 set $trans #00000000
 set $dark #262626
 set $white #bababa
 
 #			border		background	text		indicator
-client.focused		$dark	$dark	$white	$white $whitetrans
-client.unfocused	$dark	$whitetrans	$dark	$white $trans
+client.focused		$trans	$dark	$white	$white $whitetrans
+client.unfocused	$trans $whitetrans	$darktrans	$white $trans
 client.focused_inactive	$trans	$dark	$white	$white $trans
 client.urgent $trans $trans $trans $trans $trans
 

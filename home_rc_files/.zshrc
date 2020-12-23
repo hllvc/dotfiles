@@ -1,5 +1,5 @@
 # If you come from bash you might have to change your $PATH.
-export PATH=$HOME/.local/bin:/usr/local/bin:$PATH
+export PATH=$HOME/.gem/ruby/2.7.0/bin:$HOME/.local/bin:/usr/local/bin:$PATH
 
 # Path to your oh-my-zsh installation.
 export ZSH="/home/hllvc/.oh-my-zsh"
@@ -85,9 +85,9 @@ source $ZSH/oh-my-zsh.sh
 
 # Preferred editor for local and remote sessions
 #if [[ -n $SSH_CONNECTION ]]; then
-#  export EDITOR='vim'
+#  export EDITOR='nvim'
 #else
-#  export EDITOR='vim'
+#  export EDITOR='nvim'
 #fi
 
 # Compilation flags
@@ -99,13 +99,14 @@ source $ZSH/oh-my-zsh.sh
 # For a full list of active aliases, run `alias`.
 #
 # Example aliases
-alias zshrc="vim ~/.zshrc"
-alias ohmyzsh="vim ~/.oh-my-zsh"
+alias zshrc="nvim ~/.zshrc"
+alias ohmyzsh="nvim ~/.oh-my-zsh"
 alias zsu="source .zshrc"
 
 # editor aliases
-export EDITOR=vim
-alias svim='sudo vim'
+export EDITOR=nvim
+alias svim='sudo nvim'
+alias vim='nvim'
 
 # other aliases
 alias mkdir='mkdir -p'
@@ -184,3 +185,5 @@ cpp () {
 	read BEFORE AFTER <<< $1
 	c++ $1 -o $BEFORE
 }
+
+[ -f ~/.fzf.zsh ] && source ~/.fzf.zsh

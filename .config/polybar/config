@@ -41,8 +41,8 @@ black = #000
 white = #FFF
 
 trans = #00000000
-semi-trans-black = #E6262626
-semi-trans = #aa2E3440
+semi-trans-black = #262626
+semi-trans = #2E3440
 ;background = ${xrdb:color0:#222}
 ;background = #2e3440
 background = #262626
@@ -181,8 +181,7 @@ ws-icon-7 = 8;%{T3}%{T-}
 ws-icon-8 = 9;%{T3}%{T-}
 ws-icon-9 = 10;%{T3}%{T-}
 ws-icon-default = " "
-format = <label-state> 
-<label-mode>
+format = <label-state><label-mode>
 index-sort = true
 wrapping-scroll = false
 
@@ -196,7 +195,7 @@ label-mode-background = ${colors.primary}
 ; focused = Active workspace on focused monitor
 ;label-focused = %index%
 label-focused = %icon%
-label-focused-background = #0000
+label-focused-background = #262626
 ;${colors.background-alt}
 ;label-focused-underline= ${colors.primary}
 label-focused-foreground= #E6bababa
@@ -307,7 +306,7 @@ ramp-used-4-foreground = ${colors.aurora-1}
 
 [module/wlan]
 type = internal/network
-interface = wlo1
+interface = wlan0
 interval = 3.0
 
 format-connected = <label-connected>
@@ -319,7 +318,7 @@ label-connected = %{T2}直 %{T-}%essid%
 format-disconnected = %{T2}睊 %{T-}
 ;format-disconnected = <label-disconnected>
 ;format-disconnected-underline = ${self.format-connected-underline}
-label-disconnected = %ifname% disconnected
+label-disconnected = disconnected
 ;label-disconnected-foreground = ${colors.foreground-alt}
 
 ramp-signal-0 = 
@@ -328,8 +327,6 @@ ramp-signal-2 = 
 ramp-signal-3 = 
 ramp-signal-4 = 
 ramp-signal-foreground = ${colors.foreground-alt}
-
-click-left = "nmtui"
 
 [module/eth]
 type = internal/network
