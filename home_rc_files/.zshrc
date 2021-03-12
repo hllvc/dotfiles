@@ -1,5 +1,5 @@
 # If you come from bash you might have to change your $PATH.
-export PATH=$HOME/.gem/ruby/2.7.0/bin:$HOME/.local/bin:/usr/local/bin:$PATH
+export PATH=$HOME/.gem/ruby/2.7.0/bin:$HOME/.local/bin:/usr/local/bin:$PATH:/opt/texlive/2021/bin/x86_64-linux
 
 # Path to your oh-my-zsh installation.
 export ZSH="/home/hllvc/.oh-my-zsh"
@@ -18,7 +18,6 @@ ZSH_THEME="robbyrussell"
 
 # Uncomment the following line to use case-sensitive completion.
 # CASE_SENSITIVE="true"
-
 # Uncomment the following line to use hyphen-insensitive completion.
 # Case-sensitive completion must be off. _ and - will be interchangeable.
 # HYPHEN_INSENSITIVE="true"
@@ -99,24 +98,29 @@ source $ZSH/oh-my-zsh.sh
 # For a full list of active aliases, run `alias`.
 #
 # Example aliases
-alias zshrc="nvim ~/.zshrc"
-alias ohmyzsh="nvim ~/.oh-my-zsh"
-alias zsu="source .zshrc"
+alias zshrc='nvim ~/.zshrc'
+alias ohmyzsh='nvim ~/.oh-my-zsh'
+alias zsu='source ~/.zshrc'
 
 # editor aliases
 export EDITOR=nvim
 alias svim='sudo nvim'
 alias vim='nvim'
 
+# system aliases
+alias update_grub='sudo grub-mkconfig -o /boot/grub/grub.cfg'
+alias towin='sudo grub-reboot 2; sudo reboot'
+alias die='shutdown now'
+
 # other aliases
 alias mkdir='mkdir -p'
-alias ping='ping -c 5'
 alias pacman='sudo pacman'
-alias lock='sudo chmod -xrw'
-alias unlock='sudo chmod +xrw'
+alias lock='sudo chmod a=-xrw'
+alias unlock='sudo chmod a=+xrw'
 alias q='exit'
 alias c='clear'
-alias die='shutdown now'
+alias hspot='sudo create_ap --config /etc/create_ap.conf'
+alias hstop='sudo create_ap --stop wlan0'
 
 # git aliases
 alias g='git'
@@ -127,7 +131,11 @@ alias com='git commit -m'
 alias push='git push'
 
 # navigation aliases
-alias ghub='cd ~/github'
+alias o='xdg-open'
+alias hub='cd ~/github'
+alias doc='cd ~/Documents'
+alias pic='cd ~/Pictures'
+alias dow='cd ~/Downloads'
 alias ..='cd ..'
 alias ...='cd ../..'
 alias ....='cd ../../..'
@@ -137,9 +145,8 @@ alias .....='cd ../../../..'
 alias rmd='rm -rfv'
 alias srmd='sudo rm -rfv'
 alias la='ls -a'
+alias ll='ls -l'
 alias f='find . | grep'
-
-alias topcpu='/bin/ps -eo pcpu,pid,user,args | sort -k 1 -r | head -10'
 
 # archive aliases
 alias mktar='tar -cvf'
@@ -186,4 +193,17 @@ cpp () {
 	c++ $1 -o $BEFORE
 }
 
+mkbash () {
+	touch $1
+	echo "#!/bin/sh" > $1
+	chmod +x $1
+	vim $1
+}
+
 [ -f ~/.fzf.zsh ] && source ~/.fzf.zsh
+
+# added by travis gem
+[ ! -s /home/hllvc/.travis/travis.sh ] || source /home/hllvc/.travis/travis.sh
+
+alias hotspot='sudo create_ap --config /etc/create_ap.conf'
+alias hotstop='sudo create_ap --stop wlan0'

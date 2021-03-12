@@ -1,7 +1,6 @@
 {
   "codeLens.enable": true,
   "coc.preferences.extensionUpdateCheck": "daily",
-  "coc.preferences.formatOnType": true,
   "coc.preferences.formatOnSaveFiletypes": [
     "go",
     "python",
@@ -14,9 +13,7 @@
   "coc.source.around.firstMatch": false,
   "coc.source.file.ignoreHidden": false,
   "clangd.semanticHighlighting": true,
-  "clangd.arguments": [
-    "--background-index"
-  ],
+  "clangd.arguments": ["--background-index"],
   "diagnostic.format": "%message [%source]",
   "diagnostic.virtualText": true,
   "diagnostic.checkCurrentLine": true,
@@ -33,11 +30,7 @@
   "snippets.ultisnips.enable": false,
   "snippets.ultisnips.usePythonx": false,
   "snippets.extends": {
-    "javascriptreact": [
-      "javascript"
-    ],
-    "typescript": [
-      "javascript"
-    ]
+    "javascriptreact": ["javascript"],
+    "typescript": ["javascript"]
   }
 }

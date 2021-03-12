@@ -1,10 +1,5 @@
 configuration {
-	display-drun:    " Apps";
-	display-run:     " Packages";
-	display-window:  "缾 Windows";
-	display-ssh:	 " Ssh";
 	sidebar-mode:    true;
-	show-icons:true;
 	font: "JetBrainsMono Nerd Font 10";
 }
 
@@ -20,14 +15,14 @@ configuration {
 	separator-style:             "none";
 	hide-scrollbar:              "true";
 	margin:                      0;
-	padding:                     10;
+	padding:                     55;
 }
 
 window {
 	location:	 center;
 	anchor:		 center;
-	height:		 61.8%;
-	width:		 30%;
+	height:		 71.8%;
+	width:		 36%;
 	orientation: horizontal;
 	children:	 [mainbox];
 	background-color:  @trans;
@@ -37,26 +32,9 @@ window {
 
 mainbox {
 	spacing:  0.8em;
-	children: [ entry,listview];
+	children: [ entry ];
 	border-radius: 12px;
 	background-color:  @trans;
-}
-
-
-listview {
-	spacing: 0.5em;
-	dynamic: false;
-	cycle:   true;
-	border-radius: 12px;
-	border: 3px;
-	border-color: @dark;
-	background-color:  @white;
-}
-
-element {
-	padding: 9px;
-	border-radius: 12px;
-	background-color: @trans;
 }
 
 entry {
@@ -68,16 +46,4 @@ entry {
 	border: 3px;
 	border-color: @dark;
 	text-color:     @dark;
-}
-
-element selected.normal {
-	background-color: @dark;
-	text-color:       @white;
-	border:           0 5px solid 0 0;
-	border-color:	    @dark;
-	border-radius: 12px;
-}
-
-element-icon {
-	size: 3.65ch;
 }

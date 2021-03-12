@@ -14,6 +14,9 @@ Plug 'tpope/vim-surround'
 Plug 'tpope/vim-repeat'
 Plug 'tomtom/tcomment_vim'
 Plug 'airblade/vim-gitgutter'
+Plug 'xuhdev/vim-latex-live-preview', { 'for': 'tex' }
+" dart plugins
+Plug 'dart-lang/dart-vim-plugin'
 
 call plug#end()"Config Section
 
@@ -27,6 +30,9 @@ let g:NERDTreeStatusline = ''
 map <silent> <C-n> :NERDTreeToggle<CR>
 
 " nerdTree config END
+
+" LaTeX
+let g:tex_flavor = 'lualatex'
 
 " use alt+hjkl to move between split/vsplit panels
 
@@ -62,6 +68,7 @@ set enc=utf-8
 set incsearch
 set showmatch
 set nohlsearch
+set noswapfile
 set relativenumber
 set ruler
 set ignorecase
@@ -109,8 +116,8 @@ else
   set signcolumn=yes
 endif
 
-inoremap <silent><expr> <TAB> pumvisible() ? "\<C-n>" : "<TAB>"
-inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : "\<C-h>"
+inoremap <silent><expr> <TAB> pumvisible() ? "\<C-n>" : coc#expandableOrJumpable() ? "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" : "<TAB>"
+inoremap <expr><S-TAB> pumvisible() ? "\<C-p>" : coc#expandableOrJumpable() ? "\<C-r>=coc#rpc#request('doKeymap', ['snippets-expand-jump',''])\<CR>" : "\<C-h>"
 
 function! s:check_back_space() abort
   let col = col('.') - 1
@@ -126,8 +133,8 @@ endif
 
 " Make <CR> auto-select the first completion item and notify coc.nvim to
 " format on enter, <cr> could be remapped by other vim plugin
-inoremap <silent><expr> <cr> pumvisible() ? coc#_select_confirm()
-                              \: "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+inoremap <silent><expr> <cr> pumvisible() ? coc#_select_confirm() : "\<C-g>u\<CR>\<c-r>=coc#on_enter()\<CR>"
+
 
 " GoTo code navigation.
 nmap <silent> gd <Plug>(coc-definition)
@@ -137,8 +144,6 @@ nmap <silent> gr <Plug>(coc-references)
 
 " Use K to show documentation in preview window.
 nnoremap <silent> K :call <SID>show_documentation()<CR>
-
-
 function! s:show_documentation()
   if (index(['vim','help'], &filetype) >= 0)
     execute 'h '.expand('<cword>')
@@ -200,16 +205,13 @@ function! TermToggle(height)
 endfunction
 
 " Toggle terminal on/off (neovim)
-nnoremap <A-t> :call TermToggle(12)<CR>
-inoremap <A-t> <Esc>:call TermToggle(12)<CR>
-tnoremap <A-t> <C-\><C-n>:call TermToggle(12)<CR>
+nnoremap <silent><A-t> :call TermToggle(12)<CR>
+inoremap <silent><A-t> <Esc>:call TermToggle(12)<CR>
+tnoremap <silent><A-t> <C-\><C-n>:call TermToggle(12)<CR>
 " 
 " " Terminal go back to normal mode
 " tnoremap <Esc> <C-\><C-n>
 " tnoremap :q! <C-\><C-n>:q!<CR>
-
-" custom pairs
-autocmd FileType tex let b:coc_pairs = [["$", "$"]]
 
 let g:NERDTreeGitStatusIndicatorMapCustom = {
                 \ 'Modified'  :'✹',
@@ -236,5 +238,20 @@ function! GitStatus()
   let [a,m,r] = GitGutterGetHunkSummary()
   return printf('+%d ~%d -%d', a, m, r)
 endfunction
+
 set statusline+=%{GitStatus()}
 let g:gitgutter_highlight_linenrs = 1
+
+" snippets
+" let g:coc_snippet_next = '<TAB>'
+" let g:coc_snippet_prev = '<S-TAB>'
+
+" additional remaps
+inoremap jk <ESC>
+
+" live preview latex
+let g:livepreview_previewer = 'zathura'
+let g:livepreview_cursorhold_recompile = 0
+
+" custom pairs for latex
+autocmd FileType tex let b:coc_pairs = [["$", "$"]]

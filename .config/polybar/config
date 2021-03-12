@@ -62,9 +62,9 @@ height = 30
 offset-x = 2.5%
 ;offset-x = 1%
 ;offset-y = 1%
-offset-y = 1.5%
+offset-y = 1.0%
 radius = 8.0
-;fixed-center = true
+fixed-center = true
 
 background = ${colors.semi-trans-black}
 foreground = ${colors.foreground}
@@ -73,7 +73,7 @@ line-size = 3
 line-color = #f00
 
 border-size = 0
-border-color = #00000000
+border-color = #bababa
 
 padding-left = 2
 padding-right = 2
@@ -92,7 +92,7 @@ font-4 = "JetBrainsMono Nerd Font:size=11;2.5"
 
 modules-left = launcher sep xwindow
 modules-center = i3
-modules-right = xkeyboard pulseaudio battery eth wlan date sep power
+modules-right = xkeyboard pulseaudio battery eth wlan date sep restart power
 
 ;tray-position = right
 ;tray-padding = 2
@@ -111,6 +111,10 @@ scroll-down = i3wm-wsprev
 
 cursor-click = pointer
 cursor-scroll = 
+
+[module/networkspeedup]
+type=internal/network
+interface=
 
 [module/launcher]
 type=custom/text
@@ -175,9 +179,9 @@ ws-icon-1 = 2;%{T2}%{T-}
 ws-icon-2 = 3;%{T1}%{T-}
 ws-icon-3 = 4;%{T1}%{T-}
 ws-icon-4 = 5;%{T2}%{T-}
-ws-icon-5 = 6;%{T5}%{T-}
-ws-icon-6 = 7;%{T5}%{T-}
-ws-icon-7 = 8;%{T3}%{T-}
+ws-icon-5 = 6;%{T5}ﭮ%{T-}
+ws-icon-6 = 7;%{T5}%{T-}
+ws-icon-7 = 8;%{T5}%{T-}
 ws-icon-8 = 9;%{T3}%{T-}
 ws-icon-9 = 10;%{T3}%{T-}
 ws-icon-default = " "
@@ -307,7 +311,7 @@ ramp-used-4-foreground = ${colors.aurora-1}
 [module/wlan]
 type = internal/network
 interface = wlan0
-interval = 3.0
+interval = 1.0
 
 format-connected = <label-connected>
 ;format-connected-underline = #9f78e1
@@ -366,6 +370,7 @@ label = %date% %time%
 type = internal/pulseaudio
 
 format-volume = <ramp-volume> <label-volume>
+; format-volume = <bar-volume>
 label-volume = %percentage%%
 label-volume-foreground = ${root.foreground}
 

@@ -1,19 +1,19 @@
 
 set font                        "JetBrainsMono Nerd Font 10"
 
-set default-bg                  "#2E3440"
-set default-fg                  "#3B4252"
+set default-bg                  "#262626"
+set default-fg                  "#bababa"
 
-set statusbar-fg                "#D8DEE9"
-set statusbar-bg                "#434C5E"
+set statusbar-fg                "#262626"
+set statusbar-bg                "#bababa"
 
-set index-bg                   "#2E3440" 
-set index-fg                   "#ECEFF4" 
+set index-bg                   "#262626" 
+set index-fg                   "#bababa" 
 set index-active-bg             "#5e81ac" 
 set index-active-fg             "#ECEFF4" 
 
-set inputbar-bg                 "#2E3440"
-set inputbar-fg                 "#8FBCBB"
+set inputbar-bg                 "#262626"
+set inputbar-fg                 "#bababa"
 
 set notification-bg             "#2E3440"
 set notification-fg             "#8FBCBB"
@@ -33,8 +33,8 @@ set completion-fg               "#81A1C1"
 set completion-highlight-fg     "#8FBCBB"
 set completion-highlight-bg     "#81A1C1"
 
-set recolor-lightcolor          "#2E3440"
-set recolor-darkcolor           "#ECEFF4"
+set recolor-lightcolor          "#262626"
+set recolor-darkcolor           "#bababa"
 
 set recolor                     "true"
 set recolor-keephue             "true"
