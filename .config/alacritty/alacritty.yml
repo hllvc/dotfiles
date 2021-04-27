@@ -2,60 +2,88 @@
 colors:
   # Default colors
   primary:
-    # hard contrast: background = '#1d2021'
-    background: '#282828'
-    # soft contrast: background = '#32302f'
-    foreground: '#ebdbb2'
 
-  # Normal colors
-  normal:
-    black:   '#282828'
-    red:     '#cc241d'
-    green:   '#98971a'
-    yellow:  '#d79921'
-    blue:    '#458588'
-    magenta: '#b16286'
-    cyan:    '#689d6a'
-    white:   '#a89984'
+    background: '#1d2021'
+    foreground: '#d4be98'
 
-  # Bright colors
-  bright:
-    black:   '#928374'
-    red:     '#fb4934'
-    green:   '#b8bb26'
-    yellow:  '#fabd2f'
-    blue:    '#83a598'
-    magenta: '#d3869b'
-    cyan:    '#8ec07c'
-    white:   '#ebdbb2'
+    normal:
+      black:   '#32302f'
+      red:     '#ea6962'
+      green:   '#a9b665'
+      yellow:  '#d8a657'
+      blue:    '#7daea3'
+      magenta: '#d3869b'
+      cyan:    '#89b482'
+      white:   '#d4be98'
+    bright:
+      black:   '#32302f'
+      red:     '#ea6962'
+      green:   '#a9b665'
+      yellow:  '#d8a657'
+      blue:    '#7daea3'
+      magenta: '#d3869b'
+      cyan:    '#89b482'
+      white:   '#d4be98'
+
+  #classic gruvbox
+
+  # background: '#282828'
+  # foreground: '#ebdbb2'
+
+  # # Normal colors
+  # normal:
+    # black:   '#282828'
+    # red:     '#cc241d'
+    # green:   '#98971a'
+    # yellow:  '#d79921'
+    # blue:    '#458588'
+    # magenta: '#b16286'
+    # cyan:    '#689d6a'
+    # white:   '#a89984'
+
+  # # Bright colors
+  # bright:
+    # black:   '#928374'
+    # red:     '#fb4934'
+    # green:   '#b8bb26'
+    # yellow:  '#fabd2f'
+    # blue:    '#83a598'
+    # magenta: '#d3869b'
+    # cyan:    '#8ec07c'
+    # white:   '#ebdbb2'
 
 # background_opacity: 0.9
 
 font:
   normal:
-    family: "JetBrainsMono Nerd Font"
+    family: "FiraCode Nerd Font"
     style: Regular
   bold:
-    family: "JetBrainsMono Nerd Font"
+    family: "FiraCode Nerd Font"
     style: Bold
   italic:
-    family: "JetBrainsMono Nerd Font"
+    family: "FiraCode Nerd Font"
     style: Italic
   bold_italic:
-    family: "JetBrainsMono Nerd Font"
+    family: "FiraCode Nerd Font"
     style: Bold Italic
 
   # Point size
-  size: 9.0
+  size: 10.0
 
   offset:
     x: 0
     y: 0
 
 window:
+  dimensions:
+    columns: 80
+    lines: 24
   padding:
-    x: 5
-    y: 5
+    x: 0
+    y: 0
+    dynamic_padding: false
+    decorations: full
 
 scrolling:
   # Maximum number of lines in the scrollback buffer.
@@ -83,8 +111,8 @@ live_config_reload: true
 window.dynamic_title: false
 
 key_bindings:
-  - { key: V, mods: Control|Shift, action: Paste }
-  - { key: C, mods: Control|Shift, action: Copy }
+  - { key: V, mods: Super, action: Paste }
+  - { key: C, mods: Super, action: Copy }
   - { key: Key0, mods: Control, action: ResetFontSize }
   - { key: Equals, mods: Control, action: IncreaseFontSize }
   - { key: PageUp, action: ScrollPageUp }

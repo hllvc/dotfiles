@@ -1,4 +1,0 @@
-#!/bin/sh
-mv .config ~
-mv home_rc_files/fonts ~/.local/share
-mv home_rc_files/* ~

@@ -1,43 +1,50 @@
-#!/bin/bash
+#!/bin/sh
+echo -e "Hi. This is prototype script for seting up arch linux without DE.\n"
+echo -n "To continue with installation press [Enter] or type [q] to exit > "; read enter
+
+if [[ $enter = 'q' ]]; then echo "exiting..."; exit; fi
 
 # setting timedate
 
-timedate set-ntp true
+echo -e "\n* setting time and date with \`timedate set-ntp true\`"
+# timedate set-ntp true
 
 #format partitions
 
-echo 'Formating partitions'
-yes | mkfs.ext4 /dev/sda1
-yes | mkfs.ext4 /dev/sda3
-yes | mkfs.ext4 /dev/sda4
-mkswap /dev/sda2 ; swapon /dev/sda2
+echo -e "Format partitions\n"
 
-# mount partitions
+# echo 'Formating partitions'
+# yes | mkfs.ext4 /dev/sda1
+# yes | mkfs.ext4 /dev/sda3
+# yes | mkfs.ext4 /dev/sda4
+# mkswap /dev/sda2 ; swapon /dev/sda2
 
-echo 'Mounting root...'
-mount /dev/sda3 /mnt
-echo 'Mounting boot...'
-mkdir /mnt/boot ; mount /dev/sda1 /mnt/boot
-echo 'Mounting home...'
-mkdir /mnt/home ; mount /dev/sda4 /mnt/home
+# # mount partitions
 
-# configure mirrorlist
-vim /etc/pacman.d/mirrorlist
+# echo 'Mounting root...'
+# mount /dev/sda3 /mnt
+# echo 'Mounting boot...'
+# mkdir /mnt/boot ; mount /dev/sda1 /mnt/boot
+# echo 'Mounting home...'
+# mkdir /mnt/home ; mount /dev/sda4 /mnt/home
 
-# install base packages
+# # configure mirrorlist
+# vim /etc/pacman.d/mirrorlist
 
-pacstrap /mnt base base-devel linux linux-headers linux-firmware intel-ucode vim
+# # install base packages
 
-# generate fstab
+# pacstrap /mnt base base-devel linux linux-headers linux-firmware intel-ucode vim
 
-echo 'Generating fstab...'
-genfstab -U /mnt >> /mnt/etc/fstab
+# # generate fstab
 
-# move script for root
+# echo 'Generating fstab...'
+# genfstab -U /mnt >> /mnt/etc/fstab
 
-cp backup/install-root.sh /mnt
+# # move script for root
 
-# change root to /mnt
+# cp backup/install-root.sh /mnt
 
-echo 'Changing root...'
-arch-chroot /mnt
+# # change root to /mnt
+
+# echo 'Changing root...'
+# arch-chroot /mnt

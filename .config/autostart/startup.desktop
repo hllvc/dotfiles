@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Startup Script
+GenericName=Startup Script
+Comment=Startup script for few terminal apps
+Icon=/usr/share/icons/kora/mimetypes/scalable/shellscript.svg
+Exec=/home/hllvc/Documents/commands/startup
+Terminal=false
+Keywords=startup
