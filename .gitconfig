@@ -1,0 +1,39 @@
+[user]
+  name = hllvc
+  email = github@hllvc.com
+  signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIClGTS44TwWwnZ5FcKpNKZh7cC9XQqRhk+vA6lOxRYmk
+[includeIf "gitdir:~/.git/stackguardian/"]
+  path = ~/.git/stackguardian/.gitconfig
+[core]
+  pager = less -x2
+  editor = nvim
+  sshCommand = ssh -i ~/.ssh/git_keys/personal_git.pub
+; [includeIf "gitdir:~/.git/stackguardian/"]
+;   path = ~/.git/stackguardian/.gitconfig
+[gpg]
+  format = ssh
+[gpg "ssh"]
+  program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
+[commit]
+  gpgsign = true
+[push]
+  default = simple
+  autoSetupRemote = true
+[pull]
+  rebase = true
+  ff = only
+[fetch]
+  prune = true
+[merge]
+  ff = false
+[grep]
+  lineNumber = true
+[checkout]
+  defaultRemote = origin
+[filter "lfs"]
+  required = true
+  clean = git-lfs clean -- %f
+  smudge = git-lfs smudge -- %f
+  process = git-lfs filter-process
+[init]
+  defaultBranch = develop
