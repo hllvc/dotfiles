@@ -1,0 +1,93 @@
+MY_GIT_DIR="$HOME/.git"
+
+# personal directories
+alias gp='cd $MY_GIT_DIR/private'
+alias gd="$GOPATH/src/github.com/hllvc"
+
+# work directories
+alias sat="cd $MY_GIT_DIR/satlantis"
+alias sg="cd $MY_GIT_DIR/stackguardian"
+
+# zsh aliases
+alias zshrc='nvim ~/.zshrc'
+alias pp='nvim ~/.config/nvim/plugins'
+alias shell='cd ~/.shell'
+alias scripts='cd ~/.shell/scripts'
+
+# editor
+alias svi="sudo nvim"
+
+# permissions
+alias lock='sudo chmod a=-xrw'
+alias unlock='sudo chmod a=+xrw'
+alias mkex='sudo chmod +x'
+
+alias q='exit'
+alias h='history'
+alias ql='quick-look'
+
+alias confetti='open raycast://extensions/raycast/raycast/confetti'
+
+# 1pass
+alias jira="op run -- jira"
+
+# terraform
+alias tf='terraform'
+alias c='container'
+
+# git aliases
+alias gs='git status -bs .'
+alias gss='git status -bs'
+alias gso='git status -bs . | awk "{print \$2}" | fzf | xargs nvim -'
+alias gsso='git status -bs | awk "{print \$2}" | fzf | xargs nvim -'
+alias gl='git log --oneline'
+alias gg='git branch'
+alias pru='gh pr view --json url | jq -r ".url"'
+alias prucp='gh pr view --json url | jq -r ".url" | tr -d "\n" | pbcopy'
+alias gpr='git pull --rebase origin $(git branch --show-current)'
+
+alias raycast='cd $MY_GIT_DIR/raycast'
+alias doc='cd ~/Documents'
+alias pic='cd ~/Pictures'
+alias dw='cd ~/Downloads'
+# alias th='cd ~/.themes'
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+
+# directory aliases
+alias rmd='rm -rfv'
+alias rm='rm -v'
+alias mv='mv -v'
+alias cp='cp -v'
+alias srmd='sudo rm -rfv'
+alias la='ls -AF'
+alias ls='ls -FpG'
+alias ll='ls -lhF'
+
+alias rp='realpath'
+
+# tmux
+alias ttl='tmux list-sessions'
+# alias tt='_tt'
+
+alias to='echo $PWD > /tmp/.current_dir'
+alias goto='cd $(cat /tmp/.current_dir)'
+
+# kubectl
+alias kx='kubectx'
+alias kns='kubens'
+alias k='kubectl'
+
+# other
+alias nq='networkQuality'
+
+alias ghostty='/Applications/Ghostty.app/Contents/MacOS/ghostty'
+
+# alias work="
+# open -na Ghostty.app --args \
+#   --config-default-files=false \
+#   --config-file=$HOME/.config/ghostty/tmux/init.conf \
+#   -e /Users/hllvc/.shell/scripts/init/tt.sh stackguardian
+# "
