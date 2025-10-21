@@ -189,3 +189,73 @@ vim.api.nvim_create_autocmd("FileChangedShellPost", {
     vim.cmd("checktime")
   end,
 })
+
+
+-- Define a reusable function to update lualine configuration
+local function update_lualine_config(config_update)
+  local lualine_require = require("lualine_require")
+  local modules = lualine_require.lazy_require({ config_module = "lualine.config" })
+
+  local current_config = modules.config_module.get_config()
+
+  -- Allow passing a function to modify the config
+  if type(config_update) == "function" then
+    config_update(current_config)
+  elseif type(config_update) == "table" then
+    -- Merge the provided config updates
+    for section, value in pairs(config_update) do
+      current_config.sections[section] = value
+    end
+  end
+
+  require("lualine").setup(current_config)
+end
+
+-- Create an augroup for buffer-related events
+-- local buffer_lualine_group = vim.api.nvim_create_augroup("BufferLualineConfig", { clear = true })
+--
+-- -- Adjust winbar based on number of buffers
+-- vim.api.nvim_create_autocmd({"BufNew", "BufAdd", "BufDelete"}, {
+--   group = buffer_lualine_group,
+--   callback = function()
+--     local total_buffers = vim.fn.bufnr('%')
+--     if total_buffers > 1 then
+--       update_lualine_config(function(config)
+--         -- config.tabline.lualine_c = {
+--         --   {
+--         --     "filename",
+--         --     path = 3,
+--         --   },
+--         -- }
+--         config.winbar.lualine_c = {
+--           {
+--             "buffers",
+--             mode = 0,
+--             show_modified_status = false,
+--           },
+--           "diff",
+--           "diagnostics"
+--         }
+--         -- config.tabline.lualine_c = {
+--         --   {
+--         --     "filename",
+--         --       path = 1
+--         --   },
+--         --   "diff",
+--         --   "diagnostics"
+--         -- }
+--       end)
+--     else
+--       update_lualine_config(function(config)
+--         config.winbar.lualine_c = {
+--           -- {
+--           --   "file",
+--           --   mode = 1,
+--           -- },
+--           -- "diff",
+--           -- "diagnostics"
+--         }
+--       end)
+--     end
+--   end
+-- })

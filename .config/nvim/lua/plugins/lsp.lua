@@ -402,7 +402,7 @@ return {
       },
       signs_staged_enable = false,
       -- Enable line number highlighting (equivalent to gitgutter highlight_linenrs)
-      numhl = true,
+      numhl = false,
       on_attach = function(buffer)
         local gs = package.loaded.gitsigns
 
