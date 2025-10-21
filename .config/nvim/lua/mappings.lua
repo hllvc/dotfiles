@@ -5,6 +5,8 @@ local opts = { noremap = true, silent = true }
 -- Leader keys are now set in init.lua before lazy loads
 
 -- Basic mappings
+-- Disable space in normal mode to prevent cursor movement (space is leader key)
+keymap.set("n", " ", "<Nop>", opts)
 keymap.set("i", "jk", "<Esc>", opts)
 keymap.set("i", "JK", "<Esc>", opts)
 keymap.set("n", "<leader><leader>", ":w<CR>", opts)
@@ -30,11 +32,15 @@ keymap.set("v", ">", ">gv", opts)
 -- Select what was pasted
 keymap.set("n", "<Leader>p", "V`]", opts)
 
+-- Next buffer
+keymap.set("n", "L", ":bnext<CR>", opts)
+keymap.set("n", "H", ":bprevious<CR>", opts)
+
 -- Switch between current and last buffer
-keymap.set("n", "<leader>n", "<C-^>", opts)
+keymap.set("n", "<leader>l", "<C-^>", opts)
 
 -- Close current buffer
-keymap.set("n", "<Leader>w", ":bd<CR>", opts)
+keymap.set("n", "<Leader>bx", ":bdelete<CR>", opts)
 
 -- Enable . command in visual mode
 keymap.set("v", ".", ":normal .<CR>", opts)

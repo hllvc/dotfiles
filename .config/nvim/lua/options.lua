@@ -70,6 +70,7 @@ opt.cmdheight = 1
 opt.title = true
 opt.showmatch = true
 opt.updatetime = 250
+opt.timeoutlen = 300
 opt.backup = true
 opt.writebackup = true
 opt.backupdir = vim.env.HOME .. "/.nvim-backups/"

@@ -52,23 +52,43 @@ return {
           -- section_separators = { left = '', right = '' },
           component_separators = { left = '', right = '' }
         },
-        tabline = {},
+        -- tabline = {
+        --   lualine_a = { "branch" },
+        --   lualine_c = {
+        --     {
+        --       "filename",
+        --       path = 3,
+        --     },
+        --     -- "diff",
+        --     -- "diagnostics"
+        --   },
+        -- },
         winbar = {
-          lualine_b = { "branch" },
+          -- lualine_a = { "branch" },
           lualine_c = {
             {
-              "filename",
-              path = 1,
+              "buffers",
+              mode = 0,
+              show_filename_only = false,
+              show_modified_status = false,
             },
-            "diff",
-            "diagnostics"
+            -- "diff",
+            -- "diagnostics"
           },
+          -- lualine_c = {
+          --   {
+          --     "filename",
+          --     path = 1,
+          --   },
+          --   "diff",
+          --   "diagnostics"
+          -- },
           lualine_x = {
             {
               "filetype",
               icon = {
-                align = 'right'
-              }
+                align = 'right',
+              },
             },
           }
         },
@@ -82,15 +102,23 @@ return {
         },
         sections = {
           lualine_a = { "mode" },
-          lualine_b = {
-            {
-              "buffers",
-              mode = 0,
-              show_modified_status = false,
-            }
+          lualine_b = { "branch" },
+          -- lualine_b = {},
+          -- lualine_b = {
+          --   {
+          --     "buffers",
+          --     mode = 0,
+          --     show_modified_status = false,
+          --   }
+          -- },
+          lualine_c = {
+            "diff",
+            "diagnostics"
           },
-          lualine_c = {},
           lualine_x = {},
+          -- lualine_x = {
+          --   "diagnostics"
+          -- },
           lualine_y = {},
           lualine_z = {}
         },
