@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 
-script="$1"
+scriptName="$1"
 
-if [[ -z "$script" ]]; then
-  read -p "Script name: " scriptName
+if [[ -z "$scriptName" ]]; then
+  read -rp "Script name: " scriptName
 fi
 
-if [[ ! "$script" == *.sh ]]; then
-  script="$script.sh"
+if [[ ! "$scriptName" == *.sh ]]; then
+  scriptName="$scriptName.sh"
 fi
-readonly script
+readonly scriptName
 
-printf "#!/usr/bin/env bash\n\n" > $script
-chmod +x $script
-nvim +3 $script
+printf "#!/usr/bin/env bash\n\n" > "$scriptName"
+chmod +x "$scriptName"
+nvim +3 "$scriptName"
