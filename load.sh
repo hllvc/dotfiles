@@ -47,10 +47,10 @@ _launchctl_unload() { #{{{
 #}}}: _launchctl_unload
 
 main() { #{{{
-  # _launchctl_unload "$@"
+  _launchctl_unload "$@"
 
   stow -v -t "$HOME" .
-  # _launchctl_load
+  _launchctl_load
 }
 #}}}: main
 
