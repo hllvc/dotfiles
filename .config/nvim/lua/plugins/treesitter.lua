@@ -23,6 +23,7 @@ return {
         "css",
         "dockerfile",
         "go",
+        "gotmpl",
         "html",
         "javascript",
         "json",

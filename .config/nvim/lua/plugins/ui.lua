@@ -20,19 +20,9 @@ return {
     "nvim-lualine/lualine.nvim",
     event = "VeryLazy",
     dependencies = { 'nvim-tree/nvim-web-devicons' },
-    -- init = function()
-    --   vim.g.lualine_laststatus = vim.o.laststatus
-    --   if vim.fn.argc(-1) > 0 then
-    --     vim.o.statusline = " "
-    --   else
-    --     vim.o.laststatus = 0
-    --   end
-    -- end,
     opts = function()
       local lualine_require = require("lualine_require")
       lualine_require.require = require
-
-      -- vim.o.laststatus = vim.g.lualine_laststatus
 
       local auto_theme_custom = require('lualine.themes.auto')
       auto_theme_custom.normal.c.bg = "#1B1B1B"
@@ -49,22 +39,9 @@ return {
           theme = auto_theme_custom,
           globalstatus = true,
           disabled_filetypes = { statusline = { "dashboard", "alpha", "starter" } },
-          -- section_separators = { left = '', right = '' },
           component_separators = { left = '', right = '' }
         },
-        -- tabline = {
-        --   lualine_a = { "branch" },
-        --   lualine_c = {
-        --     {
-        --       "filename",
-        --       path = 3,
-        --     },
-        --     -- "diff",
-        --     -- "diagnostics"
-        --   },
-        -- },
         winbar = {
-          -- lualine_a = { "branch" },
           lualine_c = {
             {
               "buffers",
@@ -72,17 +49,7 @@ return {
               show_filename_only = false,
               show_modified_status = false,
             },
-            -- "diff",
-            -- "diagnostics"
           },
-          -- lualine_c = {
-          --   {
-          --     "filename",
-          --     path = 1,
-          --   },
-          --   "diff",
-          --   "diagnostics"
-          -- },
           lualine_x = {
             {
               "filetype",
@@ -103,22 +70,11 @@ return {
         sections = {
           lualine_a = { "mode" },
           lualine_b = { "branch" },
-          -- lualine_b = {},
-          -- lualine_b = {
-          --   {
-          --     "buffers",
-          --     mode = 0,
-          --     show_modified_status = false,
-          --   }
-          -- },
           lualine_c = {
             "diff",
             "diagnostics"
           },
           lualine_x = {},
-          -- lualine_x = {
-          --   "diagnostics"
-          -- },
           lualine_y = {},
           lualine_z = {}
         },
@@ -134,7 +90,6 @@ return {
     event = "VeryLazy",
     dependencies = {
       "MunifTanjim/nui.nvim",
-      "rcarriga/nvim-notify",
     },
     opts = {
       lsp = {
@@ -229,7 +184,6 @@ return {
             { action = "Telescope oldfiles", desc = " Recent files", icon = " ", key = "r" },
             { action = "Telescope live_grep", desc = " Find text", icon = " ", key = "g" },
             { action = "e $MYVIMRC", desc = " Config", icon = " ", key = "c" },
-            { action = 'lua require("persistence").load()', desc = " Restore Session", icon = " ", key = "s" },
             { action = "LazyExtras", desc = " Lazy Extras", icon = " ", key = "x" },
             { action = "Lazy", desc = " Lazy", icon = "󰒲 ", key = "l" },
             { action = "qa", desc = " Quit", icon = " ", key = "q" },
@@ -265,33 +219,6 @@ return {
   { "nvim-lua/plenary.nvim",       lazy = true },
   { "nvim-tree/nvim-web-devicons", lazy = true },
   { "MunifTanjim/nui.nvim",        lazy = true },
-
-  -- Notifications
-  {
-    "rcarriga/nvim-notify",
-    keys = {
-      {
-        "<leader>un",
-        function()
-          require("notify").dismiss({ silent = true, pending = true })
-        end,
-        desc = "Dismiss all Notifications",
-      },
-    },
-    opts = {
-      timeout = 1000,
-      max_height = function()
-        return math.floor(vim.o.lines * 0.25)
-      end,
-      max_width = function()
-        return math.floor(vim.o.columns * 0.4)
-      end,
-      level = vim.log.levels.WARN, -- Only show WARN and ERROR notifications
-    },
-    init = function()
-      vim.notify = require("notify")
-    end,
-  },
 
   -- Which-key
   {

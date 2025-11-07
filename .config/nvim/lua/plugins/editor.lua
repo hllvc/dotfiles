@@ -13,7 +13,56 @@ return {
   {
     "windwp/nvim-autopairs",
     event = "InsertEnter",
-    opts = {},
+    config = function()
+      local npairs = require("nvim-autopairs")
+      local Rule = require("nvim-autopairs.rule")
+      local cond = require("nvim-autopairs.conds")
+
+      -- Setup nvim-autopairs with default options
+      npairs.setup({})
+
+      -- Define the brackets you want this behavior for
+      local brackets = { { "(", ")" }, { "[", "]" }, { "{", "}" } }
+
+      -- Add rule for space inside brackets
+      npairs.add_rules({
+        Rule(" ", " ")
+          :with_pair(function(opts)
+            -- Check if we are inserting a space inside (), [], or {}
+            local pair = opts.line:sub(opts.col - 1, opts.col)
+            return vim.tbl_contains({
+              brackets[1][1] .. brackets[1][2], -- ()
+              brackets[2][1] .. brackets[2][2], -- []
+              brackets[3][1] .. brackets[3][2], -- {}
+            }, pair)
+          end)
+          :with_move(cond.none())
+          :with_cr(cond.none())
+          -- Delete both spaces when cursor is between them: ( | )
+          :with_del(function(opts)
+            local col = vim.api.nvim_win_get_cursor(0)[2]
+            local context = opts.line:sub(col - 1, col + 2)
+            return vim.tbl_contains({
+              brackets[1][1] .. "  " .. brackets[1][2], -- (  )
+              brackets[2][1] .. "  " .. brackets[2][2], -- [  ]
+              brackets[3][1] .. "  " .. brackets[3][2], -- {  }
+            }, context)
+          end),
+      })
+
+      -- Add rules for moving past closing brackets with spaces
+      for _, bracket in pairs(brackets) do
+        npairs.add_rules({
+          Rule(bracket[1] .. " ", " " .. bracket[2])
+            :with_pair(cond.none())
+            :with_move(function(opts)
+              return opts.char == bracket[2]
+            end)
+            :with_del(cond.none())
+            :use_key(bracket[2]),
+        })
+      end
+    end,
   },
 
   -- Commenting
@@ -56,34 +105,6 @@ return {
     },
   },
 
-  -- Indent guides
-  -- {
-  --   "lukas-reineke/indent-blankline.nvim",
-  --   event = { "BufReadPost", "BufNewFile" },
-  --   opts = {
-  --     indent = {
-  --       char = "│",
-  --       tab_char = "│",
-  --     },
-  --     scope = { enabled = false },
-  --     exclude = {
-  --       filetypes = {
-  --         "help",
-  --         "alpha",
-  --         "dashboard",
-  --         "Trouble",
-  --         "trouble",
-  --         "lazy",
-  --         "mason",
-  --         "notify",
-  --         "toggleterm",
-  --         "lazyterm",
-  --       },
-  --     },
-  --   },
-  --   main = "ibl",
-  -- },
-
   -- Better text objects
   {
     "echasnovski/mini.ai",
@@ -105,12 +126,6 @@ return {
     end,
   },
 
-  -- Match tags
-  -- {
-  --   "gregsexton/MatchTag",
-  --   ft = "html",
-  -- },
-
   -- Auto close tags
   {
     "windwp/nvim-ts-autotag",
@@ -125,50 +140,14 @@ return {
   },
 
   -- Match up
-  -- {
-  --   "andymass/vim-matchup",
-  --   event = { "BufReadPost", "BufNewFile" },
-  --   init = function()
-  --     vim.g.matchup_matchparen_offscreen = { method = "popup" }
-  --     vim.g.matchup_surround_enabled = 1
-  --   end,
-  -- },
-
-  -- Last place
-  -- {
-  --   "farmergreg/vim-lastplace",
-  --   event = "BufReadPre",
-  -- },
-
-  -- Session management
-  -- {
-  --   "folke/persistence.nvim",
-  --   event = "BufReadPre",
-  --   opts = { options = vim.opt.sessionoptions:get() },
-  --   keys = {
-  --     {
-  --       "<leader>qs",
-  --       function()
-  --         require("persistence").load()
-  --       end,
-  --       desc = "Restore Session",
-  --     },
-  --     {
-  --       "<leader>ql",
-  --       function()
-  --         require("persistence").load({ last = true })
-  --       end,
-  --       desc = "Restore Last Session",
-  --     },
-  --     {
-  --       "<leader>qd",
-  --       function()
-  --         require("persistence").stop()
-  --       end,
-  --       desc = "Don't Save Current Session",
-  --     },
-  --   },
-  -- },
+  {
+    "andymass/vim-matchup",
+    event = { "BufReadPost", "BufNewFile" },
+    init = function()
+      vim.g.matchup_matchparen_offscreen = { method = "popup" }
+      vim.g.matchup_surround_enabled = 1
+    end,
+  },
 
   -- Better diagnostics list and others
   {
@@ -268,6 +247,7 @@ return {
         typescriptreact = { "prettierd", "prettier", stop_after_first = true },
         json = { "prettierd", "prettier", stop_after_first = true },
         yaml = { "prettierd", "prettier", stop_after_first = true },
+        helm = { "prettierd", "prettier", stop_after_first = true },
         markdown = { "prettierd", "prettier", stop_after_first = true },
         html = { "prettierd", "prettier", stop_after_first = true },
         css = { "prettierd", "prettier", stop_after_first = true },
