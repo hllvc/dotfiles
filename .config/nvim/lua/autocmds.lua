@@ -91,6 +91,25 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile", "BufCreate" }, {
   end,
 })
 
+-- Helm chart filetype detection
+vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
+  group = augroup("helm_detection"),
+  pattern = { "*/templates/*.yaml", "*/templates/*.tpl" },
+  callback = function()
+    vim.bo.filetype = "helm"
+  end,
+})
+
+-- Helm Chart.yaml and values files detection
+vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
+  group = augroup("helm_yaml_files"),
+  pattern = { "*/Chart.yaml", "*/values.yaml", "*/values-*.yaml" },
+  callback = function()
+    -- Keep yaml filetype for better LSP support with yamlls
+    vim.bo.filetype = "yaml"
+  end,
+})
+
 -- Strip trailing whitespace and newlines on save (combined for performance)
 local function clean_buffer_on_save()
   -- Skip for certain filetypes or special buffers
@@ -210,52 +229,3 @@ local function update_lualine_config(config_update)
 
   require("lualine").setup(current_config)
 end
-
--- Create an augroup for buffer-related events
--- local buffer_lualine_group = vim.api.nvim_create_augroup("BufferLualineConfig", { clear = true })
---
--- -- Adjust winbar based on number of buffers
--- vim.api.nvim_create_autocmd({"BufNew", "BufAdd", "BufDelete"}, {
---   group = buffer_lualine_group,
---   callback = function()
---     local total_buffers = vim.fn.bufnr('%')
---     if total_buffers > 1 then
---       update_lualine_config(function(config)
---         -- config.tabline.lualine_c = {
---         --   {
---         --     "filename",
---         --     path = 3,
---         --   },
---         -- }
---         config.winbar.lualine_c = {
---           {
---             "buffers",
---             mode = 0,
---             show_modified_status = false,
---           },
---           "diff",
---           "diagnostics"
---         }
---         -- config.tabline.lualine_c = {
---         --   {
---         --     "filename",
---         --       path = 1
---         --   },
---         --   "diff",
---         --   "diagnostics"
---         -- }
---       end)
---     else
---       update_lualine_config(function(config)
---         config.winbar.lualine_c = {
---           -- {
---           --   "file",
---           --   mode = 1,
---           -- },
---           -- "diff",
---           -- "diagnostics"
---         }
---       end)
---     end
---   end
--- })

@@ -16,6 +16,9 @@ return {
         "pyright",
         "lua-language-server",
         "terraform-ls",
+        "helm-ls",
+        "yaml-language-server",
+        "yamllint",
       },
     },
     config = function(_, opts)
@@ -43,6 +46,34 @@ return {
         ensure_installed()
       end
     end,
+  },
+
+  -- Neovim Lua development
+  {
+    "folke/lazydev.nvim",
+    ft = "lua",
+    opts = {
+      library = {
+        { path = "luvit-meta/library", words = { "vim%.uv" } },
+      },
+    },
+  },
+  { "Bilal2453/luvit-meta", lazy = true },
+
+  -- LSP progress and notification system
+  {
+    "j-hui/fidget.nvim",
+    event = "VeryLazy",
+    opts = {
+      notification = {
+        window = {
+          winblend = 0,
+          align = "bottom",
+          relative = "editor",
+        },
+        override_vim_notify = true,
+      },
+    },
   },
 
   -- LSP servers
@@ -114,6 +145,34 @@ return {
           },
         },
         terraformls = {},
+        helm_ls = {
+          settings = {
+            ["helm-ls"] = {
+              yamlls = {
+                path = "yaml-language-server",
+              },
+            },
+          },
+        },
+        yamlls = {
+          settings = {
+            yaml = {
+              schemas = {
+                ["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
+                ["https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json"] = "/*.k8s.yaml",
+                kubernetes = {
+                  "*/templates/*.yaml",
+                  "*/templates/*.tpl",
+                },
+              },
+              format = {
+                enable = true,
+              },
+              validate = true,
+              completion = true,
+            },
+          },
+        },
       },
       setup = {},
     },
@@ -214,6 +273,8 @@ return {
         "ts_ls",
         "eslint",
         "terraformls",
+        "helm_ls",
+        "yamlls",
       },
     },
   },

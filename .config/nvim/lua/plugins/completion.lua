@@ -100,6 +100,7 @@ return {
           ["<C-d>"] = cmp.mapping.scroll_docs(4),
         },
         sources = cmp.config.sources({
+          { name = "lazydev", group_index = 0 },
           { name = "nvim_lsp", priority = 1000 },
           { name = "nvim_lsp_signature_help", priority = 900 },
           { name = "path", priority = 700 },
