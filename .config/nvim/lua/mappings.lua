@@ -85,7 +85,4 @@ keymap.set("n", "<leader>bt", ":. !boxes -d jstone<CR>", opts)
 -- LSP keymaps are now handled in lsp.lua
 -- Telescope keymaps will be handled in telescope.lua
 
--- Manual formatting with conform
-keymap.set({ "n", "v" }, "<leader>cf", function()
-	require("conform").format({ lsp_fallback = true })
-end, { desc = "Format buffer", noremap = true, silent = true })
+-- Manual formatting with conform is now handled in editor.lua
