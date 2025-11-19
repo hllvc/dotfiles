@@ -19,6 +19,7 @@ return {
         "helm-ls",
         "yaml-language-server",
         "yamllint",
+        "json-lsp",
       },
     },
     config = function(_, opts)
@@ -84,6 +85,7 @@ return {
       "mason.nvim",
       "williamboman/mason-lspconfig.nvim",
       "hrsh7th/cmp-nvim-lsp",
+      "b0o/schemastore.nvim",
     },
     opts = {
       diagnostics = {
@@ -173,8 +175,23 @@ return {
             },
           },
         },
+        jsonls = {},
       },
-      setup = {},
+      setup = {
+        jsonls = function(_, opts)
+          local has_schemastore, schemastore = pcall(require, "schemastore")
+          if has_schemastore then
+            opts.settings = {
+              json = {
+                schemas = schemastore.json.schemas(),
+                validate = { enable = true },
+              },
+            }
+          end
+          require("lspconfig").jsonls.setup(opts)
+          return true
+        end,
+      },
     },
     config = function(_, opts)
       local servers = opts.servers
@@ -246,9 +263,6 @@ return {
           vim.keymap.set("n", "<space>rn", vim.lsp.buf.rename, opts)
           vim.keymap.set({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, opts)
           vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
-          vim.keymap.set("n", "<space>f", function()
-            vim.lsp.buf.format { async = true }
-          end, opts)
 
           -- Diagnostic navigation (CoC-style)
           vim.keymap.set("n", "[g", vim.diagnostic.goto_prev, opts)
@@ -275,6 +289,7 @@ return {
         "terraformls",
         "helm_ls",
         "yamlls",
+        "jsonls",
       },
     },
   },

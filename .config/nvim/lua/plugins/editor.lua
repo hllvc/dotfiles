@@ -222,9 +222,16 @@ return {
   {
     "stevearc/conform.nvim",
     dependencies = { "mason.nvim" },
-    lazy = true,
     cmd = "ConformInfo",
     keys = {
+      {
+        "<leader>cf",
+        function()
+          require("conform").format({ lsp_fallback = true, timeout_ms = 3000 })
+        end,
+        mode = { "n", "v" },
+        desc = "Format buffer",
+      },
       {
         "<leader>cfm",
         function()
@@ -232,6 +239,11 @@ return {
         end,
         mode = { "n", "v" },
         desc = "Format Injected Langs",
+      },
+      {
+        "<leader>ci",
+        "<cmd>ConformInfo<cr>",
+        desc = "Conform Info",
       },
     },
     init = function()
@@ -253,7 +265,7 @@ return {
         css = { "prettierd", "prettier", stop_after_first = true },
         xml = { "xmlformatter" },
       },
-      format_on_save = { timeout_ms = 500, lsp_fallback = true },
+      format_on_save = { timeout_ms = 3000, lsp_fallback = true },
       formatters = {
         injected = { options = { ignore_errors = true } },
       },
