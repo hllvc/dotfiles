@@ -13,19 +13,23 @@ for cmd in "${REQUIRED_COMMANDS[@]}"; do
 done
 
 _get_username() { #{{{
-  gh auth status $@ | grep "Logged in" | cut -d' ' -f9 | fzf -1
+  gh auth status "$@" | grep "Logged in" | cut -d' ' -f9 | fzf -1
 }
 #}}}: _get_username
 
 _switch_user() { #{{{
-  local selected_user="$(_get_username)"
-  local active_user="$(_get_username -a)"
+  local selected_user active_user
+
+  selected_user="$(_get_username)"
+  active_user="$(_get_username -a)"
+
   if [[ -z "$selected_user" ]]; then
     echo "No user selected."
     exit 2
   fi
+
   if [[ "$selected_user" != "$active_user" ]]; then
-    gh auth switch -u $selected_user
+    gh auth switch -u "$selected_user"
   fi
 }
 #}}}: _switch_user
@@ -40,23 +44,31 @@ _choose_repo_for_org() { #{{{
     --json "name" \
     --jq '.[].name' | fzf)"
 
+  # shellcheck disable=2034
+  # The repo_ref is only named reference.
+  # Variable is passed to function by refernece, which is modified inside function.
+  # After that, variable is set to readonly so it cannot be further changed.
   readonly repo_ref
 }
 #}}}: _choose_repo_for_org
 
 _choose_org() { #{{{
   local -n org_ref="$1"
-  local org_list="$(gh org list)"
+  local org_list
 
+  org_list="$(gh org list)"
   org_ref="$(printf "%s\n%s" "$org_list" "$(_get_username)" | fzf)"
 
+  # shellcheck disable=2034
+  # The org_ref is only named reference.
+  # Variable is passed to function by refernece, which is modified inside function.
+  # After that, variable is set to readonly so it cannot be further changed.
   readonly org_ref
 }
 #}}}: _choose_org
 
 main() { #{{{
-  local repo_url=""
-  local repo_name=""
+  local repo_url repo_name
 
   if [[ -z "$1" ]] || (($# != 1)); then
     _switch_user
@@ -79,15 +91,17 @@ main() { #{{{
   fi
   readonly repo_url
 
-  readonly repo_dir="${repo_name:-$(basename ${repo_url%.*})}"
+  readonly repo_dir="${repo_name:-$(basename "${repo_url%.*}")}"
 
   git clone --bare "$repo_url" "$repo_dir"/.bare \
-    && cd $repo_dir
+    && cd "$repo_dir" || exit 1
 
   echo "gitdir: ./.bare" > .git
   printf "\tfetch = +refs/heads/*:refs/remotes/origin/*" >> .bare/config
 
-  readonly default_branch="$(git branch --show-current)"
+  default_branch="$(git branch --show-current)"
+  readonly default_branch
+
   git worktree add "$default_branch" >&2
 
   echo "$(pwd)/$default_branch"
