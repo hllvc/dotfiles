@@ -16,6 +16,8 @@
   program = "/Applications/1Password.app/Contents/MacOS/op-ssh-sign"
 [commit]
   gpgsign = true
+[tag]
+  gpgSign = true
 [push]
   default = simple
   autoSetupRemote = true
@@ -37,3 +39,5 @@
   process = git-lfs filter-process
 [init]
   defaultBranch = develop
+[credential]
+	helper = store
