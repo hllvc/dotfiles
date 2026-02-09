@@ -20,6 +20,7 @@ return {
         "yaml-language-server",
         "yamllint",
         "json-lsp",
+        "marksman",
       },
     },
     config = function(_, opts)
@@ -176,6 +177,7 @@ return {
           },
         },
         jsonls = {},
+        marksman = {},
       },
       setup = {
         jsonls = function(_, opts)
@@ -290,6 +292,7 @@ return {
         "helm_ls",
         "yamlls",
         "jsonls",
+        "marksman",
       },
     },
   },
