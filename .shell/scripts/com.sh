@@ -19,9 +19,9 @@ readonly commit_prefix
 
 if [[ $branch_prefix =~ ^[[:alpha:]]+$ && $branch_suffix =~ ^[[:digit:]]+$ ]]; then
   if [[ -n "$commit_prefix" ]]; then
-    git commit --no-verify -m "$commit_prefix($branch_name): | $*"
+    git commit --no-verify -m "$commit_prefix(${branch_prefix}-${branch_suffix}): $*"
   else
-    git commit --no-verify -m "$branch_name: $*"
+    git commit --no-verify -m "${branch_prefix}-${branch_suffix}: $*"
   fi
 else
   if [[ -n "$commit_prefix" ]]; then
