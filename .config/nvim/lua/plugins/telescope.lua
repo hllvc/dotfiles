@@ -168,10 +168,7 @@ return {
       local actions = require("telescope.actions")
 
       local open_with_trouble = function(...)
-        return require("trouble.providers.telescope").open_with_trouble(...)
-      end
-      local open_selected_with_trouble = function(...)
-        return require("trouble.providers.telescope").open_selected_with_trouble(...)
+        return require("trouble.sources.telescope").open(...)
       end
       local find_files_no_ignore = function()
         local action_state = require("telescope.actions.state")
@@ -228,7 +225,7 @@ return {
           mappings = {
             i = {
               ["<c-t>"] = open_with_trouble,
-              ["<a-t>"] = open_selected_with_trouble,
+              ["<a-t>"] = open_with_trouble,
               ["<a-i>"] = find_files_no_ignore,
               ["<a-h>"] = find_files_with_hidden,
               ["<C-Down>"] = actions.cycle_history_next,
