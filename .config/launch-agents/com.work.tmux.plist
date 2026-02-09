@@ -13,16 +13,5 @@
     </array>
     <key>RunAtLoad</key>
     <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/tmux-work.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/tmux-work.err</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    </dict>
 </dict>
 </plist>
