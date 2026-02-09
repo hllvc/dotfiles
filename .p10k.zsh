@@ -40,14 +40,17 @@
         [[ "$git_link" != /* ]] && git_link="${dir}/${git_link}"
         git_link="${git_link:A}"
 
-        # Extract bare repo root
-        local bare_root="${git_link%/worktrees/*}"
-        bare_root="${bare_root%/.bare}"
+        # Only treat as worktree if gitdir points into worktrees/
+        if [[ "$git_link" == */worktrees/* ]]; then
+          local bare_root="${git_link%/worktrees/*}"
+          bare_root="${bare_root%/.bare}"
 
-        # Build modified path: bare_root + path_below_worktree
-        local rel_path="${PWD#$dir}"
-        REPLY="${bare_root}${rel_path}"
-        return 0
+          local rel_path="${PWD#$dir}"
+          REPLY="${bare_root}${rel_path}"
+          return 0
+        fi
+        # Otherwise it's a submodule or similar — fall through
+        break
       elif [[ -d "$git_path" ]]; then
         # Regular .git directory = not a worktree
         break
@@ -61,7 +64,7 @@
   }
 
   function prompt_wdir() {
-    emulate -L zsh
+    emulate -L zsh -o extended_glob
 
     local display_path
     _p9k_worktree_get_display_path
@@ -79,25 +82,24 @@
     for ((i=1; i<=${#parts}; i++)); do
       if [[ $i -eq 1 && "${parts[i]}" == "~" ]]; then
         check_path="$HOME"
+      elif [[ $i -eq 1 && -z "${parts[i]}" ]]; then
+        continue
       else
         check_path="${check_path}/${parts[i]}"
       fi
-      # Check for anchor files (same as POWERLEVEL9K_SHORTEN_FOLDER_MARKER)
-      if [[ -e "${check_path}/.git" ]] || \
-         [[ -e "${check_path}/package.json" ]] || \
-         [[ -e "${check_path}/go.mod" ]] || \
-         [[ -e "${check_path}/Cargo.toml" ]] || \
-         [[ -e "${check_path}/.terraform" ]] || \
-         [[ -e "${check_path}/composer.json" ]] || \
-         [[ -e "${check_path}/stack.yaml" ]]; then
+      # Check for anchor files using POWERLEVEL9K_SHORTEN_FOLDER_MARKER
+      local -a marker_files=( "${check_path}"/${~POWERLEVEL9K_SHORTEN_FOLDER_MARKER}(NY1) )
+      if (( $#marker_files )); then
         anchors+=($i)
       fi
     done
 
     # Build shortened path
     local last_idx=${#parts}
+    local first_real=1
     for ((i=1; i<=${#parts}; i++)); do
       local part="${parts[i]}"
+      [[ -z "$part" ]] && continue
       local is_anchor=0
 
       for a in "${anchors[@]}"; do
@@ -108,7 +110,7 @@
         # Anchor directory - full name + bold
         [[ -n "$result" ]] && result="${result}/"
         result="${result}%B${part}%b"
-      elif [[ $i -eq 1 ]] || [[ $i -eq $last_idx ]]; then
+      elif (( first_real )) || [[ $i -eq $last_idx ]]; then
         # First or last segment - full name, no bold
         [[ -n "$result" ]] && result="${result}/"
         result="${result}${part}"
@@ -119,7 +121,11 @@
         [[ -n "$result" ]] && result="${result}/"
         result="${result}${prefix}"
       fi
+      first_real=0
     done
+
+    # Restore leading / for absolute paths
+    [[ "${display_path}" == /* ]] && result="/${result}"
 
     p10k segment -f 4 -t "${result}"
   }
