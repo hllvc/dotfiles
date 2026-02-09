@@ -37,7 +37,7 @@ _load_functions() { #{{{
 
         if (( $? == 0 )); then
           if [[ -d "$output" ]]; then
-            echo "Chaning dir to $output."
+            # echo "Chaning dir to $output."
             cd "$output"
           else
             echo "$output"
@@ -90,8 +90,8 @@ if type brew &>/dev/null; then
 fi
 
 # kubectl completions
-compdef __start_kubectl k
-source <(kubectl completion zsh)
+# compdef __start_kubectl k
+# source <(kubectl completion zsh)
 
 # nvm completions
 [ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"
@@ -346,3 +346,5 @@ if [ -f '/Users/hllvc/Downloads/google-cloud-sdk/path.zsh.inc' ]; then . '/Users
 
 # The next line enables shell command completion for gcloud.
 if [ -f '/Users/hllvc/Downloads/google-cloud-sdk/completion.zsh.inc' ]; then . '/Users/hllvc/Downloads/google-cloud-sdk/completion.zsh.inc'; fi
+
+export PATH="$PATH:$HOME/.local/bin"
