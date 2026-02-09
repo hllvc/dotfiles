@@ -7,10 +7,14 @@ RUSTPATH="$HOME/.cargo/env"
 export PATH="$HOME/.local/bin:${KREW_ROOT:-$HOME/.krew}/bin:$RUSTPATH:$GOPATH/bin:$HOME/.jenv/bin:$HOME/.local/share/gem/ruby/3.0.0/bin:$HOME/.cargo/bin:$PATH"
 
 ## jira cli
-export JIRA_API_TOKEN="op://Bloomteq General/Jira API Key/credential"
+# export JIRA_API_TOKEN="op://"
 
 ## gemini-cli
 export GEMINI_API_KEY="op://Personal/Gemini API Key/credential"
+
+# history
+export HISTSIZE=10000
+export SAVEHIST=$HISTSIZE
 
 ## printf colors
 # export C_RED_BOLD="\033[1;31m"
