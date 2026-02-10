@@ -94,34 +94,67 @@
       fi
     done
 
-    # Build shortened path
+    # Truncate from left: shorten segments to 2 chars left-to-right until path fits
+    local max_len=${POWERLEVEL9K_DIR_MAX_LENGTH:-80}
     local last_idx=${#parts}
-    local first_real=1
+    local -a shorten=()
+    local path_len=${#display_path}
+
+    # Find first real (non-empty) segment index
+    local first_real_idx=0
+    for ((i=1; i<=${#parts}; i++)); do
+      if [[ -n "${parts[i]}" ]]; then
+        first_real_idx=$i
+        break
+      fi
+    done
+
+    # Mark segments to shorten left-to-right until we fit
+    if (( path_len > max_len )); then
+      for ((i=1; i<=${#parts}; i++)); do
+        local part="${parts[i]}"
+        [[ -z "$part" ]] && continue
+        # Never shorten first real, last, or anchor segments
+        [[ $i -eq $first_real_idx || $i -eq $last_idx ]] && continue
+        local is_anchor=0
+        for a in "${anchors[@]}"; do
+          [[ $a -eq $i ]] && is_anchor=1 && break
+        done
+        (( is_anchor )) && continue
+        # Shorten this segment
+        local saved=$(( ${#part} - 2 ))
+        (( saved > 0 )) || continue
+        shorten+=($i)
+        (( path_len -= saved ))
+        (( path_len <= max_len )) && break
+      done
+    fi
+
+    # Build path
     for ((i=1; i<=${#parts}; i++)); do
       local part="${parts[i]}"
       [[ -z "$part" ]] && continue
-      local is_anchor=0
 
+      # Check if this segment should be shortened
+      local do_shorten=0
+      for s in "${shorten[@]}"; do
+        [[ $s -eq $i ]] && do_shorten=1 && break
+      done
+
+      # Check if anchor
+      local is_anchor=0
       for a in "${anchors[@]}"; do
         [[ $a -eq $i ]] && is_anchor=1 && break
       done
 
-      if [[ $is_anchor -eq 1 ]]; then
-        # Anchor directory - full name + bold
-        [[ -n "$result" ]] && result="${result}/"
+      [[ -n "$result" ]] && result="${result}/"
+      if (( do_shorten )); then
+        result="${result}${part:0:2}"
+      elif (( is_anchor )) || [[ $i -eq $last_idx ]]; then
         result="${result}%B${part}%b"
-      elif (( first_real )) || [[ $i -eq $last_idx ]]; then
-        # First or last segment - full name, no bold
-        [[ -n "$result" ]] && result="${result}/"
-        result="${result}${part}"
       else
-        # Middle segments - shorten to 2 chars
-        local prefix="${part:0:2}"
-        [[ -z "$prefix" ]] && prefix="$part"
-        [[ -n "$result" ]] && result="${result}/"
-        result="${result}${prefix}"
+        result="${result}${part}"
       fi
-      first_real=0
     done
 
     # Restore leading / for absolute paths
@@ -150,6 +183,7 @@
     # gitdir
     # example
     wdir                    # worktree-aware directory
+    # dir
     vcs                     # git status
     # =========================[ Line #2 ]=========================
     newline                 # \n
