@@ -4,7 +4,7 @@ set -euo pipefail
 shopt -s nullglob
 
 readonly LAUNCH_AGENTS_SOURCE="$HOME/.config/launch-agents"
-readonly REQUIRED_TOOLS=( "brew" "stow" )
+readonly REQUIRED_TOOLS=("brew" "stow")
 
 usage() { #{{{
   cat <<EOF
@@ -40,8 +40,8 @@ _launchctl_load() { #{{{
     filename=$(basename "$file")
     label="${filename%.plist}"
     ln -sfv "$file" "$HOME/Library/LaunchAgents/$filename"
-    launchctl bootstrap "gui/$uid" "$HOME/Library/LaunchAgents/$filename" \
-      || echo "Note: $label may already be loaded"
+    launchctl bootstrap "gui/$uid" "$HOME/Library/LaunchAgents/$filename" ||
+      echo "Note: $label may already be loaded"
   done
 }
 #}}}: _launchctl_load
@@ -56,8 +56,8 @@ _launchctl_unload() { #{{{
     filename=$(basename "$file")
     label="${filename%.plist}"
     if [[ -f "$HOME/Library/LaunchAgents/$filename" ]]; then
-      launchctl bootout "gui/$uid/$label" \
-        || echo "Note: $label may already be unloaded"
+      launchctl bootout "gui/$uid/$label" ||
+        echo "Note: $label may already be unloaded"
       rm -fv "$HOME/Library/LaunchAgents/$filename"
     fi
   done
@@ -66,9 +66,9 @@ _launchctl_unload() { #{{{
 
 main() { #{{{
   case "$ACTION" in
-    adopt)   stow -v -t "$HOME" . --adopt ;;
-    unload)  _launchctl_unload ;;
-    *)       stow -v -t "$HOME" . && _launchctl_load ;;
+  adopt) stow -v -t "$HOME" . --adopt ;;
+  unload) _launchctl_unload ;;
+  *) stow -v -t "$HOME" . && _launchctl_load ;;
   esac
 }
 #}}}: main
@@ -84,10 +84,23 @@ done
 ACTION="default"
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    -a) ACTION="adopt"; shift ;;
-    -u) ACTION="unload"; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
+  -a)
+    ACTION="adopt"
+    shift
+    ;;
+  -u)
+    ACTION="unload"
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "Unknown option: $1" >&2
+    usage >&2
+    exit 1
+    ;;
   esac
 done
 
