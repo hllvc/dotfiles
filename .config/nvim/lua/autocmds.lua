@@ -3,6 +3,14 @@ local function augroup(name)
   return vim.api.nvim_create_augroup("lazyvim_" .. name, { clear = true })
 end
 
+-- Truncate LSP log if it exceeds 10MB
+local lsp_log = vim.fn.stdpath("state") .. "/lsp.log"
+local max_log_size = 10 * 1024 * 1024
+local stat = vim.uv.fs_stat(lsp_log)
+if stat and stat.size > max_log_size then
+  os.remove(lsp_log)
+end
+
 -- Makefile settings
 vim.api.nvim_create_autocmd("FileType", {
   group = augroup("makefile"),
@@ -72,15 +80,6 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
     end
   end,
 })
-
--- -- Dockerfile detection
--- vim.api.nvim_create_autocmd({ "BufNewFile", "BufCreate", "BufRead" }, {
---   group = augroup("dockerfile"),
---   pattern = "Dockerfile*",
---   callback = function()
---     vim.bo.filetype = "dockerfile"
---   end,
--- })
 
 -- Terraform vars filetype detection
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile", "BufCreate" }, {
@@ -208,24 +207,3 @@ vim.api.nvim_create_autocmd("FileChangedShellPost", {
     vim.cmd("checktime")
   end,
 })
-
-
--- Define a reusable function to update lualine configuration
-local function update_lualine_config(config_update)
-  local lualine_require = require("lualine_require")
-  local modules = lualine_require.lazy_require({ config_module = "lualine.config" })
-
-  local current_config = modules.config_module.get_config()
-
-  -- Allow passing a function to modify the config
-  if type(config_update) == "function" then
-    config_update(current_config)
-  elseif type(config_update) == "table" then
-    -- Merge the provided config updates
-    for section, value in pairs(config_update) do
-      current_config.sections[section] = value
-    end
-  end
-
-  require("lualine").setup(current_config)
-end

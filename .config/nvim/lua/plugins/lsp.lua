@@ -9,18 +9,15 @@ return {
       ensure_installed = {
         "stylua",
         "prettier",
+        "prettierd",
         "black",
         "isort",
         "eslint_d",
-        "typescript-language-server",
-        "pyright",
-        "lua-language-server",
-        "terraform-ls",
-        "helm-ls",
-        "yaml-language-server",
         "yamllint",
-        "json-lsp",
-        "marksman",
+        "jq",
+        "xmlformatter",
+        "shfmt",
+        "shellcheck",
       },
     },
     config = function(_, opts)
@@ -73,7 +70,7 @@ return {
           align = "bottom",
           relative = "editor",
         },
-        override_vim_notify = true,
+        override_vim_notify = false,
       },
     },
   },
@@ -134,6 +131,11 @@ return {
         pyright = {
           settings = {
             python = {
+              analysis = {
+                diagnosticMode = "openFilesOnly",
+                autoSearchPaths = true,
+                useLibraryCodeForTypes = true,
+              },
               formatting = {
                 provider = "black",
                 blackArgs = { "--line-length", "79" },
@@ -141,7 +143,6 @@ return {
             },
           },
         },
-        ts_ls = {},
         eslint = {
           settings = {
             run = "onSave",
@@ -250,29 +251,35 @@ return {
       vim.api.nvim_create_autocmd("LspAttach", {
         group = vim.api.nvim_create_augroup("UserLspConfig", {}),
         callback = function(ev)
-          local opts = { buffer = ev.buf }
-          vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
-          vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-          vim.keymap.set("n", "K", vim.lsp.buf.hover, opts)
-          vim.keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
-          vim.keymap.set("n", "<leader>k", vim.lsp.buf.signature_help, opts)
-          vim.keymap.set("n", "<space>wa", vim.lsp.buf.add_workspace_folder, opts)
-          vim.keymap.set("n", "<space>wr", vim.lsp.buf.remove_workspace_folder, opts)
-          vim.keymap.set("n", "<space>wl", function()
-            print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-          end, opts)
-          vim.keymap.set("n", "<space>D", vim.lsp.buf.type_definition, opts)
-          vim.keymap.set("n", "<space>rn", vim.lsp.buf.rename, opts)
-          vim.keymap.set({ "n", "v" }, "<space>ca", vim.lsp.buf.code_action, opts)
-          vim.keymap.set("n", "gr", vim.lsp.buf.references, opts)
+          local function map(mode, lhs, rhs, desc)
+            vim.keymap.set(mode, lhs, rhs, { buffer = ev.buf, desc = desc })
+          end
 
-          -- Diagnostic navigation (CoC-style)
-          vim.keymap.set("n", "[g", vim.diagnostic.goto_prev, opts)
-          vim.keymap.set("n", "]g", vim.diagnostic.goto_next, opts)
-          vim.keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
-          vim.keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
-          vim.keymap.set("n", "<space>e", vim.diagnostic.open_float, opts)
-          vim.keymap.set("n", "<space>q", vim.diagnostic.setloclist, opts)
+          -- Navigation
+          map("n", "gD", vim.lsp.buf.declaration, "Go to Declaration")
+          map("n", "gd", vim.lsp.buf.definition, "Go to Definition")
+          map("n", "K", vim.lsp.buf.hover, "Hover")
+          map("n", "gi", vim.lsp.buf.implementation, "Go to Implementation")
+          map("n", "gr", vim.lsp.buf.references, "References")
+
+          -- Code actions (<leader>c group)
+          map("n", "<leader>cr", vim.lsp.buf.rename, "Rename")
+          map({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, "Code Action")
+          map("n", "<leader>cD", vim.lsp.buf.type_definition, "Type Definition")
+          map("n", "<leader>cd", vim.diagnostic.open_float, "Diagnostic Float")
+          map("n", "<leader>cq", vim.diagnostic.setloclist, "Diagnostic Loclist")
+          map("n", "<leader>k", vim.lsp.buf.signature_help, "Signature Help")
+
+          -- Workspace
+          map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
+          map("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
+          map("n", "<leader>wl", function()
+            print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+          end, "List Workspace Folders")
+
+          -- Diagnostic navigation
+          map("n", "[d", vim.diagnostic.goto_prev, "Previous Diagnostic")
+          map("n", "]d", vim.diagnostic.goto_next, "Next Diagnostic")
         end,
       })
     end,
@@ -286,7 +293,6 @@ return {
       ensure_installed = {
         "lua_ls",
         "pyright",
-        "ts_ls",
         "eslint",
         "terraformls",
         "helm_ls",
@@ -316,13 +322,13 @@ return {
   },
 
   -- Rust
-  {
-    "rust-lang/rust.vim",
-    ft = "rust",
-    init = function()
-      vim.g.rustfmt_autosave = 1
-    end,
-  },
+  -- {
+  --   "rust-lang/rust.vim",
+  --   ft = "rust",
+  --   init = function()
+  --     vim.g.rustfmt_autosave = 1
+  --   end,
+  -- },
   {
     "mrcjkb/rustaceanvim",
     version = "^4",
@@ -388,9 +394,9 @@ return {
         ".env",
       },
     },
-    event = "VeryLazy",
+    ft = "python",
     keys = {
-      { "<leader>vs", "<cmd>VenvSelect<cr>" },
+      { "<leader>vs", "<cmd>VenvSelect<cr>", ft = "python", desc = "Select Venv" },
     },
   },
 
@@ -411,12 +417,6 @@ return {
     end,
   },
 
-  -- Dockerfile
-  -- {
-  --   "ekalinin/Dockerfile.vim",
-  --   ft = "dockerfile",
-  -- },
-
   -- Markdown
   {
     "iamcco/markdown-preview.nvim",
@@ -431,7 +431,7 @@ return {
   -- Git integration
   {
     "rhysd/conflict-marker.vim",
-    event = { "BufReadPre", "BufNewFile" },
+    event = { "BufReadPost" },
     config = function()
       vim.g.conflict_marker_highlight_group = ""
       vim.g.conflict_marker_begin = "^<<<<<<< .*$"

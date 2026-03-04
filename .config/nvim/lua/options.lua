@@ -5,7 +5,6 @@ local g = vim.g
 
 -- Basic options
 opt.termguicolors = true
-opt.syntax = "on"
 opt.filetype = "on"
 
 -- Line numbers
@@ -68,7 +67,7 @@ opt.wildignore:append({
 opt.shell = vim.env.SHELL
 opt.cmdheight = 1
 opt.title = true
-opt.showmatch = true
+-- showmatch removed: redundant with vim-matchup
 opt.updatetime = 250
 opt.timeoutlen = 300
 opt.backup = true
@@ -85,10 +84,12 @@ opt.softtabstop = 2
 opt.shiftwidth = 2
 opt.shiftround = true
 
--- Code folding
+-- Code folding (treesitter-based, reuses already-parsed AST)
 opt.foldenable = true
 opt.foldlevel = 0
-opt.foldmethod = "syntax"
+opt.foldmethod = "expr"
+opt.foldexpr = "v:lua.vim.treesitter.foldexpr()"
+opt.foldtext = ""
 opt.foldlevelstart = 99
 
 -- Invisible characters

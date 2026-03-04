@@ -241,6 +241,7 @@ return {
         { "<leader>s",     group = "search" },
         { "<leader>u",     group = "ui" },
         { "<leader>w",     group = "windows" },
+        { "<leader>o",     group = "open" },
         { "<leader>x",     group = "diagnostics/quickfix" },
       },
     },

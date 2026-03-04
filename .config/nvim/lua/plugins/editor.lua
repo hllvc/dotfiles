@@ -244,17 +244,18 @@ return {
     "stevearc/conform.nvim",
     dependencies = { "mason.nvim" },
     cmd = "ConformInfo",
+    event = "BufWritePre",
     keys = {
       {
-        "<leader>cf",
+        "<leader>F",
         function()
-          require("conform").format({ lsp_fallback = true, timeout_ms = 3000 })
+          require("conform").format({ lsp_format = "fallback", timeout_ms = 3000 })
         end,
         mode = { "n", "v" },
-        desc = "Format buffer",
+        desc = "Format buffer/selection",
       },
       {
-        "<leader>cfm",
+        "<leader>cF",
         function()
           require("conform").format({ formatters = { "injected" } })
         end,
@@ -265,6 +266,81 @@ return {
         "<leader>ci",
         "<cmd>ConformInfo<cr>",
         desc = "Conform Info",
+      },
+      {
+        "<leader>cf",
+        function()
+          vim.api.nvim_feedkeys(
+            vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false
+          )
+
+          local conform = require("conform")
+
+          local fts = {}
+          for ft, _ in pairs(conform.formatters_by_ft) do
+            if ft ~= "*" and ft ~= "_" then
+              table.insert(fts, ft)
+            end
+          end
+          table.sort(fts)
+
+          vim.ui.select(fts, { prompt = "Format as:" }, function(chosen_ft)
+            if not chosen_ft then return end
+
+            local buf = vim.api.nvim_get_current_buf()
+            local start_line = vim.fn.line("'<")
+            local end_line = vim.fn.line("'>")
+            local lines = vim.api.nvim_buf_get_lines(buf, start_line - 1, end_line, false)
+            if #lines == 0 then return end
+
+            -- Detect and strip base indentation
+            local min_indent = math.huge
+            for _, line in ipairs(lines) do
+              if line:match("%S") then
+                min_indent = math.min(min_indent, #(line:match("^(%s*)")))
+              end
+            end
+            if min_indent == math.huge then min_indent = 0 end
+
+            local stripped = {}
+            for _, line in ipairs(lines) do
+              table.insert(stripped, line:sub(min_indent + 1))
+            end
+            local base_indent = lines[1]:sub(1, min_indent)
+
+            local had_trailing_empty = lines[#lines] == ""
+
+            -- Create scratch buffer with target filetype
+            local tmp_buf = vim.api.nvim_create_buf(false, true)
+            vim.bo[tmp_buf].filetype = chosen_ft
+            vim.bo[tmp_buf].buftype = "nofile"
+            vim.api.nvim_buf_set_lines(tmp_buf, 0, -1, false, stripped)
+
+            -- Format — filetype drives formatter resolution
+            conform.format({ bufnr = tmp_buf, async = false, timeout_ms = 5000 })
+
+            -- Read formatted output
+            local new_lines = vim.api.nvim_buf_get_lines(tmp_buf, 0, -1, false)
+            vim.api.nvim_buf_delete(tmp_buf, { force = true })
+
+            if not new_lines or #new_lines == 0 then return end
+
+            -- Strip trailing empty line if formatter added one
+            if not had_trailing_empty and new_lines[#new_lines] == "" then
+              table.remove(new_lines)
+            end
+
+            -- Re-add base indentation
+            local result = {}
+            for _, line in ipairs(new_lines) do
+              table.insert(result, line == "" and "" or (base_indent .. line))
+            end
+
+            vim.api.nvim_buf_set_lines(buf, start_line - 1, end_line, false, result)
+          end)
+        end,
+        mode = "v",
+        desc = "Format selection as...",
       },
     },
     init = function()
@@ -278,7 +354,7 @@ return {
         typescript = { "prettierd", "prettier", stop_after_first = true },
         javascriptreact = { "prettierd", "prettier", stop_after_first = true },
         typescriptreact = { "prettierd", "prettier", stop_after_first = true },
-        json = { "prettierd", "prettier", stop_after_first = true },
+        json = { "jq", "prettierd", "prettier", stop_after_first = true },
         yaml = { "prettierd", "prettier", stop_after_first = true },
         helm = { "prettierd", "prettier", stop_after_first = true },
         markdown = { "prettierd", "prettier", stop_after_first = true },
@@ -286,7 +362,7 @@ return {
         css = { "prettierd", "prettier", stop_after_first = true },
         xml = { "xmlformatter" },
       },
-      format_on_save = { timeout_ms = 3000, lsp_fallback = true },
+      format_on_save = { timeout_ms = 3000, lsp_format = "fallback" },
       formatters = {
         injected = { options = { ignore_errors = true } },
       },
