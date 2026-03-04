@@ -4,11 +4,26 @@
 
 for arg; do
   case $arg in
-    a|-a) fetchAll=1; shift ;;
-    d|-d) deleteBranch=1; shift ;;
-    ls|l|-l) gitList=1; shift ;;
-    [cn]|-[cn]) createBranch=1; shift ;;
-    *) git switch "$*"; exit 0 ;;
+  'a' | '-a')
+    fetchAll=1
+    shift
+    ;;
+  'd' | '-d')
+    deleteBranch=1
+    shift
+    ;;
+  'ls' | 'l' | '-l')
+    gitList=1
+    shift
+    ;;
+  [cn] | -[cn])
+    createBranch=1
+    shift
+    ;;
+  *)
+    git switch "$*"
+    exit 0
+    ;;
   esac
 done
 
@@ -17,12 +32,12 @@ _prompt() { #{{{
 
   read -n 1 -r -p ">> $message [y/N]: " yn
   case $yn in
-    "y" | "Y")
-      return
-      ;;
-    *)
-      exit 1
-      ;;
+  'y' | 'Y')
+    return
+    ;;
+  *)
+    exit 1
+    ;;
   esac
 }
 #}}}: _prompt
@@ -50,7 +65,7 @@ _gitBranchList() { #{{{
 #}}}: _gitBranchList
 
 _gitBranch() { #{{{
-  if _ifWorktreeSetup && (( ! fetchAll )); then
+  if _ifWorktreeSetup && ((!fetchAll)); then
     _gitBranchList | grep "[+*].*"
   else
     _gitBranchList $@
@@ -59,10 +74,10 @@ _gitBranch() { #{{{
 #}}}: _gitBranch
 
 _getBranches() { #{{{
-  if (( fetchAll && deleteBranch )); then
+  if ((fetchAll && deleteBranch)); then
     echo "Cannot use -d on remote branch."
     exit 1
-  elif (( fetchAll )); then
+  elif ((fetchAll)); then
     _gitBranch -a
   else
     _gitBranch
@@ -103,10 +118,10 @@ _getWorktreePath() { #{{{
     branch="(bare)"
   fi
 
-  git worktree list \
-    | grep "$branch" \
-    | awk '{print $1}' \
-    | tr -d "\n"
+  git worktree list |
+    grep "$branch" |
+    awk '{print $1}' |
+    tr -d "\n"
 }
 #}}}: _getWorktreePath
 
@@ -186,7 +201,7 @@ _deleteBranch() { #{{{
 
   activeBranch="$(git branch --show-current)"
 
-  if (( deleteBranch )); then
+  if ((deleteBranch)); then
     _prompt "Delete branch: $branchToDelete"
     if _ifWorktreeSetup; then
       # If the activeBranch is same as branchToDelete,
@@ -199,7 +214,7 @@ _deleteBranch() { #{{{
       exitCode="$?"
     fi
     git branch -D "$branchToDelete" >&2 >/dev/null
-    exitCode="$((exitCode+$?))"
+    exitCode="$((exitCode + $?))"
 
     if ((exitCode > 0)); then
       exit 1
@@ -233,9 +248,9 @@ _isOriginBranch() { #{{{
 }
 #}}}: _isOriginBranch
 
-(( fetchAll )) && git fetch --all
-(( gitList )) && _getBranches && exit 0
-(( createBranch )) && _createBranch
+((fetchAll)) && git fetch --all
+((gitList)) && _getBranches && exit 0
+((createBranch)) && _createBranch
 
 branch="$(_getBranches | _fzf)"
 if [[ -z "$branch" ]]; then

@@ -8,6 +8,7 @@ Personal dotfiles managed with GNU Stow.
 > This will install dotfiles to `$HOME`.
 
 Using `git worktree`:
+
 ```bash
 git clone --bare \
     "git@github.com:hllvc/dotfiles.git" \
@@ -19,6 +20,7 @@ git clone --bare \
 ```
 
 Without `git worktree`, normal:
+
 ```bash
 git clone "git@github.com:hllvc/dotfiles.git" \
     && cd "dotfiles" \
@@ -77,6 +79,7 @@ See detailed documentation: [`.config/`](.config/) | [`.shell/`](.shell/)
 ### Tmux Multi-Socket
 
 Separate tmux sockets for work/personal contexts:
+
 - `personal` - Personal projects
 - `work` - Work projects
 
@@ -91,6 +94,7 @@ LaunchAgents auto-start these on login.
 ### Neovim
 
 Lua-based config with:
+
 - lazy.nvim plugin manager
 - LSP (TypeScript, Python, Go, Rust, Terraform, Helm, YAML, JSON, Lua, Markdown)
 - Telescope, Treesitter, Copilot
@@ -99,4 +103,5 @@ Lua-based config with:
 ## Git Config
 
 Conditional include for work repositories:
+
 - `~/.git/stackguardian/.gitconfig` - Included for repos under `~/.git/stackguardian/`
