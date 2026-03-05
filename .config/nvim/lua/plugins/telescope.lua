@@ -102,6 +102,11 @@ return {
       { "<leader>sM", "<cmd>Telescope man_pages<cr>", desc = "Man Pages" },
       { "<leader>sm", "<cmd>Telescope marks<cr>", desc = "Jump to Mark" },
       { "<leader>so", "<cmd>Telescope vim_options<cr>", desc = "Options" },
+      {
+        "<leader>sP",
+        telescope("find_files", { cwd = vim.fn.stdpath("config") .. "/spell", prompt_title = "Spellfiles", file_ignore_patterns = { "%.spl$" } }),
+        desc = "Spellfiles",
+      },
       { "<leader>sR", "<cmd>Telescope resume<cr>", desc = "Resume" },
       { "<leader>sw", telescope("grep_string", { word_match = "-w" }), desc = "Word (root dir)" },
       { "<leader>sW", telescope("grep_string", { cwd = false, word_match = "-w" }), desc = "Word (cwd)" },
