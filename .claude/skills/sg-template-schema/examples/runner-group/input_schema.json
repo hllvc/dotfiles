@@ -1,0 +1,140 @@
+{
+  "type": "object",
+  "properties": {
+    "stackguardian": {
+      "title": "StackGuardian Configuration",
+      "type": "object",
+      "properties": {
+        "api_uri": {
+          "title": "API Region",
+          "type": "string",
+          "enum": [
+            "https://api.app.stackguardian.io",
+            "https://api.us.stackguardian.io"
+          ],
+          "enumNames": [
+            "EU1 - Europe",
+            "US1 - East"
+          ],
+          "default": "https://api.app.stackguardian.io"
+        },
+        "api_key": {
+          "title": "API Key",
+          "type": "string"
+        },
+        "org_name": {
+          "title": "Organization Name",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": ["api_key"]
+    },
+    "aws_region": {
+      "title": "AWS Region",
+      "type": "string",
+      "enum": [
+        "us-east-1",
+        "us-east-2",
+        "us-west-1",
+        "us-west-2",
+        "af-south-1",
+        "ap-east-1",
+        "ap-south-1",
+        "ap-south-2",
+        "ap-southeast-1",
+        "ap-southeast-2",
+        "ap-southeast-3",
+        "ap-southeast-4",
+        "ap-northeast-1",
+        "ap-northeast-2",
+        "ap-northeast-3",
+        "ca-central-1",
+        "ca-west-1",
+        "eu-central-1",
+        "eu-central-2",
+        "eu-west-1",
+        "eu-west-2",
+        "eu-west-3",
+        "eu-south-1",
+        "eu-south-2",
+        "eu-north-1",
+        "il-central-1",
+        "me-south-1",
+        "me-central-1",
+        "sa-east-1"
+      ],
+      "default": "eu-central-1"
+    },
+    "create_storage_backend": {
+      "title": "Create Storage Backend",
+      "type": "boolean",
+      "default": true
+    },
+    "override_names": {
+      "title": "Resource Naming",
+      "type": "object",
+      "properties": {
+        "global_prefix": {
+          "title": "Global Prefix",
+          "type": "string",
+          "default": "SG_RUNNER"
+        },
+        "include_org_in_prefix": {
+          "title": "Include Organization Name in Prefix",
+          "type": "boolean",
+          "default": false
+        },
+        "runner_group_name": {
+          "title": "Runner Group Name Override",
+          "type": "string",
+          "default": ""
+        },
+        "connector_name": {
+          "title": "Connector Name Override",
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": ["global_prefix"],
+      "additionalProperties": false
+    },
+    "max_runners": {
+      "title": "Maximum Runners",
+      "type": "integer",
+      "default": 3,
+      "minimum": 1
+    }
+  },
+  "dependencies": {
+    "create_storage_backend": {
+      "oneOf": [
+        {
+          "properties": {
+            "create_storage_backend": {
+              "enum": [true]
+            },
+            "force_destroy_storage_backend": {
+              "title": "Force Destroy Storage Backend",
+              "type": "boolean",
+              "default": false
+            }
+          }
+        },
+        {
+          "properties": {
+            "create_storage_backend": {
+              "enum": [false]
+            },
+            "existing_s3_bucket_name": {
+              "title": "Existing S3 Bucket Name",
+              "type": "string"
+            }
+          },
+          "required": ["existing_s3_bucket_name"]
+        }
+      ]
+    }
+  },
+  "required": ["stackguardian"]
+}

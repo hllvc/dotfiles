@@ -1,0 +1,4 @@
+- When indenting code, ALWAYS use 2 spaces as indentation.
+- When working with repositories, take into consideration that they are configured as git worktrees.
+- Personal GitHub repositories are stored in ~/.git/private/
+- Work (StackGuardian) GitHub repositories are stored in ~/.git/stackguardian/

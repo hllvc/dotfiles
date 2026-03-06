@@ -1,0 +1,92 @@
+{
+  "ui:order": [
+    "cmdToExec",
+    "kubectlVersion",
+    "workingNamespace",
+    "kubectlAction",
+    "useKustomize",
+    "kubeymlfile",
+    "helmAction",
+    "helmReleaseName",
+    "helmSet",
+    "helmAtomic",
+    "deleteNamespace",
+    "dryRun",
+    "dryRunOption",
+    "additionalParameters"
+  ],
+  "kubectlVersion": {
+    "ui:widget": "select",
+    "ui:placeholder": "Select Kubernetes version"
+  },
+  "workingNamespace": {
+    "ui:placeholder": "Enter Kubernetes namespace"
+  },
+  "cmdToExec": {
+    "ui:widget": "radio",
+    "ui:options": {
+      "inline": true
+    }
+  },
+  "additionalParameters": {
+    "ui:placeholder": "--timeout=10m",
+    "ui:description": "Additional command line parameters to pass to kubectl or helm commands."
+  },
+  "kubectlAction": {
+    "ui:widget": "radio",
+    "ui:options": {
+      "inline": true
+    }
+  },
+  "helmAction": {
+    "ui:widget": "radio",
+    "ui:options": {
+      "inline": true
+    }
+  },
+  "helmReleaseName": {
+    "ui:placeholder": "Enter Helm release name"
+  },
+  "helmSet": {
+    "ui:options": {
+      "addable": true,
+      "removable": true,
+      "orderable": false
+    },
+    "ui:description": "Override Helm chart values using key-value pairs. Supports multiline YAML values for complex configurations. Values longer than 3 characters will be **concealed in logs** for security.",
+    "additionalProperties": {
+      "ui:widget": "textarea",
+      "ui:options": {
+        "rows": 1,
+        "resize": "vertical"
+      }
+    }
+  },
+  "helmAtomic": {
+    "ui:widget": "checkbox",
+    "ui:description": "Automatically roll back on failure."
+  },
+  "dryRun": {
+    "ui:widget": "checkbox",
+    "ui:description": "Simulate the operation without making actual changes."
+  },
+  "dryRunOption": {
+    "ui:widget": "radio",
+    "ui:options": {
+      "inline": true
+    },
+    "ui:description": "**server**: server-side validation with API calls | **client**: client-side validation without API calls"
+  },
+  "deleteNamespace": {
+    "ui:widget": "checkbox",
+    "ui:description": "⚠️ **Warning:** Delete the namespace along with all resources."
+  },
+  "useKustomize": {
+    "ui:widget": "checkbox",
+    "ui:description": "Use Kustomize to build and apply manifests. When enabled, specify the kustomization directory path in the field below."
+  },
+  "kubeymlfile": {
+    "ui:placeholder": "deployments/ or overlay/prod",
+    "ui:description": "Path relative to repository root. **Regular manifests:** directory containing YAML files (e.g., `deployments/`). **Kustomize:** directory containing kustomization.yaml (e.g., `overlay/prod`). Leave empty to use repository root."
+  }
+}
