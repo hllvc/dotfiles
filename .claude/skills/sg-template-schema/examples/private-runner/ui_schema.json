@@ -1,0 +1,140 @@
+{
+  "ui:title": "StackGuardian Private Runner for AWS",
+  "ui:description": "Configure and deploy a StackGuardian Private Runner on AWS with auto-scaling, networking, and security settings. This module sets up EC2 instances with Lambda-based auto-scaling to process your organization's workflows securely within your AWS infrastructure.",
+  "instance_type": {
+    "ui:description": "The EC2 instance type for Private Runner (min 4 vCPU, 8GB RAM recommended)"
+  },
+  "ami_id": {
+    "ui:placeholder": "ami-***",
+    "ui:description": "The AMI ID for the Private Runner instance with pre-installed dependencies. Required dependencies: docker, cron, jq, sg-runner (main.sh). Recommended: Use StackGuardian Template with Packer to build custom AMI."
+  },
+  "aws_region": {
+    "ui:placeholder": "eu-central-1",
+    "ui:description": "The target AWS Region to setup Private Runner"
+  },
+  "force_destroy_storage_backend": {
+    "ui:widget": "checkbox",
+    "ui:description": "⚠️ WARNING: Whether to force destroy the storage backend (S3 bucket) when the module is destroyed. This will delete all data in the bucket, so use with caution. Default is false, meaning the bucket will not be deleted if it contains objects."
+  },
+  "stackguardian": {
+    "ui:title": "StackGuardian Configuration",
+    "ui:description": "Configure your StackGuardian platform connection",
+    "api_key": {
+      "ui:placeholder": "sg[u|o]_*** or secret vault reference",
+      "ui:description": "Your organization's API key on the StackGuardian Platform"
+    },
+    "org_name": {
+      "ui:placeholder": "your-org-name (optional) (default: from workflow runtime)",
+      "ui:description": "Your organization name on the StackGuardian Platform. If not provided, the module will attempt to read SG_ORG_ID from the environment. If run inside your StackGuardian organization, this will be set automatically."
+    }
+  },
+  "override_names": {
+    "ui:title": "Resource Naming Configuration",
+    "ui:description": "Customize resource names (optional)",
+    "global_prefix": {
+      "ui:description": "Prefix for naming AWS resources"
+    },
+    "runner_group_name": {
+      "ui:placeholder": "override name (optional)",
+      "ui:description": "Override the default runner group name. If not provided, the module will use the default group name: {global_prefix}-runner-group-{account_id}. This is useful if you want to use a specific runner group name for your organization."
+    },
+    "connector_name": {
+      "ui:placeholder": "override name (optional)",
+      "ui:description": "Override the default connector name. If not provided, the module will use the default connector name: {global_prefix}-private-runner-backend-{account_id}. This is useful if you want to use a specific connector name for your organization."
+    }
+  },
+  "network": {
+    "ui:title": "Network Configuration",
+    "ui:description": "Configure VPC and subnet settings",
+    "vpc_id": {
+      "ui:placeholder": "vpc-***",
+      "ui:description": "Existing VPC ID for the Private Runner instance"
+    },
+    "private_subnet_id": {
+      "ui:placeholder": "subnet-*** (optional)",
+      "ui:description": "Existing Private Subnet ID for the Private Runner instance. If provided, the instance will be deployed in a private subnet. If not provided, public_subnet_id is required to deploy in a public subnet."
+    },
+    "public_subnet_id": {
+      "ui:placeholder": "subnet-***",
+      "ui:description": "Existing Public Subnet ID for the Private Runner instance. Required if private_subnet_id is not provided."
+    },
+    "associate_public_ip": {
+      "ui:widget": "checkbox",
+      "ui:description": "Whether to assign a public IP to the Private Runner instance"
+    },
+    "create_network_infrastructure": {
+      "ui:widget": "checkbox",
+      "ui:description": "Whether to create NAT Gateway and route tables for private subnet connectivity. Defaults to false for enterprise environments with existing network infrastructure. Check this box if you need the module to create NAT Gateway and routing. ⚠️ When unchecked, ensure your private subnet has proper routing to the internet for StackGuardian platform connectivity."
+    }
+  },
+  "volume": {
+    "ui:title": "EBS Volume Configuration",
+    "ui:description": "Configure storage settings for the Private Runner",
+    "type": {
+      "ui:widget": "select",
+      "ui:description": "Type of the EBS volume for the Private Runner instance"
+    },
+    "size": {
+      "ui:description": "Size of the EBS volume in GB for the Private Runner instance (minimum 8GB, 100GB recommended)"
+    },
+    "delete_on_termination": {
+      "ui:widget": "checkbox",
+      "ui:description": "Whether to delete the EBS volume on instance termination (recommended: keep false for data persistence)"
+    }
+  },
+  "firewall": {
+    "ui:title": "Security & SSH Configuration",
+    "ui:description": "Configure SSH access and additional security rules",
+    "ssh_key_name": {
+      "ui:placeholder": "my-keypair",
+      "ui:description": "Name of the existing SSH key in AWS to use for the Private Runner instance. If provided, this key will be used for SSH access. If ssh_public_key is also provided, it will take precedence over this key."
+    },
+    "ssh_public_key": {
+      "ui:widget": "textarea",
+      "ui:placeholder": "ssh-rsa AAAAB3NzaC1yc2E...",
+      "ui:options": {
+        "rows": 3
+      },
+      "ui:description": "Custom SSH public key content to add to the instance. If provided, this takes precedence over ssh_key_name. If both ssh_key_name and ssh_public_key are empty, no SSH key will be configured."
+    },
+    "ssh_access_rules": {
+      "ui:title": "SSH Access Rules",
+      "ui:widget": "string",
+      "ui:description": "Object mapping access rule names to CIDR blocks for SSH access. Each key should be a descriptive name (e.g., 'Admin Access') and each value should be a CIDR block. These will appear as 'SSH-{name}' in security group descriptions."
+    },
+    "additional_ingress_rules": {
+      "ui:title": "Additional Ingress Rules",
+      "ui:widget": "string",
+      "ui:description": "Object mapping rule names to ingress rule configurations. Each key should be a descriptive name that will appear as the security group rule description, and each value should contain port, protocol, and cidr_blocks."
+    }
+  },
+  "scaling": {
+    "ui:title": "Auto Scaling Configuration",
+    "ui:description": "Configure scaling behavior and thresholds",
+    "enabled": {
+      "ui:widget": "checkbox",
+      "ui:description": "Enable Lambda-based auto scaling. When disabled, the ASG will maintain a static number of instances."
+    },
+    "scale_out_cooldown_duration": {
+      "ui:description": "Scale out cooldown duration in minutes (minimum 4 minutes)"
+    },
+    "scale_in_cooldown_duration": {
+      "ui:description": "Scale in cooldown duration in minutes"
+    },
+    "scale_out_threshold": {
+      "ui:description": "Threshold for scaling out (queue depth)"
+    },
+    "scale_in_threshold": {
+      "ui:description": "Threshold for scaling in (queue depth) (must be at least 1)"
+    },
+    "scale_in_step": {
+      "ui:description": "Number of instances to scale in at once (must be at least 1)"
+    },
+    "scale_out_step": {
+      "ui:description": "Number of instances to scale out at once (must be at least 1)"
+    },
+    "min_runners": {
+      "ui:description": "Minimum number of runners (must be at least 1)"
+    }
+  }
+}

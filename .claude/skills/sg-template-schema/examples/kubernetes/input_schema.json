@@ -1,0 +1,238 @@
+{
+  "type": "object",
+  "title": "",
+  "required": ["cmdToExec", "kubectlVersion", "workingNamespace"],
+  "properties": {
+    "kubectlVersion": {
+      "type": "string",
+      "title": "Kubernetes Version",
+      "enum": [
+        "1.34.1",
+        "1.33.5",
+        "1.32.9",
+        "1.31.13"
+      ],
+      "enumNames": [
+        "v1.34.1 (latest)",
+        "v1.33.5",
+        "v1.32.9",
+        "v1.31.13"
+      ]
+    },
+    "workingNamespace": {
+      "type": "string",
+      "title": "Namespace",
+      "default": "default"
+    },
+    "cmdToExec": {
+      "type": "string",
+      "title": "Select executable",
+      "enum": ["kubectl", "helm"]
+    },
+    "additionalParameters": {
+      "type": "string",
+      "title": "Additional Parameters",
+      "default": ""
+    }
+  },
+  "dependencies": {
+    "cmdToExec": {
+      "oneOf": [
+        {
+          "properties": {
+            "cmdToExec": {
+              "enum": ["kubectl"]
+            },
+            "kubectlAction": {
+              "type": "string",
+              "title": "Kubectl Action",
+              "enum": ["apply", "delete", "get"],
+              "default": "apply"
+            },
+            "kubeymlfile": {
+              "type": "string",
+              "title": "Manifest/Kustomize Path",
+              "default": ""
+            }
+          },
+          "required": ["kubectlAction"]
+        },
+        {
+          "properties": {
+            "cmdToExec": {
+              "enum": ["helm"]
+            },
+            "helmAction": {
+              "type": "string",
+              "title": "Helm action",
+              "enum": ["upgrade", "status", "uninstall", "list"],
+              "default": "upgrade"
+            }
+          },
+          "required": ["helmAction"]
+        }
+      ]
+    },
+    "kubectlAction": {
+      "oneOf": [
+        {
+          "properties": {
+            "kubectlAction": {
+              "enum": ["apply"]
+            },
+            "useKustomize": {
+              "type": "boolean",
+              "title": "Use Kustomize (-k)",
+              "default": false
+            },
+            "dryRun": {
+              "type": "boolean",
+              "title": "Run with --dry-run",
+              "default": false
+            }
+          }
+        },
+        {
+          "properties": {
+            "kubectlAction": {
+              "enum": ["delete"]
+            },
+            "useKustomize": {
+              "type": "boolean",
+              "title": "Use Kustomize (-k)",
+              "default": false
+            },
+            "deleteNamespace": {
+              "type": "boolean",
+              "title": "Delete namespace",
+              "default": false
+            },
+            "dryRun": {
+              "type": "boolean",
+              "title": "Run with --dry-run",
+              "default": false
+            }
+          }
+        },
+        {
+          "properties": {
+            "kubectlAction": {
+              "enum": ["get"]
+            }
+          }
+        }
+      ]
+    },
+    "helmAction": {
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "helmAction": {
+                "const": "upgrade"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "helmReleaseName": {
+                "type": "string",
+                "title": "Release name",
+                "default": ""
+              },
+              "helmSet": {
+                "type": "object",
+                "title": "Helm Set Values (--set)",
+                "additionalProperties": true
+              },
+              "helmAtomic": {
+                "type": "boolean",
+                "title": "Run with --atomic",
+                "default": true
+              },
+              "dryRun": {
+                "type": "boolean",
+                "title": "Run with --dry-run",
+                "default": false
+              }
+            },
+            "required": ["helmReleaseName"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "helmAction": {
+                "const": "status"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "helmReleaseName": {
+                "type": "string",
+                "title": "Release name",
+                "default": ""
+              }
+            },
+            "required": ["helmReleaseName"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "helmAction": {
+                "const": "uninstall"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "helmReleaseName": {
+                "type": "string",
+                "title": "Release name",
+                "default": ""
+              },
+              "deleteNamespace": {
+                "type": "boolean",
+                "title": "Delete namespace",
+                "default": false
+              },
+              "dryRun": {
+                "type": "boolean",
+                "title": "Run with --dry-run",
+                "default": false
+              }
+            },
+            "required": ["helmReleaseName"]
+          }
+        }
+      ]
+    },
+    "dryRun": {
+      "oneOf": [
+        {
+          "properties": {
+            "dryRun": {
+              "enum": [true]
+            },
+            "dryRunOption": {
+              "type": "string",
+              "title": "Run with --dry-run",
+              "enum": ["server", "client"],
+              "default": "server"
+            }
+          },
+          "required": ["dryRunOption"]
+        },
+        {
+          "properties": {
+            "dryRun": {
+              "enum": [false]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

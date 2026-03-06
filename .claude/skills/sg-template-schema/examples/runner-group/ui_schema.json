@@ -1,0 +1,70 @@
+{
+  "ui:title": "StackGuardian Runner Group",
+  "ui:description": "Create a new StackGuardian Runner Group with S3 storage backend and AWS connector. Default tags are automatically applied: 'StackGuardian Private Runner', runner group name, and organization name.",
+  "ui:order": [
+    "stackguardian",
+    "aws_region",
+    "create_storage_backend",
+    "existing_s3_bucket_name",
+    "force_destroy_storage_backend",
+    "override_names",
+    "max_runners"
+  ],
+  "stackguardian": {
+    "ui:title": "StackGuardian Configuration",
+    "ui:description": "Configure your StackGuardian platform connection",
+    "ui:order": ["api_uri", "api_key", "org_name"],
+    "api_uri": {
+      "ui:widget": "select",
+      "ui:description": "Select your StackGuardian platform region"
+    },
+    "api_key": {
+      "ui:placeholder": "sg(u|o)_*** or Vault Secret Reference",
+      "ui:description": "Your organization's API key on the StackGuardian Platform"
+    },
+    "org_name": {
+      "ui:placeholder": "your-org-name (optional)",
+      "ui:description": "Your organization name. If not provided, will be extracted from environment."
+    }
+  },
+  "aws_region": {
+    "ui:widget": "select",
+    "ui:placeholder": "Select AWS Region",
+    "ui:description": "The target AWS Region for S3 bucket and IAM resources"
+  },
+  "create_storage_backend": {
+    "ui:widget": "checkbox",
+    "ui:description": "Whether to create a new S3 bucket for the storage backend"
+  },
+  "existing_s3_bucket_name": {
+    "ui:placeholder": "my-existing-bucket",
+    "ui:description": "Name of an existing S3 bucket to use as storage backend"
+  },
+  "force_destroy_storage_backend": {
+    "ui:widget": "checkbox",
+    "ui:description": "⚠️ **Warning:** Force destroy the S3 bucket on module destruction (deletes all data)"
+  },
+  "override_names": {
+    "ui:title": "Resource Naming Configuration",
+    "ui:description": "Customize resource names (optional)",
+    "global_prefix": {
+      "ui:placeholder": "SG_RUNNER",
+      "ui:description": "Prefix for naming all resources"
+    },
+    "include_org_in_prefix": {
+      "ui:widget": "checkbox",
+      "ui:description": "When enabled, prefix becomes {global_prefix}_{org_name} (e.g., SG_RUNNER_demo-org)"
+    },
+    "runner_group_name": {
+      "ui:placeholder": "(auto-generated)",
+      "ui:description": "Override the runner group name. If empty, uses {effective_prefix}-runner-group-{account_id}"
+    },
+    "connector_name": {
+      "ui:placeholder": "(auto-generated)",
+      "ui:description": "Override the connector name. If empty, uses {effective_prefix}-private-runner-backend-{account_id}"
+    }
+  },
+  "max_runners": {
+    "ui:description": "Maximum number of runners allowed in the runner group"
+  }
+}
