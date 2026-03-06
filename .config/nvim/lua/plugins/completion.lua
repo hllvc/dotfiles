@@ -187,6 +187,8 @@ return {
         update_events = "TextChanged,TextChangedI",
         -- Delete unvisited nodes on leaving
         delete_check_events = "TextChanged",
+        -- Re-check snippet regions on insert to maintain select mode
+        region_check_events = "InsertEnter",
       })
     end,
   },

@@ -243,6 +243,7 @@ return {
         { "<leader>w",     group = "windows" },
         { "<leader>o",     group = "open" },
         { "<leader>x",     group = "diagnostics/quickfix" },
+        { "<leader>X",     group = "xcode" },
       },
     },
     config = function(_, opts)

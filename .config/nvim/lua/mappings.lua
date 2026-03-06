@@ -8,6 +8,8 @@ local keymap = vim.keymap
 keymap.set("n", " ", "<Nop>", { noremap = true, silent = true })
 keymap.set("i", "jk", "<Esc>", { noremap = true, silent = true, desc = "Exit insert mode" })
 keymap.set("i", "JK", "<Esc>", { noremap = true, silent = true, desc = "Exit insert mode" })
+keymap.set("s", "jk", "<Esc>", { noremap = true, silent = true, desc = "Exit select mode" })
+keymap.set("s", "JK", "<Esc>", { noremap = true, silent = true, desc = "Exit select mode" })
 keymap.set("n", "<leader><leader>", ":w<CR>", { noremap = true, silent = true, desc = "Save file" })
 
 -- Window navigation with Alt+hjkl handled by vim-tmux-navigator plugin
@@ -19,8 +21,8 @@ keymap.set("n", "<leader><A-k>", "<C-w><S-k>", { noremap = true, silent = true, 
 keymap.set("n", "<leader><A-l>", "<C-w><S-l>", { noremap = true, silent = true, desc = "Move window right" })
 
 -- Keep visual selection while indenting
-keymap.set("v", "<", "<gv", { noremap = true, silent = true, desc = "Indent left and reselect" })
-keymap.set("v", ">", ">gv", { noremap = true, silent = true, desc = "Indent right and reselect" })
+keymap.set("x", "<", "<gv", { noremap = true, silent = true, desc = "Indent left and reselect" })
+keymap.set("x", ">", ">gv", { noremap = true, silent = true, desc = "Indent right and reselect" })
 
 -- Select what was pasted
 keymap.set("n", "<Leader>p", "V`]", { noremap = true, silent = true, desc = "Select pasted text" })
@@ -36,7 +38,7 @@ keymap.set("n", "<leader>l", "<C-^>", { noremap = true, silent = true, desc = "L
 keymap.set("n", "<Leader>bx", ":bdelete<CR>", { noremap = true, silent = true, desc = "Delete buffer" })
 
 -- Enable . command in visual mode
-keymap.set("v", ".", ":normal .<CR>", { noremap = true, silent = true, desc = "Repeat in visual mode" })
+keymap.set("x", ".", ":normal .<CR>", { noremap = true, silent = true, desc = "Repeat in visual mode" })
 
 -- Scroll the viewport faster
 keymap.set("n", "<C-e>", "3<C-e>", { noremap = true, silent = true, desc = "Scroll down 3 lines" })
@@ -45,7 +47,7 @@ keymap.set("n", "<C-y>", "3<C-y>", { noremap = true, silent = true, desc = "Scro
 -- Text objects for inner-line (il) and around-line (al)
 keymap.set("x", "il", ":<C-u>normal! g_v^<CR>", { silent = true, desc = "Inner line" })
 keymap.set("o", "il", ":<C-u>normal! g_v^<CR>", { silent = true, desc = "Inner line" })
-keymap.set("v", "al", ":<C-u>normal! $v0<CR>", { silent = true, desc = "Around line" })
+keymap.set("x", "al", ":<C-u>normal! $v0<CR>", { silent = true, desc = "Around line" })
 keymap.set("o", "al", ":<C-u>normal! $v0<CR>", { silent = true, desc = "Around line" })
 
 -- Wrap functions with custom fold markers
@@ -154,6 +156,27 @@ keymap.set("v", "<leader>bs", ":!boxes -d shell<CR>", { noremap = true, silent =
 keymap.set("n", "<leader>bs", ":. !boxes -d shell<CR>", { noremap = true, silent = true, desc = "Box (shell style)" })
 keymap.set("v", "<leader>bt", ":!boxes -d jstone<CR>", { noremap = true, silent = true, desc = "Box (jstone style)" })
 keymap.set("n", "<leader>bt", ":. !boxes -d jstone<CR>", { noremap = true, silent = true, desc = "Box (jstone style)" })
+
+-- Toggle inline diagnostics (virtual text)
+keymap.set("n", "<leader>ud", function()
+  local current = vim.diagnostic.config().virtual_text
+  vim.diagnostic.config({ virtual_text = not current and {
+    spacing = 4,
+    source = "if_many",
+    prefix = "●",
+  } or false })
+end, { noremap = true, silent = true, desc = "Toggle inline diagnostics" })
+
+-- Toggle diagnostics underline highlights
+keymap.set("n", "<leader>uu", function()
+  local current = vim.diagnostic.config().underline
+  vim.diagnostic.config({ underline = not current })
+end, { noremap = true, silent = true, desc = "Toggle diagnostics underline" })
+
+-- Toggle diagnostics hover popup
+keymap.set("n", "<leader>uh", function()
+  vim.g.diagnostics_hover = not vim.g.diagnostics_hover
+end, { noremap = true, silent = true, desc = "Toggle diagnostics hover" })
 
 -- LSP keymaps are now handled in lsp.lua
 -- Telescope keymaps will be handled in telescope.lua

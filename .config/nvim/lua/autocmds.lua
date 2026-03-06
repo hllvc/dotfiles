@@ -171,6 +171,17 @@ vim.api.nvim_create_autocmd("BufReadPost", {
   end,
 })
 
+-- Show diagnostics popup on hover (enabled by default)
+vim.g.diagnostics_hover = false
+vim.api.nvim_create_autocmd("CursorHold", {
+  group = augroup("diagnostics_hover"),
+  callback = function()
+    if vim.g.diagnostics_hover then
+      vim.diagnostic.open_float(nil, { focusable = false })
+    end
+  end,
+})
+
 -- Minimal LSP file change handling for better autocompletion
 -- Only refresh when necessary to avoid breaking LSP functionality
 
@@ -190,8 +201,8 @@ vim.api.nvim_create_autocmd("BufWritePost", {
     vim.schedule(function()
       local clients = vim.lsp.get_clients({ bufnr = 0 })
       for _, client in pairs(clients) do
-        if client.supports_method("workspace/didChangeConfiguration") then
-          client.notify("workspace/didChangeConfiguration", { settings = {} })
+        if client:supports_method("workspace/didChangeConfiguration") then
+          client:notify("workspace/didChangeConfiguration", { settings = {} })
         end
       end
     end)

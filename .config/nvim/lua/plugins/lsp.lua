@@ -18,6 +18,8 @@ return {
         "xmlformatter",
         "shfmt",
         "shellcheck",
+        "ruff",
+        "tflint",
       },
     },
     config = function(_, opts)
@@ -44,6 +46,29 @@ return {
       else
         ensure_installed()
       end
+    end,
+  },
+
+  -- Standalone linting
+  {
+    "mfussenegger/nvim-lint",
+    event = { "BufReadPre", "BufNewFile" },
+    config = function()
+      local lint = require("lint")
+      lint.linters_by_ft = {
+        sh = { "shellcheck" },
+        bash = { "shellcheck" },
+        yaml = { "yamllint" },
+        python = { "ruff" },
+        terraform = { "terraform_validate", "tflint", "tfsec" },
+        tf = { "terraform_validate", "tflint", "tfsec" },
+      }
+      vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
+        group = vim.api.nvim_create_augroup("nvim-lint", { clear = true }),
+        callback = function()
+          lint.try_lint()
+        end,
+      })
     end,
   },
 
@@ -89,11 +114,7 @@ return {
       diagnostics = {
         underline = true,
         update_in_insert = false,
-        virtual_text = {
-          spacing = 4,
-          source = "if_many",
-          prefix = "●",
-        },
+        virtual_text = false,
         severity_sort = true,
         signs = {
           text = {
@@ -191,7 +212,8 @@ return {
               },
             }
           end
-          require("lspconfig").jsonls.setup(opts)
+          vim.lsp.config("jsonls", opts)
+          vim.lsp.enable("jsonls")
           return true
         end,
       },
@@ -221,7 +243,8 @@ return {
             return
           end
         end
-        require("lspconfig")[server].setup(server_opts)
+        vim.lsp.config(server, server_opts)
+        vim.lsp.enable(server)
       end
 
       -- Setup servers directly without deprecated API usage
@@ -278,8 +301,8 @@ return {
           end, "List Workspace Folders")
 
           -- Diagnostic navigation
-          map("n", "[d", vim.diagnostic.goto_prev, "Previous Diagnostic")
-          map("n", "]d", vim.diagnostic.goto_next, "Next Diagnostic")
+          map("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, "Previous Diagnostic")
+          map("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, "Next Diagnostic")
         end,
       })
     end,
