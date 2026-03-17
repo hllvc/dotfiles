@@ -12,6 +12,9 @@ keymap.set("s", "jk", "<Esc>", { noremap = true, silent = true, desc = "Exit sel
 keymap.set("s", "JK", "<Esc>", { noremap = true, silent = true, desc = "Exit select mode" })
 keymap.set("n", "<leader><leader>", ":w<CR>", { noremap = true, silent = true, desc = "Save file" })
 
+-- Exit terminal mode with double Esc
+keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { noremap = true, silent = true, desc = "Exit terminal mode" })
+
 -- Window navigation with Alt+hjkl handled by vim-tmux-navigator plugin
 
 -- Move windows with leader+alt+hjkl
@@ -152,10 +155,10 @@ keymap.set("v", "<leader>ov", function() open_selection_in_tmux("vsplit") end,
 keymap.set("n", "<M-u>", ":UndotreeToggle<CR>", { noremap = true, silent = true, desc = "Toggle undotree" })
 
 -- Comment boxes using 'boxes' command
-keymap.set("v", "<leader>bs", ":!boxes -d shell<CR>", { noremap = true, silent = true, desc = "Box (shell style)" })
-keymap.set("n", "<leader>bs", ":. !boxes -d shell<CR>", { noremap = true, silent = true, desc = "Box (shell style)" })
-keymap.set("v", "<leader>bt", ":!boxes -d jstone<CR>", { noremap = true, silent = true, desc = "Box (jstone style)" })
-keymap.set("n", "<leader>bt", ":. !boxes -d jstone<CR>", { noremap = true, silent = true, desc = "Box (jstone style)" })
+keymap.set("v", "<leader>Bs", ":!boxes -d shell<CR>", { noremap = true, silent = true, desc = "Box (shell style)" })
+keymap.set("n", "<leader>Bs", ":. !boxes -d shell<CR>", { noremap = true, silent = true, desc = "Box (shell style)" })
+keymap.set("v", "<leader>Bt", ":!boxes -d jstone<CR>", { noremap = true, silent = true, desc = "Box (jstone style)" })
+keymap.set("n", "<leader>Bt", ":. !boxes -d jstone<CR>", { noremap = true, silent = true, desc = "Box (jstone style)" })
 
 -- Toggle inline diagnostics (virtual text)
 keymap.set("n", "<leader>ud", function()
@@ -177,6 +180,85 @@ end, { noremap = true, silent = true, desc = "Toggle diagnostics underline" })
 keymap.set("n", "<leader>uh", function()
   vim.g.diagnostics_hover = not vim.g.diagnostics_hover
 end, { noremap = true, silent = true, desc = "Toggle diagnostics hover" })
+
+-- Insert inline ignore comment for diagnostic
+keymap.set("n", "<leader>ui", function()
+  local line = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local diagnostics = vim.diagnostic.get(0, { lnum = line })
+  if #diagnostics == 0 then
+    vim.notify("No diagnostics on this line", vim.log.levels.INFO)
+    return
+  end
+
+  local function insert_ignore(diag)
+    local source = (diag.source or ""):lower()
+    local code = tostring(diag.code or "")
+    local cur_line = vim.api.nvim_win_get_cursor(0)[1]
+    local indent = vim.api.nvim_get_current_line():match("^(%s*)")
+
+    -- above: insert a new line above with matching indentation
+    -- eol: append comment to end of current line
+    local comment, placement
+
+    if source == "shellcheck" then
+      comment = "# shellcheck disable=" .. code
+      placement = "above"
+    elseif source == "yamllint" then
+      comment = "# yamllint disable-line rule:" .. code
+      placement = "above"
+    elseif source == "ruff" then
+      comment = "# noqa: " .. code
+      placement = "eol"
+    elseif source == "pyright" then
+      comment = "# type: ignore[" .. code .. "]"
+      placement = "eol"
+    elseif source == "eslint" then
+      comment = "// eslint-disable-next-line " .. code
+      placement = "above"
+    elseif source == "lua_ls" or source == "lua diagnostics" then
+      comment = "---@diagnostic disable-next-line: " .. code
+      placement = "above"
+    elseif source == "tflint" then
+      comment = "# tflint-ignore: " .. code
+      placement = "above"
+    elseif source == "tfsec" then
+      comment = "# tfsec:ignore:" .. code
+      placement = "above"
+    elseif source == "terraform_validate" then
+      vim.notify("No inline ignore syntax for terraform_validate", vim.log.levels.WARN)
+      return
+    else
+      vim.notify("Unknown source: " .. (diag.source or "nil") .. " (code: " .. code .. ")", vim.log.levels.WARN)
+      return
+    end
+
+    if placement == "above" then
+      vim.api.nvim_buf_set_lines(0, cur_line - 1, cur_line - 1, false, { indent .. comment })
+    elseif placement == "eol" then
+      local cur_text = vim.api.nvim_get_current_line()
+      if cur_text:find(comment, 1, true) then
+        vim.notify("Ignore comment already present", vim.log.levels.INFO)
+        return
+      end
+      vim.api.nvim_set_current_line(cur_text .. "  " .. comment)
+    end
+  end
+
+  if #diagnostics == 1 then
+    insert_ignore(diagnostics[1])
+  else
+    vim.ui.select(diagnostics, {
+      prompt = "Select diagnostic to ignore:",
+      format_item = function(d)
+        return (d.source or "?") .. " [" .. (d.code or "") .. "]: " .. d.message
+      end,
+    }, function(choice)
+      if choice then
+        insert_ignore(choice)
+      end
+    end)
+  end
+end, { noremap = true, silent = true, desc = "Insert inline ignore comment" })
 
 -- LSP keymaps are now handled in lsp.lua
 -- Telescope keymaps will be handled in telescope.lua

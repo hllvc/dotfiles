@@ -175,6 +175,9 @@ return {
     version = "v2.*",
     build = "make install_jsregexp",
     event = "InsertEnter",
+    keys = {
+      { "<Tab>", mode = "x" },
+    },
     config = function()
       local luasnip = require('luasnip')
 
@@ -189,6 +192,8 @@ return {
         delete_check_events = "TextChanged",
         -- Re-check snippet regions on insert to maintain select mode
         region_check_events = "InsertEnter",
+        -- Store visual selection for $TM_SELECTED_TEXT snippets
+        store_selection_keys = "<Tab>",
       })
     end,
   },

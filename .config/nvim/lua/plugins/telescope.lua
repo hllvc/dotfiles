@@ -13,20 +13,6 @@ local function telescope(builtin, opts)
         builtin = "find_files"
       end
     end
-    if opts.cwd and opts.cwd ~= vim.uv.cwd() then
-      opts.attach_mappings = function(_, map)
-        map("i", "<a-c>", function()
-          local action_state = require("telescope.actions.state")
-          local line = action_state.get_current_line()
-          telescope(
-            params.builtin,
-            vim.tbl_deep_extend("force", {}, params.opts or {}, { cwd = false, default_text = line })
-          )()
-        end)
-        return true
-      end
-    end
-
     require("telescope.builtin")[builtin](opts)
   end
 end
@@ -102,6 +88,10 @@ return {
       { "<leader>sM", "<cmd>Telescope man_pages<cr>", desc = "Man Pages" },
       { "<leader>sm", "<cmd>Telescope marks<cr>", desc = "Jump to Mark" },
       { "<leader>so", "<cmd>Telescope vim_options<cr>", desc = "Options" },
+      { "<leader>sq", "<cmd>Telescope quickfix<cr>", desc = "Quickfix List" },
+      { "<leader>sl", "<cmd>Telescope loclist<cr>", desc = "Location List" },
+      { "<leader>xq", "<cmd>cexpr []<cr>", desc = "Clear Quickfix List" },
+      { "<leader>xc", "<cmd>lexpr []<cr>", desc = "Clear Location List" },
       {
         "<leader>sP",
         telescope("find_files", { cwd = vim.fn.stdpath("config") .. "/spell", prompt_title = "Spellfiles", file_ignore_patterns = { "%.spl$" } }),
@@ -174,16 +164,6 @@ return {
       local open_with_trouble = function(...)
         return require("trouble.sources.telescope").open(...)
       end
-      local find_files_no_ignore = function()
-        local action_state = require("telescope.actions.state")
-        local line = action_state.get_current_line()
-        telescope("find_files", { no_ignore = true, default_text = line })()
-      end
-      local find_files_with_hidden = function()
-        local action_state = require("telescope.actions.state")
-        local line = action_state.get_current_line()
-        telescope("find_files", { hidden = true, default_text = line })()
-      end
 
       return {
         defaults = {
@@ -229,18 +209,16 @@ return {
           mappings = {
             i = {
               ["<c-t>"] = open_with_trouble,
-              ["<a-i>"] = find_files_no_ignore,
-              ["<a-h>"] = find_files_with_hidden,
+              ["<C-s>"] = actions.select_horizontal,
               ["<C-Down>"] = actions.cycle_history_next,
               ["<C-Up>"] = actions.cycle_history_prev,
-              ["<C-f>"] = actions.preview_scrolling_down,
-              ["<C-b>"] = actions.preview_scrolling_up,
-              -- Disable vim editing in input
+              ["<C-q>"] = actions.smart_send_to_qflist + actions.open_qflist,
               ["<Esc>"] = actions.close,
             },
             n = {
               ["q"] = actions.close,
               ["<Esc>"] = actions.close,
+              ["s"] = actions.toggle_selection,
             },
           },
         },
@@ -284,7 +262,7 @@ return {
       },
       {
         "S",
-        mode = { "n", "o", "x" },
+        mode = { "n", "o" },
         function()
           require("flash").treesitter()
         end,

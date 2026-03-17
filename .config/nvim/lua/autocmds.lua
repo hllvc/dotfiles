@@ -209,6 +209,17 @@ vim.api.nvim_create_autocmd("BufWritePost", {
   end,
 })
 
+-- Detect external file changes (complements autoread)
+vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
+  group = augroup("checktime"),
+  pattern = "*",
+  callback = function()
+    if vim.fn.getcmdwintype() == "" then
+      vim.cmd("checktime")
+    end
+  end,
+})
+
 -- Handle external file changes
 vim.api.nvim_create_autocmd("FileChangedShellPost", {
   group = augroup("lsp_external_changes"),

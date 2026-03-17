@@ -13,6 +13,7 @@ return {
         "black",
         "isort",
         "eslint_d",
+        "actionlint",
         "yamllint",
         "jq",
         "xmlformatter",
@@ -59,6 +60,7 @@ return {
         sh = { "shellcheck" },
         bash = { "shellcheck" },
         yaml = { "yamllint" },
+        ["yaml.ghaction"] = { "actionlint" },
         python = { "ruff" },
         terraform = { "terraform_validate", "tflint", "tfsec" },
         tf = { "terraform_validate", "tflint", "tfsec" },
@@ -198,6 +200,7 @@ return {
             },
           },
         },
+        gh_actions_ls = {},
         jsonls = {},
         marksman = {},
       },
@@ -542,11 +545,11 @@ return {
       require("copilot").setup {
         suggestion = {
           enabled = true,
-          auto_trigger = false, -- Show suggestions automatically
+          auto_trigger = true, -- Show suggestions automatically
           debounce = 200,
           keymap = {
             accept = false, -- Disabled - use C-l via nvim-cmp instead
-            dismiss = "<C-h>",
+            dismiss = false,
             next = "<M-]>",
             prev = "<M-[>",
           },
@@ -561,11 +564,11 @@ return {
   {
     "christoomey/vim-tmux-navigator",
     keys = {
-      { "<M-h>", "<cmd>TmuxNavigateLeft<cr>" },
-      { "<M-j>", "<cmd>TmuxNavigateDown<cr>" },
-      { "<M-k>", "<cmd>TmuxNavigateUp<cr>" },
-      { "<M-l>", "<cmd>TmuxNavigateRight<cr>" },
-      { "<M-\\>", "<cmd>TmuxNavigatePrevious<cr>" },
+      { "<M-h>", "<cmd>TmuxNavigateLeft<cr>", mode = { "n", "v", "t" } },
+      { "<M-j>", "<cmd>TmuxNavigateDown<cr>", mode = { "n", "v", "t" } },
+      { "<M-k>", "<cmd>TmuxNavigateUp<cr>", mode = { "n", "v", "t" } },
+      { "<M-l>", "<cmd>TmuxNavigateRight<cr>", mode = { "n", "v", "t" } },
+      { "<M-\\>", "<cmd>TmuxNavigatePrevious<cr>", mode = { "n", "v", "t" } },
     },
   },
 

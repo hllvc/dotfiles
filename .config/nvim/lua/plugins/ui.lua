@@ -225,31 +225,34 @@ return {
     "folke/which-key.nvim",
     event = "VeryLazy",
     opts = {
+      preset = "helix",
       plugins = { spelling = true },
+      win = {
+        no_overlap = true,
+      },
       spec = {
         { "g",             group = "goto" },
         { "gs",            group = "surround" },
-        { "]",             group = "next" },
         { "[",             group = "prev" },
-        { "<leader><tab>", group = "tabs" },
+        { "]",             group = "next" },
+        { "<leader>a",     group = "ai" },
         { "<leader>b",     group = "buffer" },
+        { "<leader>B",     group = "box" },
         { "<leader>c",     group = "code" },
+        { "<leader>d",     group = "debug" },
         { "<leader>f",     group = "file/find" },
         { "<leader>g",     group = "git" },
         { "<leader>gd",    group = "diff/conflicts" },
         { "<leader>gh",    group = "hunks" },
-        { "<leader>s",     group = "search" },
-        { "<leader>u",     group = "ui" },
-        { "<leader>w",     group = "windows" },
         { "<leader>o",     group = "open" },
+        { "<leader>s",     group = "search" },
+        { "<leader>sn",    group = "noice" },
+        { "<leader>u",     group = "ui" },
+        { "<leader>v",     group = "venv" },
+        { "<leader>w",     group = "workspace" },
         { "<leader>x",     group = "diagnostics/quickfix" },
-        { "<leader>X",     group = "xcode" },
       },
     },
-    config = function(_, opts)
-      local wk = require("which-key")
-      wk.setup(opts)
-    end,
   },
 
   -- Measure startuptime
