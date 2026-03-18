@@ -29,7 +29,7 @@ opt.cursorlineopt = "both"
 
 -- GUI options
 opt.guioptions = ""
-opt.mouse = ""
+opt.mouse = "a"
 
 -- Search settings
 opt.ignorecase = true
@@ -55,13 +55,13 @@ opt.wildmode = "longest:full,full"
 
 -- Ignore patterns
 opt.wildignore:append({
-  "*.pyc",
-  "*_build/*",
-  "**/coverage/*",
-  "**/node_modules/*",
-  "**/android/*",
-  "**/ios/*",
-  "**/.git/*"
+	"*.pyc",
+	"*_build/*",
+	"**/coverage/*",
+	"**/node_modules/*",
+	"**/android/*",
+	"**/ios/*",
+	"**/.git/*",
 })
 
 opt.shell = vim.env.SHELL
@@ -95,11 +95,11 @@ opt.foldlevelstart = 99
 -- Invisible characters
 opt.list = true
 opt.listchars = {
-  tab = "→ ",
-  eol = "¬",
-  trail = "⋅",
-  extends = "❯",
-  precedes = "❮"
+	tab = "→ ",
+	eol = "¬",
+	trail = "⋅",
+	extends = "❯",
+	precedes = "❮",
 }
 
 -- Color column

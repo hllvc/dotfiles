@@ -1,6 +1,6 @@
 -- Autocommands
 local function augroup(name)
-  return vim.api.nvim_create_augroup("lazyvim_" .. name, { clear = true })
+	return vim.api.nvim_create_augroup("lazyvim_" .. name, { clear = true })
 end
 
 -- Truncate LSP log if it exceeds 10MB
@@ -8,178 +8,208 @@ local lsp_log = vim.fn.stdpath("state") .. "/lsp.log"
 local max_log_size = 10 * 1024 * 1024
 local stat = vim.uv.fs_stat(lsp_log)
 if stat and stat.size > max_log_size then
-  os.remove(lsp_log)
+	os.remove(lsp_log)
 end
 
 -- Makefile settings
 vim.api.nvim_create_autocmd("FileType", {
-  group = augroup("makefile"),
-  pattern = "make",
-  callback = function()
-    vim.opt_local.expandtab = false
-  end,
+	group = augroup("makefile"),
+	pattern = "make",
+	callback = function()
+		vim.opt_local.expandtab = false
+	end,
 })
 
 -- Fugitive buffer settings
 vim.api.nvim_create_autocmd("BufReadPost", {
-  group = augroup("fugitive"),
-  pattern = "fugitive://*",
-  callback = function()
-    vim.opt_local.bufhidden = "delete"
-  end,
+	group = augroup("fugitive"),
+	pattern = "fugitive://*",
+	callback = function()
+		vim.opt_local.bufhidden = "delete"
+	end,
 })
 
 -- Shell/Zsh folding
 vim.api.nvim_create_autocmd("FileType", {
-  group = augroup("shell_folding"),
-  pattern = { "sh", "zsh" },
-  callback = function()
-    vim.opt_local.foldmethod = "marker"
-    vim.opt_local.foldmarker = "#{{{,#}}}"
-  end,
+	group = augroup("shell_folding"),
+	pattern = { "sh", "zsh" },
+	callback = function()
+		vim.opt_local.foldmethod = "marker"
+		vim.opt_local.foldmarker = "#{{{,#}}}"
+	end,
 })
 
 -- Remember folds (optimized to exclude certain filetypes for performance)
 local fold_blacklist = {
-  "dashboard", "lazy", "mason", "help", "alpha", "telescope", "trouble", "qf", ""
+	"dashboard",
+	"lazy",
+	"mason",
+	"help",
+	"alpha",
+	"telescope",
+	"trouble",
+	"qf",
+	"",
 }
 
 local function should_save_view()
-  local ft = vim.bo.filetype
-  local bufname = vim.fn.expand("%")
+	local ft = vim.bo.filetype
+	local bufname = vim.fn.expand("%")
 
-  -- Skip if no filename or blacklisted filetype
-  if bufname == "" or vim.tbl_contains(fold_blacklist, ft) then
-    return false
-  end
+	-- Skip if no filename or blacklisted filetype
+	if bufname == "" or vim.tbl_contains(fold_blacklist, ft) then
+		return false
+	end
 
-  -- Skip if buffer is temporary or special
-  if vim.bo.buftype ~= "" or vim.wo.previewwindow then
-    return false
-  end
+	-- Skip if buffer is temporary or special
+	if vim.bo.buftype ~= "" or vim.wo.previewwindow then
+		return false
+	end
 
-  return true
+	return true
 end
 
 vim.api.nvim_create_autocmd("BufWinLeave", {
-  group = augroup("remember_folds"),
-  pattern = "*",
-  callback = function()
-    if should_save_view() then
-      vim.cmd("silent! mkview!")
-    end
-  end,
+	group = augroup("remember_folds"),
+	pattern = "*",
+	callback = function()
+		if should_save_view() then
+			vim.cmd("silent! mkview!")
+		end
+	end,
 })
 
 vim.api.nvim_create_autocmd("BufWinEnter", {
-  group = augroup("remember_folds"),
-  pattern = "*",
-  callback = function()
-    if should_save_view() then
-      vim.cmd("silent! loadview")
-    end
-  end,
+	group = augroup("remember_folds"),
+	pattern = "*",
+	callback = function()
+		if should_save_view() then
+			vim.cmd("silent! loadview")
+		end
+	end,
 })
 
 -- Terraform vars filetype detection
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile", "BufCreate" }, {
-  group = augroup("terraform_vars"),
-  pattern = "*.tfvars",
-  callback = function()
-    vim.bo.filetype = "terraform-vars"
-  end,
+	group = augroup("terraform_vars"),
+	pattern = "*.tfvars",
+	callback = function()
+		vim.bo.filetype = "terraform-vars"
+	end,
 })
 
 -- Helm chart filetype detection
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
-  group = augroup("helm_detection"),
-  pattern = { "*/templates/*.yaml", "*/templates/*.tpl" },
-  callback = function()
-    vim.bo.filetype = "helm"
-  end,
+	group = augroup("helm_detection"),
+	pattern = { "*/templates/*.yaml", "*/templates/*.tpl" },
+	callback = function()
+		vim.bo.filetype = "helm"
+	end,
 })
 
 -- Helm Chart.yaml and values files detection
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
-  group = augroup("helm_yaml_files"),
-  pattern = { "*/Chart.yaml", "*/values.yaml", "*/values-*.yaml" },
-  callback = function()
-    -- Keep yaml filetype for better LSP support with yamlls
-    vim.bo.filetype = "yaml"
-  end,
+	group = augroup("helm_yaml_files"),
+	pattern = { "*/Chart.yaml", "*/values.yaml", "*/values-*.yaml" },
+	callback = function()
+		-- Keep yaml filetype for better LSP support with yamlls
+		vim.bo.filetype = "yaml"
+	end,
+})
+
+-- Preserve folds across save (formatters and substitutions trigger treesitter
+-- fold recalculation; mkview/loadview restores the exact fold state)
+vim.api.nvim_create_autocmd("BufWritePre", {
+	group = augroup("preserve_folds_pre"),
+	pattern = "*",
+	callback = function()
+		if should_save_view() then
+			vim.cmd("silent! mkview!")
+		end
+	end,
+})
+
+vim.api.nvim_create_autocmd("BufWritePost", {
+	group = augroup("preserve_folds_post"),
+	pattern = "*",
+	callback = function()
+		if should_save_view() then
+			vim.cmd("silent! loadview")
+		end
+	end,
 })
 
 -- Strip trailing whitespace and newlines on save (combined for performance)
 local function clean_buffer_on_save()
-  -- Skip for certain filetypes or special buffers
-  local ft = vim.bo.filetype
-  if vim.tbl_contains({"markdown", "text", "diff", "gitcommit"}, ft) or vim.bo.buftype ~= "" then
-    return
-  end
+	-- Skip for certain filetypes or special buffers
+	local ft = vim.bo.filetype
+	if vim.tbl_contains({ "markdown", "text", "diff", "gitcommit" }, ft) or vim.bo.buftype ~= "" then
+		return
+	end
 
-  local save_cursor = vim.fn.getpos(".")
+	local save_cursor = vim.fn.getpos(".")
 
-  -- Strip trailing whitespace
-  vim.cmd([[%s/\s\+$//e]])
+	-- Strip trailing whitespace
+	vim.cmd([[%s/\s\+$//e]])
 
-  -- Strip trailing newlines
-  vim.cmd([[%s/\n\+\%$//e]])
+	-- Strip trailing newlines
+	vim.cmd([[%s/\n\+\%$//e]])
 
-  vim.fn.setpos(".", save_cursor)
+	vim.fn.setpos(".", save_cursor)
 end
 
 vim.api.nvim_create_autocmd("BufWritePre", {
-  group = augroup("clean_buffer"),
-  pattern = "*",
-  callback = clean_buffer_on_save,
+	group = augroup("clean_buffer"),
+	pattern = "*",
+	callback = clean_buffer_on_save,
 })
 
 -- Add newline for C files
 vim.api.nvim_create_autocmd("BufWritePre", {
-  group = augroup("c_newline"),
-  pattern = "*.[ch]",
-  callback = function()
-    vim.cmd([[%s/\%$/\r/e]])
-  end,
+	group = augroup("c_newline"),
+	pattern = "*.[ch]",
+	callback = function()
+		vim.cmd([[%s/\%$/\r/e]])
+	end,
 })
 
 -- Save all files on focus lost
 vim.api.nvim_create_autocmd("FocusLost", {
-  group = augroup("save_on_focus_lost"),
-  pattern = "*",
-  callback = function()
-    vim.cmd("silent! wa")
-  end,
+	group = augroup("save_on_focus_lost"),
+	pattern = "*",
+	callback = function()
+		vim.cmd("silent! wa")
+	end,
 })
 
 -- Cursor position memory fallback (in case mkview/loadview fails)
 vim.api.nvim_create_autocmd("BufReadPost", {
-  group = augroup("cursor_position"),
-  pattern = "*",
-  callback = function()
-    local ft = vim.bo.filetype
-    -- Skip for certain filetypes and special buffers
-    if vim.tbl_contains(fold_blacklist, ft) or vim.bo.buftype ~= "" then
-      return
-    end
+	group = augroup("cursor_position"),
+	pattern = "*",
+	callback = function()
+		local ft = vim.bo.filetype
+		-- Skip for certain filetypes and special buffers
+		if vim.tbl_contains(fold_blacklist, ft) or vim.bo.buftype ~= "" then
+			return
+		end
 
-    local mark = vim.api.nvim_buf_get_mark(0, '"')
-    local lcount = vim.api.nvim_buf_line_count(0)
-    if mark[1] > 0 and mark[1] <= lcount then
-      pcall(vim.api.nvim_win_set_cursor, 0, mark)
-    end
-  end,
+		local mark = vim.api.nvim_buf_get_mark(0, '"')
+		local lcount = vim.api.nvim_buf_line_count(0)
+		if mark[1] > 0 and mark[1] <= lcount then
+			pcall(vim.api.nvim_win_set_cursor, 0, mark)
+		end
+	end,
 })
 
 -- Show diagnostics popup on hover (enabled by default)
 vim.g.diagnostics_hover = false
 vim.api.nvim_create_autocmd("CursorHold", {
-  group = augroup("diagnostics_hover"),
-  callback = function()
-    if vim.g.diagnostics_hover then
-      vim.diagnostic.open_float(nil, { focusable = false })
-    end
-  end,
+	group = augroup("diagnostics_hover"),
+	callback = function()
+		if vim.g.diagnostics_hover then
+			vim.diagnostic.open_float(nil, { focusable = false })
+		end
+	end,
 })
 
 -- Minimal LSP file change handling for better autocompletion
@@ -187,45 +217,95 @@ vim.api.nvim_create_autocmd("CursorHold", {
 
 -- Simple workspace refresh for configuration file changes
 vim.api.nvim_create_autocmd("BufWritePost", {
-  group = augroup("lsp_config_refresh"),
-  pattern = {
-    "package.json",    -- Node.js dependencies
-    "tsconfig.json",   -- TypeScript config
-    "go.mod",          -- Go modules
-    "Cargo.toml",      -- Rust dependencies
-    "pyproject.toml",  -- Python project config
-    "requirements.txt", -- Python requirements
-  },
-  callback = function()
-    -- Only refresh workspace configuration for config files
-    vim.schedule(function()
-      local clients = vim.lsp.get_clients({ bufnr = 0 })
-      for _, client in pairs(clients) do
-        if client:supports_method("workspace/didChangeConfiguration") then
-          client:notify("workspace/didChangeConfiguration", { settings = {} })
-        end
-      end
-    end)
-  end,
+	group = augroup("lsp_config_refresh"),
+	pattern = {
+		"package.json", -- Node.js dependencies
+		"tsconfig.json", -- TypeScript config
+		"go.mod", -- Go modules
+		"Cargo.toml", -- Rust dependencies
+		"pyproject.toml", -- Python project config
+		"requirements.txt", -- Python requirements
+	},
+	callback = function()
+		-- Only refresh workspace configuration for config files
+		vim.schedule(function()
+			local clients = vim.lsp.get_clients({ bufnr = 0 })
+			for _, client in pairs(clients) do
+				if client:supports_method("workspace/didChangeConfiguration") then
+					client:notify("workspace/didChangeConfiguration", { settings = {} })
+				end
+			end
+		end)
+	end,
+})
+
+-- Terminal buffer settings
+vim.api.nvim_create_autocmd("TermOpen", {
+	group = augroup("terminal_settings"),
+	callback = function()
+		vim.opt_local.scrolloff = 0
+		vim.opt_local.number = false
+		vim.opt_local.relativenumber = false
+		vim.opt_local.signcolumn = "no"
+
+		local buf = vim.api.nvim_get_current_buf()
+		vim.bo[buf].buflisted = false
+		if not vim.b[buf].snacks_terminal then
+			vim.bo[buf].bufhidden = "wipe"
+		end
+		for _, mode in ipairs({ "n", "t" }) do
+			vim.keymap.set(mode, "<ScrollWheelLeft>", "<Nop>", { buffer = buf })
+			vim.keymap.set(mode, "<ScrollWheelRight>", "<Nop>", { buffer = buf })
+		end
+	end,
+})
+
+-- Auto-quit when closing the last non-terminal window
+vim.api.nvim_create_autocmd("QuitPre", {
+	group = augroup("auto_quit_terminals"),
+	callback = function()
+		if vim.bo.buftype == "terminal" then
+			return
+		end
+
+		local current_win = vim.api.nvim_get_current_win()
+		local terminal_bufs = {}
+
+		for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+			if win ~= current_win and vim.api.nvim_win_get_config(win).relative == "" then
+				local buf = vim.api.nvim_win_get_buf(win)
+				if vim.bo[buf].buftype == "terminal" then
+					table.insert(terminal_bufs, buf)
+				else
+					return
+				end
+			end
+		end
+
+		for _, buf in ipairs(terminal_bufs) do
+			vim.api.nvim_buf_delete(buf, { force = true })
+		end
+	end,
 })
 
 -- Detect external file changes (complements autoread)
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
-  group = augroup("checktime"),
-  pattern = "*",
-  callback = function()
-    if vim.fn.getcmdwintype() == "" then
-      vim.cmd("checktime")
-    end
-  end,
+	group = augroup("checktime"),
+	pattern = "*",
+	callback = function()
+		if vim.fn.getcmdwintype() == "" then
+			vim.cmd("checktime")
+		end
+	end,
 })
 
 -- Handle external file changes
 vim.api.nvim_create_autocmd("FileChangedShellPost", {
-  group = augroup("lsp_external_changes"),
-  pattern = "*",
-  callback = function()
-    -- Let LSP handle file changes naturally
-    vim.cmd("checktime")
-  end,
+	group = augroup("lsp_external_changes"),
+	pattern = "*",
+	callback = function()
+		-- Let LSP handle file changes naturally
+		vim.cmd("checktime")
+	end,
 })
+

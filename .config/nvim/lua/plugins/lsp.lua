@@ -1,582 +1,634 @@
 return {
-  -- Mason
-  {
-    "williamboman/mason.nvim",
-    cmd = "Mason",
-    keys = { { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason" } },
-    build = ":MasonUpdate",
-    opts = {
-      ensure_installed = {
-        "stylua",
-        "prettier",
-        "prettierd",
-        "black",
-        "isort",
-        "eslint_d",
-        "actionlint",
-        "yamllint",
-        "jq",
-        "xmlformatter",
-        "shfmt",
-        "shellcheck",
-        "ruff",
-        "tflint",
-      },
-    },
-    config = function(_, opts)
-      require("mason").setup(opts)
-      local mr = require("mason-registry")
-      mr:on("package:install:success", function()
-        vim.defer_fn(function()
-          require("lazy.core.handler.event").trigger({
-            event = "FileType",
-            buf = vim.api.nvim_get_current_buf(),
-          })
-        end, 100)
-      end)
-      local function ensure_installed()
-        for _, tool in ipairs(opts.ensure_installed) do
-          local p = mr.get_package(tool)
-          if not p:is_installed() then
-            p:install()
-          end
-        end
-      end
-      if mr.refresh then
-        mr.refresh(ensure_installed)
-      else
-        ensure_installed()
-      end
-    end,
-  },
+	-- Mason
+	{
+		"williamboman/mason.nvim",
+		cmd = "Mason",
+		keys = { { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason" } },
+		build = ":MasonUpdate",
+		opts = {
+			ensure_installed = {
+				"stylua",
+				"prettier",
+				"prettierd",
+				"black",
+				"isort",
+				"eslint_d",
+				"actionlint",
+				"yamllint",
+				"jq",
+				"xmlformatter",
+				"shfmt",
+				"shellcheck",
+				"ruff",
+				"tflint",
+			},
+		},
+		config = function(_, opts)
+			require("mason").setup(opts)
+			local mr = require("mason-registry")
+			mr:on("package:install:success", function()
+				vim.defer_fn(function()
+					require("lazy.core.handler.event").trigger({
+						event = "FileType",
+						buf = vim.api.nvim_get_current_buf(),
+					})
+				end, 100)
+			end)
+			local function ensure_installed()
+				for _, tool in ipairs(opts.ensure_installed) do
+					local p = mr.get_package(tool)
+					if not p:is_installed() then
+						p:install()
+					end
+				end
+			end
+			if mr.refresh then
+				mr.refresh(ensure_installed)
+			else
+				ensure_installed()
+			end
+		end,
+	},
 
-  -- Standalone linting
-  {
-    "mfussenegger/nvim-lint",
-    event = { "BufReadPre", "BufNewFile" },
-    config = function()
-      local lint = require("lint")
-      lint.linters_by_ft = {
-        sh = { "shellcheck" },
-        bash = { "shellcheck" },
-        yaml = { "yamllint" },
-        ["yaml.ghaction"] = { "actionlint" },
-        python = { "ruff" },
-        terraform = { "terraform_validate", "tflint", "tfsec" },
-        tf = { "terraform_validate", "tflint", "tfsec" },
-      }
-      vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
-        group = vim.api.nvim_create_augroup("nvim-lint", { clear = true }),
-        callback = function()
-          lint.try_lint()
-        end,
-      })
-    end,
-  },
+	-- Standalone linting
+	{
+		"mfussenegger/nvim-lint",
+		event = { "BufReadPre", "BufNewFile" },
+		config = function()
+			local lint = require("lint")
+			lint.linters_by_ft = {
+				sh = { "shellcheck" },
+				bash = { "shellcheck" },
+				yaml = { "yamllint" },
+				["yaml.ghaction"] = { "actionlint" },
+				python = { "ruff" },
+				terraform = { "terraform_validate", "tflint", "tfsec" },
+				tf = { "terraform_validate", "tflint", "tfsec" },
+			}
+			vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
+				group = vim.api.nvim_create_augroup("nvim-lint", { clear = true }),
+				callback = function()
+					lint.try_lint()
+				end,
+			})
+		end,
+	},
 
-  -- Neovim Lua development
-  {
-    "folke/lazydev.nvim",
-    ft = "lua",
-    opts = {
-      library = {
-        { path = "luvit-meta/library", words = { "vim%.uv" } },
-      },
-    },
-  },
-  { "Bilal2453/luvit-meta", lazy = true },
+	-- Neovim Lua development
+	{
+		"folke/lazydev.nvim",
+		ft = "lua",
+		opts = {
+			library = {
+				{ path = "luvit-meta/library", words = { "vim%.uv" } },
+			},
+		},
+	},
+	{ "Bilal2453/luvit-meta", lazy = true },
 
-  -- LSP progress and notification system
-  {
-    "j-hui/fidget.nvim",
-    event = "VeryLazy",
-    opts = {
-      notification = {
-        window = {
-          winblend = 0,
-          align = "bottom",
-          relative = "editor",
-        },
-        override_vim_notify = false,
-      },
-    },
-  },
+	-- LSP progress and notification system
+	{
+		"j-hui/fidget.nvim",
+		event = "VeryLazy",
+		opts = {
+			notification = {
+				window = {
+					winblend = 0,
+					align = "bottom",
+					relative = "editor",
+				},
+				override_vim_notify = false,
+			},
+		},
+	},
 
-  -- LSP servers
-  {
-    "neovim/nvim-lspconfig",
-    event = { "BufReadPre", "BufNewFile" },
-    dependencies = {
-      "mason.nvim",
-      "williamboman/mason-lspconfig.nvim",
-      "hrsh7th/cmp-nvim-lsp",
-      "b0o/schemastore.nvim",
-    },
-    opts = {
-      diagnostics = {
-        underline = true,
-        update_in_insert = false,
-        virtual_text = false,
-        severity_sort = true,
-        signs = {
-          text = {
-            [vim.diagnostic.severity.ERROR] = " ",
-            [vim.diagnostic.severity.WARN] = " ",
-            [vim.diagnostic.severity.HINT] = " ",
-            [vim.diagnostic.severity.INFO] = " ",
-          },
-        },
-      },
-      inlay_hints = {
-        enabled = false,
-      },
-      codelens = {
-        enabled = false,
-      },
-      capabilities = {},
-      format = {
-        formatting_options = nil,
-        timeout_ms = nil,
-      },
-      servers = {
-        lua_ls = {
-          settings = {
-            Lua = {
-              workspace = {
-                checkThirdParty = false,
-              },
-              completion = {
-                callSnippet = "Replace",
-              },
-            },
-          },
-        },
-        pyright = {
-          settings = {
-            python = {
-              analysis = {
-                diagnosticMode = "openFilesOnly",
-                autoSearchPaths = true,
-                useLibraryCodeForTypes = true,
-              },
-              formatting = {
-                provider = "black",
-                blackArgs = { "--line-length", "79" },
-              },
-            },
-          },
-        },
-        eslint = {
-          settings = {
-            run = "onSave",
-          },
-        },
-        terraformls = {},
-        helm_ls = {
-          settings = {
-            ["helm-ls"] = {
-              yamlls = {
-                path = "yaml-language-server",
-              },
-            },
-          },
-        },
-        yamlls = {
-          settings = {
-            yaml = {
-              schemas = {
-                ["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
-                ["https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json"] = "/*.k8s.yaml",
-                kubernetes = {
-                  "*/templates/*.yaml",
-                  "*/templates/*.tpl",
-                },
-              },
-              format = {
-                enable = true,
-              },
-              validate = true,
-              completion = true,
-            },
-          },
-        },
-        gh_actions_ls = {},
-        jsonls = {},
-        marksman = {},
-      },
-      setup = {
-        jsonls = function(_, opts)
-          local has_schemastore, schemastore = pcall(require, "schemastore")
-          if has_schemastore then
-            opts.settings = {
-              json = {
-                schemas = schemastore.json.schemas(),
-                validate = { enable = true },
-              },
-            }
-          end
-          vim.lsp.config("jsonls", opts)
-          vim.lsp.enable("jsonls")
-          return true
-        end,
-      },
-    },
-    config = function(_, opts)
-      local servers = opts.servers
-      local has_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
-      local capabilities = vim.tbl_deep_extend(
-        "force",
-        {},
-        vim.lsp.protocol.make_client_capabilities(),
-        has_cmp and cmp_nvim_lsp.default_capabilities() or {},
-        opts.capabilities or {}
-      )
+	-- LSP servers
+	{
+		"neovim/nvim-lspconfig",
+		event = { "BufReadPre", "BufNewFile" },
+		dependencies = {
+			"mason.nvim",
+			"williamboman/mason-lspconfig.nvim",
+			"hrsh7th/cmp-nvim-lsp",
+			"b0o/schemastore.nvim",
+		},
+		opts = {
+			diagnostics = {
+				underline = true,
+				update_in_insert = false,
+				virtual_text = false,
+				severity_sort = true,
+				signs = {
+					text = {
+						[vim.diagnostic.severity.ERROR] = " ",
+						[vim.diagnostic.severity.WARN] = " ",
+						[vim.diagnostic.severity.HINT] = " ",
+						[vim.diagnostic.severity.INFO] = " ",
+					},
+				},
+			},
+			inlay_hints = {
+				enabled = false,
+			},
+			codelens = {
+				enabled = false,
+			},
+			capabilities = {},
+			format = {
+				formatting_options = nil,
+				timeout_ms = nil,
+			},
+			servers = {
+				lua_ls = {
+					settings = {
+						Lua = {
+							workspace = {
+								checkThirdParty = false,
+							},
+							completion = {
+								callSnippet = "Replace",
+							},
+						},
+					},
+				},
+				pyright = {
+					settings = {
+						python = {
+							analysis = {
+								diagnosticMode = "openFilesOnly",
+								autoSearchPaths = true,
+								useLibraryCodeForTypes = true,
+							},
+							formatting = {
+								provider = "black",
+								blackArgs = { "--line-length", "79" },
+							},
+						},
+					},
+				},
+				eslint = {
+					settings = {
+						run = "onSave",
+					},
+				},
+				terraformls = {},
+				helm_ls = {
+					settings = {
+						["helm-ls"] = {
+							yamlls = {
+								path = "yaml-language-server",
+							},
+						},
+					},
+				},
+				yamlls = {
+					settings = {
+						yaml = {
+							schemas = {
+								["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
+								["https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json"] = "/*.k8s.yaml",
+								kubernetes = {
+									"*/templates/*.yaml",
+									"*/templates/*.tpl",
+								},
+							},
+							format = {
+								enable = true,
+							},
+							validate = true,
+							completion = true,
+						},
+					},
+				},
+				gh_actions_ls = {},
+				jsonls = {},
+				marksman = {},
+			},
+			setup = {
+				jsonls = function(_, opts)
+					local has_schemastore, schemastore = pcall(require, "schemastore")
+					if has_schemastore then
+						opts.settings = {
+							json = {
+								schemas = schemastore.json.schemas(),
+								validate = { enable = true },
+							},
+						}
+					end
+					vim.lsp.config("jsonls", opts)
+					vim.lsp.enable("jsonls")
+					return true
+				end,
+			},
+		},
+		config = function(_, opts)
+			local servers = opts.servers
+			local has_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+			local capabilities = vim.tbl_deep_extend(
+				"force",
+				{},
+				vim.lsp.protocol.make_client_capabilities(),
+				has_cmp and cmp_nvim_lsp.default_capabilities() or {},
+				opts.capabilities or {}
+			)
 
-      local function setup(server)
-        local server_opts = vim.tbl_deep_extend("force", {
-          capabilities = vim.deepcopy(capabilities),
-        }, servers[server] or {})
+			local function setup(server)
+				local server_opts = vim.tbl_deep_extend("force", {
+					capabilities = vim.deepcopy(capabilities),
+				}, servers[server] or {})
 
-        if opts.setup[server] then
-          if opts.setup[server](server, server_opts) then
-            return
-          end
-        elseif opts.setup["*"] then
-          if opts.setup["*"](server, server_opts) then
-            return
-          end
-        end
-        vim.lsp.config(server, server_opts)
-        vim.lsp.enable(server)
-      end
+				if opts.setup[server] then
+					if opts.setup[server](server, server_opts) then
+						return
+					end
+				elseif opts.setup["*"] then
+					if opts.setup["*"](server, server_opts) then
+						return
+					end
+				end
+				vim.lsp.config(server, server_opts)
+				vim.lsp.enable(server)
+			end
 
-      -- Setup servers directly without deprecated API usage
-      local have_mason, mlsp = pcall(require, "mason-lspconfig")
+			-- Setup servers directly without deprecated API usage
+			local have_mason, mlsp = pcall(require, "mason-lspconfig")
 
-      local ensure_installed = {}
-      for server, server_opts in pairs(servers) do
-        if server_opts then
-          server_opts = server_opts == true and {} or server_opts
-          -- Always try to setup the server
-          if server_opts.mason == false then
-            setup(server)
-          else
-            ensure_installed[#ensure_installed + 1] = server
-          end
-        end
-      end
+			local ensure_installed = {}
+			for server, server_opts in pairs(servers) do
+				if server_opts then
+					server_opts = server_opts == true and {} or server_opts
+					-- Always try to setup the server
+					if server_opts.mason == false then
+						setup(server)
+					else
+						ensure_installed[#ensure_installed + 1] = server
+					end
+				end
+			end
 
-      if have_mason then
-        mlsp.setup({ ensure_installed = ensure_installed, handlers = { setup } })
-      end
+			if have_mason then
+				mlsp.setup({ ensure_installed = ensure_installed, handlers = { setup } })
+			end
 
-      -- Configure diagnostics
-      vim.diagnostic.config(vim.deepcopy(opts.diagnostics))
+			-- Disable stylua LSP (used as formatter via conform, crashes on shutdown)
+			vim.lsp.enable("stylua", false)
 
-      -- LSP keymaps
-      vim.api.nvim_create_autocmd("LspAttach", {
-        group = vim.api.nvim_create_augroup("UserLspConfig", {}),
-        callback = function(ev)
-          local function map(mode, lhs, rhs, desc)
-            vim.keymap.set(mode, lhs, rhs, { buffer = ev.buf, desc = desc })
-          end
+			-- Configure diagnostics
+			vim.diagnostic.config(vim.deepcopy(opts.diagnostics))
 
-          -- Navigation
-          map("n", "gD", vim.lsp.buf.declaration, "Go to Declaration")
-          map("n", "gd", vim.lsp.buf.definition, "Go to Definition")
-          map("n", "K", vim.lsp.buf.hover, "Hover")
-          map("n", "gi", vim.lsp.buf.implementation, "Go to Implementation")
-          map("n", "gr", vim.lsp.buf.references, "References")
+			-- LSP keymaps
+			vim.api.nvim_create_autocmd("LspAttach", {
+				group = vim.api.nvim_create_augroup("UserLspConfig", {}),
+				callback = function(ev)
+					local function map(mode, lhs, rhs, desc)
+						vim.keymap.set(mode, lhs, rhs, { buffer = ev.buf, desc = desc })
+					end
 
-          -- Code actions (<leader>c group)
-          map("n", "<leader>cr", vim.lsp.buf.rename, "Rename")
-          map({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, "Code Action")
-          map("n", "<leader>cD", vim.lsp.buf.type_definition, "Type Definition")
-          map("n", "<leader>cd", vim.diagnostic.open_float, "Diagnostic Float")
-          map("n", "<leader>cq", vim.diagnostic.setloclist, "Diagnostic Loclist")
-          map("n", "<leader>k", vim.lsp.buf.signature_help, "Signature Help")
+					-- Jump directly for single result, open Trouble for multiple
+					local function on_list(options)
+						vim.fn.setqflist({}, " ", options)
+						if #options.items == 1 then
+							vim.cmd.cfirst()
+						else
+							vim.cmd("Trouble qflist open focus=true")
+						end
+					end
 
-          -- Workspace
-          map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
-          map("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
-          map("n", "<leader>wl", function()
-            print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-          end, "List Workspace Folders")
+					-- For gd: new buffer for cross-file, vsplit for same-file
+					local function on_list_definition(options)
+						vim.fn.setqflist({}, " ", options)
+						if #options.items == 1 then
+							local item = options.items[1]
+							local target_file = item.filename or vim.api.nvim_buf_get_name(item.bufnr)
+							local current_file = vim.api.nvim_buf_get_name(0)
+							if target_file == current_file then
+								vim.cmd("vsplit")
+							end
+							vim.cmd.cfirst()
+						else
+							vim.cmd("Trouble qflist open focus=true")
+						end
+					end
 
-          -- Diagnostic navigation
-          map("n", "[d", function() vim.diagnostic.jump({ count = -1 }) end, "Previous Diagnostic")
-          map("n", "]d", function() vim.diagnostic.jump({ count = 1 }) end, "Next Diagnostic")
-        end,
-      })
-    end,
-  },
+					-- Navigation
+					map("n", "gD", function()
+						vim.lsp.buf.declaration({ on_list = on_list })
+					end, "Go to Declaration")
+					map("n", "gd", function()
+						vim.lsp.buf.definition({ on_list = on_list_definition })
+					end, "Go to Definition")
+					map("n", "K", vim.lsp.buf.hover, "Hover")
+					map("n", "gi", function()
+						vim.lsp.buf.implementation({ on_list = on_list })
+					end, "Go to Implementation")
+					map("n", "gr", function()
+						vim.lsp.buf.references(nil, { on_list = on_list })
+					end, "References")
 
-  -- Mason LSP config
-  {
-    "williamboman/mason-lspconfig.nvim",
-    dependencies = { "mason.nvim" },
-    opts = {
-      ensure_installed = {
-        "lua_ls",
-        "pyright",
-        "eslint",
-        "terraformls",
-        "helm_ls",
-        "yamlls",
-        "jsonls",
-        "marksman",
-      },
-    },
-  },
+					-- Code actions (<leader>c group)
+					map("n", "<leader>cr", vim.lsp.buf.rename, "Rename")
+					map({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, "Code Action")
+					map("n", "<leader>cD", function()
+						vim.lsp.buf.type_definition({ on_list = on_list })
+					end, "Type Definition")
+					map("n", "<leader>cd", vim.diagnostic.open_float, "Diagnostic Float")
+					map(
+						"n",
+						"<leader>cq",
+						"<cmd>Trouble diagnostics toggle focus=true filter.buf=0<cr>",
+						"Buffer Diagnostics (Trouble)"
+					)
+					map("n", "<leader>k", vim.lsp.buf.signature_help, "Signature Help")
 
-  -- Language-specific tools and enhancements
+					-- Workspace
+					map("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, "Add Workspace Folder")
+					map("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, "Remove Workspace Folder")
+					map("n", "<leader>wl", function()
+						print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+					end, "List Workspace Folders")
 
-  -- Go
-  {
-    "ray-x/go.nvim",
-    dependencies = {
-      "ray-x/guihua.lua",
-      "neovim/nvim-lspconfig",
-      "nvim-treesitter/nvim-treesitter",
-    },
-    config = function()
-      require("go").setup()
-    end,
-    event = { "CmdlineEnter" },
-    ft = { "go", "gomod" },
-    build = ':lua require("go.install").update_all_sync()',
-  },
+					-- Diagnostic navigation
+					map("n", "[d", function()
+						vim.diagnostic.jump({ count = -1 })
+					end, "Previous Diagnostic")
+					map("n", "]d", function()
+						vim.diagnostic.jump({ count = 1 })
+					end, "Next Diagnostic")
+				end,
+			})
+		end,
+	},
 
-  -- Rust
-  -- {
-  --   "rust-lang/rust.vim",
-  --   ft = "rust",
-  --   init = function()
-  --     vim.g.rustfmt_autosave = 1
-  --   end,
-  -- },
-  {
-    "mrcjkb/rustaceanvim",
-    version = "^4",
-    ft = { "rust" },
-    opts = {
-      server = {
-        on_attach = function(_, bufnr)
-          vim.keymap.set("n", "<leader>cR", function()
-            vim.cmd.RustLsp("codeAction")
-          end, { desc = "Code Action", buffer = bufnr })
-          vim.keymap.set("n", "<leader>dr", function()
-            vim.cmd.RustLsp("debuggables")
-          end, { desc = "Rust debuggables", buffer = bufnr })
-        end,
-        default_settings = {
-          ["rust-analyzer"] = {
-            cargo = {
-              allFeatures = true,
-              loadOutDirsFromCheck = true,
-              runBuildScripts = true,
-            },
-            checkOnSave = {
-              allFeatures = true,
-              command = "clippy",
-              extraArgs = { "--no-deps" },
-            },
-            procMacro = {
-              enable = true,
-              ignored = {
-                ["async-trait"] = { "async_trait" },
-                ["napi-derive"] = { "napi" },
-                ["async-recursion"] = { "async_recursion" },
-              },
-            },
-          },
-        },
-      },
-    },
-    config = function(_, opts)
-      vim.g.rustaceanvim = vim.tbl_deep_extend("keep", vim.g.rustaceanvim or {}, opts or {})
-    end,
-  },
+	-- Mason LSP config
+	{
+		"williamboman/mason-lspconfig.nvim",
+		dependencies = { "mason.nvim" },
+		opts = {
+			ensure_installed = {
+				"lua_ls",
+				"pyright",
+				"eslint",
+				"terraformls",
+				"helm_ls",
+				"yamlls",
+				"jsonls",
+				"marksman",
+			},
+		},
+	},
 
-  -- Terraform
-  {
-    "hashivim/vim-terraform",
-    ft = { "terraform", "tf" },
-    init = function()
-      vim.g.terraform_align = 0
-      vim.g.terraform_fmt_on_save = 1
-    end,
-  },
+	-- Language-specific tools and enhancements
 
-  -- Python
-  {
-    "linux-cultist/venv-selector.nvim",
-    dependencies = { "neovim/nvim-lspconfig", "nvim-telescope/telescope.nvim", "mfussenegger/nvim-dap-python" },
-    opts = {
-      name = {
-        "venv",
-        ".venv",
-        "env",
-        ".env",
-      },
-    },
-    ft = "python",
-    keys = {
-      { "<leader>vs", "<cmd>VenvSelect<cr>", ft = "python", desc = "Select Venv" },
-    },
-  },
+	-- Go
+	{
+		"ray-x/go.nvim",
+		dependencies = {
+			"ray-x/guihua.lua",
+			"neovim/nvim-lspconfig",
+			"nvim-treesitter/nvim-treesitter",
+		},
+		config = function()
+			require("go").setup()
+		end,
+		event = { "CmdlineEnter" },
+		ft = { "go", "gomod" },
+		build = ':lua require("go.install").update_all_sync()',
+	},
 
-  -- JavaScript/TypeScript
-  {
-    "pmizio/typescript-tools.nvim",
-    dependencies = { "nvim-lua/plenary.nvim", "neovim/nvim-lspconfig" },
-    opts = {},
-    ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
-  },
+	-- Rust
+	-- {
+	--   "rust-lang/rust.vim",
+	--   ft = "rust",
+	--   init = function()
+	--     vim.g.rustfmt_autosave = 1
+	--   end,
+	-- },
+	{
+		"mrcjkb/rustaceanvim",
+		version = "^4",
+		ft = { "rust" },
+		opts = {
+			server = {
+				on_attach = function(_, bufnr)
+					vim.keymap.set("n", "<leader>cR", function()
+						vim.cmd.RustLsp("codeAction")
+					end, { desc = "Code Action", buffer = bufnr })
+					vim.keymap.set("n", "<leader>dr", function()
+						vim.cmd.RustLsp("debuggables")
+					end, { desc = "Rust debuggables", buffer = bufnr })
+				end,
+				default_settings = {
+					["rust-analyzer"] = {
+						cargo = {
+							allFeatures = true,
+							loadOutDirsFromCheck = true,
+							runBuildScripts = true,
+						},
+						checkOnSave = {
+							allFeatures = true,
+							command = "clippy",
+							extraArgs = { "--no-deps" },
+						},
+						procMacro = {
+							enable = true,
+							ignored = {
+								["async-trait"] = { "async_trait" },
+								["napi-derive"] = { "napi" },
+								["async-recursion"] = { "async_recursion" },
+							},
+						},
+					},
+				},
+			},
+		},
+		config = function(_, opts)
+			vim.g.rustaceanvim = vim.tbl_deep_extend("keep", vim.g.rustaceanvim or {}, opts or {})
+		end,
+	},
 
-  -- HTML/CSS
-  {
-    "mattn/emmet-vim",
-    ft = { "html", "css", "javascript", "javascriptreact", "typescript", "typescriptreact" },
-    init = function()
-      vim.g.user_emmet_leader_key = "<C-y>"
-    end,
-  },
+	-- Terraform
+	{
+		"hashivim/vim-terraform",
+		ft = { "terraform", "tf" },
+		init = function()
+			vim.g.terraform_align = 0
+			vim.g.terraform_fmt_on_save = 1
+		end,
+	},
 
-  -- Markdown
-  {
-    "iamcco/markdown-preview.nvim",
-    cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
-    build = "cd app && yarn install",
-    init = function()
-      vim.g.mkdp_filetypes = { "markdown" }
-    end,
-    ft = { "markdown" },
-  },
+	-- Python
+	{
+		"linux-cultist/venv-selector.nvim",
+		dependencies = { "neovim/nvim-lspconfig", "nvim-telescope/telescope.nvim", "mfussenegger/nvim-dap-python" },
+		opts = {
+			name = {
+				"venv",
+				".venv",
+				"env",
+				".env",
+			},
+		},
+		ft = "python",
+		keys = {
+			{ "<leader>vs", "<cmd>VenvSelect<cr>", ft = "python", desc = "Select Venv" },
+		},
+	},
 
-  -- Git integration
-  {
-    "rhysd/conflict-marker.vim",
-    event = { "BufReadPost" },
-    config = function()
-      vim.g.conflict_marker_highlight_group = ""
-      vim.g.conflict_marker_begin = "^<<<<<<< .*$"
-      vim.g.conflict_marker_end = "^>>>>>>> .*$"
-      vim.g.conflict_marker_separator = "^=======$"
+	-- JavaScript/TypeScript
+	{
+		"pmizio/typescript-tools.nvim",
+		dependencies = { "nvim-lua/plenary.nvim", "neovim/nvim-lspconfig" },
+		opts = {},
+		ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+	},
 
-      -- Key mappings for conflict resolution
-      vim.keymap.set("n", "<leader>gdo", "<Plug>(conflict-marker-ourselves)", { desc = "Take Ours (conflict)" })
-      vim.keymap.set("n", "<leader>gdt", "<Plug>(conflict-marker-themselves)", { desc = "Take Theirs (conflict)" })
-      vim.keymap.set("n", "<leader>gdn", "<Plug>(conflict-marker-none)", { desc = "Take Neither (conflict)" })
-      vim.keymap.set("n", "<leader>gdb", "<Plug>(conflict-marker-both)", { desc = "Take Both (conflict)" })
-      vim.keymap.set("n", "[x", "<Plug>(conflict-marker-prev-hunk)", { desc = "Previous conflict" })
-      vim.keymap.set("n", "]x", "<Plug>(conflict-marker-next-hunk)", { desc = "Next conflict" })
-    end,
-  },
-  {
-    "tpope/vim-fugitive",
-    cmd = { "Git", "Gwrite", "Gread", "Gvdiffsplit", "Gdiffsplit", "Gblame", "Gpush", "Gpull" },
-    keys = {
-      { "<leader>gs", "<cmd>Git<cr>", desc = "Git Status" },
-      { "<leader>gc", "<cmd>Git commit<cr>", desc = "Git Commit" },
-      { "<leader>gp", "<cmd>Git push<cr>", desc = "Git Push" },
-      { "<leader>gl", "<cmd>Git log --oneline<cr>", desc = "Git Log" },
-      { "<leader>gb", "<cmd>Git blame<cr>", desc = "Git Blame" },
-      { "<leader>gds", "<cmd>Gvdiffsplit<cr>", desc = "Git Diff Split" },
-    },
-  },
-  {
-    "lewis6991/gitsigns.nvim",
-    event = { "BufReadPre", "BufNewFile" },
-    opts = {
-      signs = {
-        add = { text = "" },
-        change = { text = "" },
-        delete = { text = "" },
-        topdelete = { text = "" },
-        changedelete = { text = "" },
-        untracked = { text = "" },
-      },
-      signs_staged = {
-        add = { text = "" },
-        change = { text = "" },
-        delete = { text = "" },
-        topdelete = { text = "" },
-        changedelete = { text = "" },
-        untracked = { text = "" },
-      },
-      signs_staged_enable = false,
-      -- Enable line number highlighting (equivalent to gitgutter highlight_linenrs)
-      numhl = false,
-      on_attach = function(buffer)
-        local gs = package.loaded.gitsigns
+	-- HTML/CSS
+	{
+		"mattn/emmet-vim",
+		ft = { "html", "css", "javascript", "javascriptreact", "typescript", "typescriptreact" },
+		init = function()
+			vim.g.user_emmet_leader_key = "<C-y>"
+		end,
+	},
 
-        local function map(mode, l, r, desc)
-          vim.keymap.set(mode, l, r, { buffer = buffer, desc = desc })
-        end
+	-- Markdown
+	{
+		"iamcco/markdown-preview.nvim",
+		cmd = { "MarkdownPreviewToggle", "MarkdownPreview", "MarkdownPreviewStop" },
+		build = "cd app && yarn install",
+		init = function()
+			vim.g.mkdp_filetypes = { "markdown" }
+		end,
+		ft = { "markdown" },
+	},
 
-        map("n", "]h", gs.next_hunk, "Next Hunk")
-        map("n", "[h", gs.prev_hunk, "Prev Hunk")
-        map({ "n", "v" }, "<leader>ghs", ":Gitsigns stage_hunk<CR>", "Stage Hunk")
-        map({ "n", "v" }, "<leader>ghr", ":Gitsigns reset_hunk<CR>", "Reset Hunk")
-        map("n", "<leader>ghS", gs.stage_buffer, "Stage Buffer")
-        map("n", "<leader>ghu", gs.undo_stage_hunk, "Undo Stage Hunk")
-        map("n", "<leader>ghR", gs.reset_buffer, "Reset Buffer")
-        map("n", "<leader>ghp", gs.preview_hunk, "Preview Hunk")
-        map("n", "<leader>ghb", function()
-          gs.blame_line({ full = true })
-        end, "Blame Line")
-        map("n", "<leader>ghd", gs.diffthis, "Diff This")
-        map("n", "<leader>ghD", function()
-          gs.diffthis("~")
-        end, "Diff This ~")
-        map("n", "<leader>gt", gs.toggle_deleted, "Toggle Deleted")
-        map("n", "<leader>gw", gs.toggle_word_diff, "Toggle Word Diff")
-        map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "GitSigns Select Hunk")
-      end,
-    },
-  },
+	-- Git integration
+	{
+		"rhysd/conflict-marker.vim",
+		event = { "BufReadPost" },
+		config = function()
+			vim.g.conflict_marker_highlight_group = ""
+			vim.g.conflict_marker_begin = "^<<<<<<< .*$"
+			vim.g.conflict_marker_end = "^>>>>>>> .*$"
+			vim.g.conflict_marker_separator = "^=======$"
 
-  -- Copilot
-  {
-    "zbirenbaum/copilot.lua",
-    event = "InsertEnter",
-    config = function()
-      require("copilot").setup {
-        suggestion = {
-          enabled = true,
-          auto_trigger = true, -- Show suggestions automatically
-          debounce = 200,
-          keymap = {
-            accept = false, -- Disabled - use C-l via nvim-cmp instead
-            dismiss = false,
-            next = "<M-]>",
-            prev = "<M-[>",
-          },
-        },
-        panel = { enabled = false },
-      }
+			-- Key mappings for conflict resolution
+			vim.keymap.set("n", "<leader>gdo", "<Plug>(conflict-marker-ourselves)", { desc = "Take Ours (conflict)" })
+			vim.keymap.set(
+				"n",
+				"<leader>gdt",
+				"<Plug>(conflict-marker-themselves)",
+				{ desc = "Take Theirs (conflict)" }
+			)
+			vim.keymap.set("n", "<leader>gdn", "<Plug>(conflict-marker-none)", { desc = "Take Neither (conflict)" })
+			vim.keymap.set("n", "<leader>gdb", "<Plug>(conflict-marker-both)", { desc = "Take Both (conflict)" })
+			vim.keymap.set("n", "[x", "<Plug>(conflict-marker-prev-hunk)", { desc = "Previous conflict" })
+			vim.keymap.set("n", "]x", "<Plug>(conflict-marker-next-hunk)", { desc = "Next conflict" })
+		end,
+	},
+	{
+		"tpope/vim-fugitive",
+		cmd = { "Git", "Gwrite", "Gread", "Gvdiffsplit", "Gdiffsplit", "Gblame", "Gpush", "Gpull" },
+		keys = {
+			{ "<leader>gs", "<cmd>Git<cr>", desc = "Git Status" },
+			{ "<leader>gc", "<cmd>Git commit<cr>", desc = "Git Commit" },
+			{ "<leader>gp", "<cmd>Git push<cr>", desc = "Git Push" },
+			{ "<leader>gl", "<cmd>Git log --oneline<cr>", desc = "Git Log" },
+			{ "<leader>gb", "<cmd>Git blame<cr>", desc = "Git Blame" },
+			{ "<leader>gds", "<cmd>Gvdiffsplit<cr>", desc = "Git Diff Split" },
+		},
+	},
+	{
+		"lewis6991/gitsigns.nvim",
+		event = { "BufReadPre", "BufNewFile" },
+		opts = {
+			signs = {
+				add = { text = "" },
+				change = { text = "" },
+				delete = { text = "" },
+				topdelete = { text = "" },
+				changedelete = { text = "" },
+				untracked = { text = "" },
+			},
+			signs_staged = {
+				add = { text = "" },
+				change = { text = "" },
+				delete = { text = "" },
+				topdelete = { text = "" },
+				changedelete = { text = "" },
+				untracked = { text = "" },
+			},
+			signs_staged_enable = false,
+			-- Enable line number highlighting (equivalent to gitgutter highlight_linenrs)
+			numhl = false,
+			on_attach = function(buffer)
+				local gs = package.loaded.gitsigns
 
-    end,
-  },
+				local function map(mode, l, r, desc)
+					vim.keymap.set(mode, l, r, { buffer = buffer, desc = desc })
+				end
 
-  -- TMUX integration
-  {
-    "christoomey/vim-tmux-navigator",
-    keys = {
-      { "<M-h>", "<cmd>TmuxNavigateLeft<cr>", mode = { "n", "v", "t" } },
-      { "<M-j>", "<cmd>TmuxNavigateDown<cr>", mode = { "n", "v", "t" } },
-      { "<M-k>", "<cmd>TmuxNavigateUp<cr>", mode = { "n", "v", "t" } },
-      { "<M-l>", "<cmd>TmuxNavigateRight<cr>", mode = { "n", "v", "t" } },
-      { "<M-\\>", "<cmd>TmuxNavigatePrevious<cr>", mode = { "n", "v", "t" } },
-    },
-  },
+				map("n", "]h", gs.next_hunk, "Next Hunk")
+				map("n", "[h", gs.prev_hunk, "Prev Hunk")
+				map({ "n", "v" }, "<leader>ghs", ":Gitsigns stage_hunk<CR>", "Stage Hunk")
+				map({ "n", "v" }, "<leader>ghr", ":Gitsigns reset_hunk<CR>", "Reset Hunk")
+				map("n", "<leader>ghS", gs.stage_buffer, "Stage Buffer")
+				map("n", "<leader>ghu", gs.undo_stage_hunk, "Undo Stage Hunk")
+				map("n", "<leader>ghR", gs.reset_buffer, "Reset Buffer")
+				map("n", "<leader>ghp", gs.preview_hunk, "Preview Hunk")
+				map("n", "<leader>ghb", function()
+					gs.blame_line({ full = true })
+				end, "Blame Line")
+				map("n", "<leader>ghd", gs.diffthis, "Diff This")
+				map("n", "<leader>ghD", function()
+					gs.diffthis("~")
+				end, "Diff This ~")
+				map("n", "<leader>gt", gs.toggle_deleted, "Toggle Deleted")
+				map("n", "<leader>gw", gs.toggle_word_diff, "Toggle Word Diff")
+				map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "GitSigns Select Hunk")
+			end,
+		},
+	},
 
-  -- Zoom windows
-  {
-    "dhruvasagar/vim-zoom",
-    keys = {
-      { "<C-w>m", "<cmd>ZoomToggle<cr>", desc = "Zoom toggle" },
-    },
-  },
+	-- Copilot
+	{
+		"zbirenbaum/copilot.lua",
+		event = "InsertEnter",
+		config = function()
+			require("copilot").setup({
+				suggestion = {
+					enabled = true,
+					auto_trigger = true, -- Show suggestions automatically
+					debounce = 200,
+					keymap = {
+						accept = false, -- Disabled - use C-l via nvim-cmp instead
+						dismiss = false,
+						next = "<M-]>",
+						prev = "<M-[>",
+					},
+				},
+				panel = { enabled = false },
+			})
+		end,
+	},
+
+	-- TMUX integration
+	{
+		"christoomey/vim-tmux-navigator",
+		keys = {
+			{ "<M-h>", "<cmd>TmuxNavigateLeft<cr>", mode = { "n", "v", "t" } },
+			{ "<M-j>", "<cmd>TmuxNavigateDown<cr>", mode = { "n", "v", "t" } },
+			{ "<M-k>", "<cmd>TmuxNavigateUp<cr>", mode = { "n", "v", "t" } },
+			{ "<M-l>", "<cmd>TmuxNavigateRight<cr>", mode = { "n", "v", "t" } },
+			{ "<M-\\>", "<cmd>TmuxNavigatePrevious<cr>", mode = { "n", "v", "t" } },
+		},
+	},
+
+	-- Zoom windows
+	{
+		"dhruvasagar/vim-zoom",
+		keys = {
+			{ "<C-w>m", "<cmd>ZoomToggle<cr>", desc = "Zoom toggle" },
+		},
+	},
 }
