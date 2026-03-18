@@ -47,7 +47,7 @@ return {
 		},
 
 		opts = {
-			terminal_cmd = "claude --permission-mode default --allow-dangerously-skip-permissions --model default --effort medium",
+			terminal_cmd = "claude --permission-mode default --model default --effort medium",
 
 			-- Terminal Configuration
 			terminal = {
