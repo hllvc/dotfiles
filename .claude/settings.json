@@ -5,7 +5,8 @@
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "CLAUDE_CODE_ENABLE_TASKS": "true",
     "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
-    "ENABLE_LSP_TOOL": "1"
+    "ENABLE_LSP_TOOL": "1",
+    "CLAUDE_HOOK_DEBUG": "0"
   },
   "permissions": {
     "allow": [
@@ -13,15 +14,21 @@
       "WebFetch(domain:gist.github.com)",
       "Bash(find:*)",
       "WebFetch(domain:stackoverflow.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Read(~/.git/**)",
+      "Glob(~/.git/**)",
+      "Grep(~/.git/**)",
+      "Bash(tree:*)",
+      "Bash(tmux:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.anthropic.com)"
     ],
     "deny": [],
     "ask": [],
     "defaultMode": "plan"
   },
-  "model": "haiku",
   "hooks": {
-    "PermissionRequest": [
+    "PreToolUse": [
       {
         "matcher": "Edit|Write|MultiEdit",
         "hooks": [
@@ -52,6 +59,7 @@
     }
   },
   "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
   "voiceEnabled": true,
   "skipDangerousModePermissionPrompt": true

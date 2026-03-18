@@ -11,7 +11,7 @@ dir="$cwd"
 while [ "$dir" != "/" ]; do
   git_path="${dir}/.git"
   if [ -f "$git_path" ]; then
-    read -r git_link < "$git_path"
+    read -r git_link <"$git_path"
     git_link="${git_link#gitdir: }"
     # Resolve relative paths
     [[ "$git_link" != /* ]] && git_link="${dir}/${git_link}"
@@ -42,7 +42,7 @@ if [ -z "$branch" ] && [ -n "$repo_root" -o "$is_worktree" = true ]; then
     branch="#${tag}"
   elif [ -n "$commit" ]; then
     branch="@${commit}"
-    commit=""  # already shown as branch
+    commit="" # already shown as branch
   fi
 fi
 
@@ -66,7 +66,7 @@ anchor_markers=(
 )
 
 # Split dir_path into segments
-IFS='/' read -ra parts <<< "$dir_path"
+IFS='/' read -ra parts <<<"$dir_path"
 
 # Build real paths and detect anchors
 anchors=()
@@ -97,13 +97,13 @@ for i in "${!parts[@]}"; do
   fi
 done
 
-last_idx=$(( ${#parts[@]} - 1 ))
+last_idx=$((${#parts[@]} - 1))
 path_len=${#dir_path}
 max_len=80
 
 # Mark segments to shorten left-to-right until path fits
 shorten=()
-if (( path_len > max_len )); then
+if ((path_len > max_len)); then
   for i in "${!parts[@]}"; do
     seg="${parts[$i]}"
     [ -z "$seg" ] && continue
@@ -117,11 +117,11 @@ if (( path_len > max_len )); then
     done
     [ "$is_anchor" -eq 1 ] && continue
 
-    saved=$(( ${#seg} - 2 ))
-    (( saved > 0 )) || continue
+    saved=$((${#seg} - 2))
+    ((saved > 0)) || continue
     shorten+=("$i")
-    (( path_len -= saved ))
-    (( path_len <= max_len )) && break
+    ((path_len -= saved))
+    ((path_len <= max_len)) && break
   done
 fi
 
