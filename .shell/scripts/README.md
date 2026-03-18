@@ -30,9 +30,3 @@ Custom shell scripts added to PATH or sourced as functions.
 | `ss.sh` | Interactive SSH host selector using fzf |
 | `tmsg.sh` | Sends messages to a Telegram channel via bot API |
 | `check-events.scpt` | AppleScript that checks for upcoming Calendar events |
-
-## Data
-
-| File | Description |
-|------|-------------|
-| `.data` | Data file used by scripts |
