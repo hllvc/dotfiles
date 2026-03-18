@@ -2,7 +2,7 @@
 
 Tmux helper scripts.
 
-[Back to .shell](../../)
+[Back to scripts](../)
 
 ## Scripts
 

@@ -2,7 +2,7 @@
 
 Inactive or archived scripts not currently sourced or added to PATH.
 
-[Back to .shell](../../)
+[Back to scripts](../)
 
 ## Scripts
 

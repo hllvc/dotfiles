@@ -2,7 +2,7 @@
 
 Scripts sourced as shell functions so they can change the working directory.
 
-[Back to .shell](../../)
+[Back to scripts](../)
 
 ## Scripts
 

@@ -2,7 +2,7 @@
 
 Startup and initialization scripts.
 
-[Back to .shell](../../)
+[Back to scripts](../)
 
 ## Scripts
 
