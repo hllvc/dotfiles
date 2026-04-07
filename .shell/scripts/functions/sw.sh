@@ -196,44 +196,43 @@ _createBranch() { #{{{
 #}}}: _createBranch
 
 _deleteBranch() { #{{{
+  ## Exit early if deletBranch is not selected
+  ((!deleteBranch)) && return 1
+
   local branchToDelete="$1"
   local worktreePath activeBranch exitCode
 
   activeBranch="$(git branch --show-current)"
 
-  if ((deleteBranch)); then
-    _prompt "Delete branch: $branchToDelete"
-    if _ifWorktreeSetup; then
-      # If the activeBranch is same as branchToDelete,
-      # go back once in the directory tree.
-      # This will prevent being stuck in deleted path.
-      [[ "$activeBranch" == "$branchToDelete" ]] && cd ..
-
-      worktreePath="$(_getWorktreePath "$branchToDelete")"
-      git worktree remove "$worktreePath" -f
-      exitCode="$?"
-    fi
-    git branch -D "$branchToDelete" >&2 >/dev/null
-    exitCode="$((exitCode + $?))"
-
-    if ((exitCode > 0)); then
-      exit 1
-    fi
-
-    return 0
-
+  _prompt "Delete branch: $branchToDelete"
+  if _ifWorktreeSetup; then
     # If the activeBranch is same as branchToDelete,
-    # return to the ${repo}/.bare directory.
-    # After deleting branch, it removes working directory.
-    # This will stuck user in deleted path,
-    # and prevent navigating.
-    # [[ "$activeBranch" == "$branchToDelete" ]] && _getWorktreePath
-    # [[ "$activeBranch" == "$branchToDelete" ]] && echo "$PWD"
-    # TODO: Add flag to enable deleting remote branches
-    # git push origin --delete "$branch"
+    # go back once in the directory tree.
+    # This will prevent being stuck in deleted path.
+    [[ "$activeBranch" == "$branchToDelete" ]] && cd ..
+
+    worktreePath="$(_getWorktreePath "$branchToDelete")"
+    git worktree remove "$worktreePath" -f
+    exitCode="$?"
+  fi
+  git branch -D "$branchToDelete" >&2 >/dev/null
+  exitCode="$((exitCode + $?))"
+
+  if ((exitCode > 0)); then
+    exit 1
   fi
 
-  return 1
+  return 0
+
+  # If the activeBranch is same as branchToDelete,
+  # return to the ${repo}/.bare directory.
+  # After deleting branch, it removes working directory.
+  # This will stuck user in deleted path,
+  # and prevent navigating.
+  # [[ "$activeBranch" == "$branchToDelete" ]] && _getWorktreePath
+  # [[ "$activeBranch" == "$branchToDelete" ]] && echo "$PWD"
+  # TODO: Add flag to enable deleting remote branches
+  # git push origin --delete "$branch"
 }
 #}}}: _deleteBranch
 
