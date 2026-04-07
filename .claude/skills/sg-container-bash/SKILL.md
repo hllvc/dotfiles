@@ -16,7 +16,7 @@ Ask the user for all of the following:
 
 1. **Step name / directory** — lowercase, hyphen-separated (e.g., `dns-scanner`). This becomes the directory name under the repo root.
 2. **Human-readable description** — short description for README and workflow names (e.g., "DNS Zone Scanner")
-3. **Base Docker image** — default: `python:3.12-alpine3.20`
+3. **Base Docker image** — default: `python:3.14-alpine3.23`
 4. **Additional apk packages** — space-separated list beyond the defaults (`bash jq curl ca-certificates git`), or "none"
 5. **Additional pip packages** — space-separated list, or "none" (if "none", omit the pip install layer entirely)
 6. **ECR repo name** — path under `workflow-steps/` (e.g., `workflow-steps/dns-scanner`)
@@ -39,36 +39,25 @@ Create the following files in `{step-name}/` relative to the repository root.
 ```dockerfile
 FROM {{BASE_IMAGE}}
 
-SHELL ["/bin/sh", "-o", "pipefail", "-c"]
-
-# hadolint ignore=DL3018
-RUN apk add --no-cache \
-  bash \
-  jq \
-  curl \
-  ca-certificates \
-  git{{EXTRA_APK_PACKAGES}}
-
-{{PIP_INSTALL_BLOCK}}
-
-RUN addgroup -g 911 -S stackguardian \
-  && adduser -u 911 -S stackguardian -G stackguardian
+RUN apk update && apk upgrade --no-cache \
+  && apk add --no-cache bash jq curl ca-certificates git{{EXTRA_APK_PACKAGES}}{{BUILD_DEPS_BLOCK}}{{PIP_INSTALL_BLOCK}}{{BUILD_DEPS_CLEANUP}} \
+  && rm -rf /var/cache/apk/*
 
 COPY main.sh ./
-RUN chmod u+r main.sh
 
-USER stackguardian
-
-CMD ["/usr/bin/env", "bash", "main.sh"]
+ENTRYPOINT ["/usr/bin/env", "bash"]
+CMD ["main.sh"]
 ```
 
 **Template notes:**
-- `{{EXTRA_APK_PACKAGES}}` — if user specified extra apk packages, append each on its own continuation line (` \` + newline + `  packagename`). If none, end the apk add line at `git`.
-- `{{PIP_INSTALL_BLOCK}}` — if user specified pip packages, insert:
-  ```dockerfile
-  RUN pip install --no-cache-dir {{PIP_PACKAGES}}
-  ```
-  If no pip packages, omit entirely (no blank RUN line).
+
+- Everything goes in a **single `RUN` layer** — apk update/upgrade, apk add, optional build-deps, optional pip install, cleanup.
+- `{{EXTRA_APK_PACKAGES}}` — if extra apk packages specified, append each on the same line (e.g., ` openssl sshpass`). If none, end at `git`.
+- `{{BUILD_DEPS_BLOCK}}` — only when pip packages need native compilation. Insert: ` \` + newline + `  && apk add --no-cache --virtual build-deps build-base gcc openssl-dev libffi-dev`. If not needed, omit entirely.
+- `{{PIP_INSTALL_BLOCK}}` — if pip packages specified, insert: ` \` + newline + `  && pip install --no-cache-dir {{PIP_PACKAGES}}`. If none, omit entirely.
+- `{{BUILD_DEPS_CLEANUP}}` — if build-deps were added, insert: ` \` + newline + `  && apk del build-deps`. If no build-deps, omit.
+- Always end the `RUN` chain with `&& rm -rf /var/cache/apk/*`.
+- No `SHELL` directive, no non-root user, no `chmod` on main.sh.
 
 ---
 
@@ -80,16 +69,25 @@ Generate this file with the **exact** logging functions below. Do not modify the
 #!/usr/bin/env bash
 
 set -e
+set -o pipefail
 
-declare -A C=(
+# Directory variables
+declare CWD=""       # Working directory (where source code is located)
+declare ARTIFACTS="" # Directory for outputs/artifacts
+
+# Input variables
+declare STEP_INPUTS=""     # Base inputs from the workflow step configuration
+declare TEMPLATE_INPUTS="" # Additional inputs from the IaC template configuration
+
+#{{{ LOGGING
+declare -A C=( #{{{ Print Colors
   [red]="\u001b[31m"
   [green]="\u001b[32m"
   [yellow]="\u001b[33m"
-  [blue]="\u001b[34m"
-  [magenta]="\u001b[35m"
   [cyan]="\u001b[36m"
   [reset]="\u001b[0m"
 )
+#}}}
 
 _color_print_prefix() { #{{{
   local color="$1"
@@ -99,65 +97,103 @@ _color_print_prefix() { #{{{
 }
 #}}}: _color_print_prefix
 
-_error() { #{{{
+_err() { #{{{
   local msg="$1"
-  local prefix="$(_color_print_prefix "red")"
+  local prefix=""
+  local color="red"
 
+  prefix="$(_color_print_prefix "$color")"
   printf "%s %s\n" "$prefix" "$msg" >&2
-  exit 1
 }
-#}}}: _error
+#}}}: _err
 
 _info() { #{{{
   local msg="$1"
-  local prefix="$(_color_print_prefix "green")"
+  local prefix=""
+  local color="green"
 
+  prefix="$(_color_print_prefix "$color")"
   printf "%s %s\n" "$prefix" "$msg"
 }
 #}}}: _info
 
 _warn() { #{{{
   local msg="$1"
-  local prefix="$(_color_print_prefix "yellow" "!!")"
+  local prefix=""
+  local color="yellow"
 
+  prefix="$(_color_print_prefix "$color" "WARNING:")"
   printf "%s %s\n" "$prefix" "$msg"
 }
 #}}}: _warn
 
 _debug() { #{{{
   local msg="$1"
-  local prefix="$(_color_print_prefix "cyan" "[SG_DEBUG]")"
+  local prefix=""
+  local color="cyan"
 
+  prefix="$(_color_print_prefix "$color" "[SG_DEBUG]")"
   printf "%s %s\n" "$prefix" "$msg"
 }
 #}}}: _debug
 
-_command_log() { #{{{
+_cmd_info() { #{{{
   local msg="$1"
-  local prefix="$(_color_print_prefix "cyan" "Executing:")"
-  local dollarSign="$(_color_print_prefix "green" "$")"
+  local prefix=""
+  local prefix_color="cyan"
+  local cmd_sign=""
+  local cmd_sign_color="green"
 
-  printf "%s\n%s %s\n\n" "$prefix" "$dollarSign" "$msg"
+  prefix="$(_color_print_prefix "$prefix_color" "Executing:")"
+  cmd_sign="$(_color_print_prefix "$cmd_sign_color" "$")"
+
+  printf "%s\n" "$prefix"
+  printf "%s %s\n\n" "$cmd_sign" "$msg"
 }
-#}}}: _command_log
+#}}}: _cmd_info
+#}}}: LOGGING
 
 _parse_variables() { #{{{
-  _debug "Parsing workflow variables"
-  workingDir="$LOCAL_IAC_SOURCE_CODE_DIR"
-  workingDir="${workingDir%/}"  # Remove trailing slash if present
-  workflowStepInputParams="$(echo "$BASE64_WORKFLOW_STEP_INPUT_VARIABLES" | base64 -d -i -)"
-  workflowIACInputVariables="$(echo "$BASE64_IAC_INPUT_VARIABLES" | base64 -d -i -)"
-  _debug "Variables parsed successfully"
+  # The .env file is only available during runtime and not lint time.
+  # Guard the loading of .env to avoid issues during linting when the file is not present.
+  # shellcheck disable=SC1091
+  [[ -f .env ]] && . .env
+
+  # Helper function to decode base64 variables
+  _decode() { #{{{
+    local _var_name="$1"
+    local _var_value="${!_var_name}"
+    if [[ -n "${_var_value}" ]]; then
+      echo "${_var_value}" | base64 -d -i
+    fi
+  }
+  #}}}: _decode
+
+  # Input variables
+  STEP_INPUTS="$(_decode "BASE64_WORKFLOW_STEP_INPUT_VARIABLES")"
+  TEMPLATE_INPUTS="$(_decode "BASE64_IAC_INPUT_VARIABLES")"
+
+  # Directory variables
+  CWD="${LOCAL_IAC_SOURCE_CODE_DIR}"
+  ARTIFACTS="${LOCAL_ARTIFACTS_DIR}"
 }
 #}}}: _parse_variables
 
-main() { #{{{
-  _info "Starting {{STEP_DESCRIPTION}}"
+_get_input() { #{{{
+  local _key="$1"
+  local _flag="${2:--r}"
 
+  echo "$STEP_INPUTS" | jq "$_flag" --arg key "$_key" ".[\$key] // empty"
+}
+#}}}: _get_input
+
+main() { #{{{
   _parse_variables
 
-  # TODO: Extract step-specific parameters from workflowStepInputParams
-  # Example: myParam="$(echo "$workflowStepInputParams" | jq -r '.myParam // empty')"
+  _info "Starting {{STEP_DESCRIPTION}}"
+
+  # TODO: Extract step-specific parameters using _get_input
+  # Example: local _my_param="$(_get_input "myParam")"
 
   # TODO: Implement step-specific logic here
 
@@ -169,8 +205,10 @@ main "$@"
 ```
 
 **Template notes:**
+
 - Replace `{{STEP_DESCRIPTION}}` with the human-readable description the user provided.
-- The logging functions and `_parse_variables` must be copied **verbatim** from the template above. Do not modify indentation, fold markers, or function signatures.
+- The logging functions, `_parse_variables`, and `_get_input` must be copied **verbatim** from the template above. Do not modify indentation, fold markers, or function signatures.
+- `_err()` only prints to stderr — it does **not** exit. Use `_err "message" && exit 1` at call sites when you need to abort.
 
 ---
 
@@ -190,6 +228,7 @@ Generate a JSON Schema based on the parameters the user specified:
 ```
 
 Follow the pattern from the kubernetes schema:
+
 - Each property has `type`, `title`, and optionally `default`, `enum`, `enumNames`
 - Required fields are listed in the top-level `required` array
 - Use `dependencies` for conditional fields if the user specifies any
@@ -199,6 +238,7 @@ Follow the pattern from the kubernetes schema:
 #### `{step-name}/schemas/ui_schema.json`
 
 Generate a UI schema that:
+
 - Has a `ui:order` array listing all property keys in display order
 - For `enum` fields, use `"ui:widget": "select"` (or `"radio"` with `"ui:options": {"inline": true}` for short lists)
 - For `boolean` fields, use `"ui:widget": "checkbox"`
@@ -216,16 +256,18 @@ Generate a UI schema that:
 ## Parameters
 
 | Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
+| --------- | ---- | -------- | ------- | ----------- |
+
 {{PARAMETER_TABLE_ROWS}}
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `LOCAL_IAC_SOURCE_CODE_DIR` | Path to checked out VCS repository |
+| Variable                               | Description                             |
+| -------------------------------------- | --------------------------------------- |
+| `LOCAL_IAC_SOURCE_CODE_DIR`            | Path to checked out VCS repository      |
+| `LOCAL_ARTIFACTS_DIR`                  | Path to artifacts/outputs directory     |
 | `BASE64_WORKFLOW_STEP_INPUT_VARIABLES` | Base64-encoded workflow step parameters |
-| `BASE64_IAC_INPUT_VARIABLES` | Base64-encoded IaC input variables |
+| `BASE64_IAC_INPUT_VARIABLES`           | Base64-encoded IaC input variables      |
 ```
 
 ---
@@ -275,11 +317,11 @@ name: "🛠️ [PROD] {{DISPLAY_NAME}}"
 on:
   push:
     tags:
-      - '{{STEP_NAME}}-v*'
+      - "{{STEP_NAME}}-v*"
 
 permissions:
   id-token: write # This is required for requesting the JWT
-  contents: read  # This is required for actions/checkout
+  contents: read # This is required for actions/checkout
   actions: write # This is required for trigger other GitHub Actions
 
 jobs:
@@ -298,37 +340,111 @@ jobs:
 ```
 
 **Template notes:**
+
 - `{{DISPLAY_NAME}}` — the human-readable description (e.g., "DNS Scanner")
 - `{{STEP_NAME}}` — the directory name (e.g., `dns-scanner`)
 - `{{ECR_REPO}}` — the ECR repo path (e.g., `workflow-steps/dns-scanner`)
 
 ---
 
-### Step 4: Delegate Makefile Generation
+### Step 4: Generate Makefile
 
-After generating all files above, invoke the `/sg-makefile` skill to generate a Makefile inside `{step-name}/`. Provide it with:
+Create `{step-name}/Makefile` with the following template. Replace `{{SERVICE_NAME}}` with the human-readable description and `{{ECR_REPO}}` with the ECR repo path.
 
-- **Service name**: the step description
-- **DASH configuration**:
-  - Account ID: `790543352839`
-  - AWS profile: `default`
-  - ECR image: `{{ECR_REPO}}`
-  - Lambda name: (ask user, or skip if not applicable)
-- **PROD configuration**:
-  - Account ID: `476299211833`
-  - AWS profile: `sg-prod`
-  - ECR image: `{{ECR_REPO}}`
-  - Lambda name: (ask user, or skip if not applicable)
-- **Platform**: `linux/amd64` (workflow steps run on amd64)
-- **No git_token secret** unless user specifies otherwise
+#### `{step-name}/Makefile`
+
+```makefile
+# Makefile for building and pushing Docker images
+# StackGuardian Workflow Step: {{SERVICE_NAME}}
+
+# Default version - can be overridden via command line: make build-dash VERSION=1.2.3
+VERSION ?= $(shell git describe --always --dirty)
+
+# Registry and image configuration
+BUILD_REGION ?= eu-central-1
+REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
+IMAGE_NAME ?=
+FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME)
+
+# Build settings
+PLATFORM = linux/amd64
+DOCKERFILE = Dockerfile
+DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM) --provenance=false
+
+# ============================================================================
+# DASH Configuration
+# ============================================================================
+DASH_ACCOUNT_ID = 790543352839
+DASH_PROFILE = default
+DASH_IMAGE = {{ECR_REPO}}
+
+# ============================================================================
+# PROD Configuration
+# ============================================================================
+PROD_ACCOUNT_ID = 476299211833
+PROD_PROFILE = sg-prod
+PROD_IMAGE = {{ECR_REPO}}
+
+# Dynamic variables
+PROFILE ?=
+ACCOUNT_ID ?=
+
+.PHONY: help version login build build-dash build-prod
+
+##@ General
+help: ## Show this help message
+	@echo 'Usage: make <target>'
+	@echo ''
+	@awk 'BEGIN {FS = ":.*##"; printf ""} /^[a-zA-Z_-]+:.*?## / {printf "  %-24s %s\n", $$1, $$2} /^##@/ {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}' $(MAKEFILE_LIST)
+
+version: ## Show current version
+	@echo $(VERSION)
+
+login:
+	@echo "Logging into ECR using profile: $(PROFILE)..."
+	@aws --profile $(PROFILE) ecr-public get-login-password --region us-east-1 \
+		| docker login --username AWS --password-stdin public.ecr.aws
+	@aws --profile $(PROFILE) ecr get-login-password --region eu-central-1 \
+		| docker login --username AWS --password-stdin $(REGISTRY)
+
+build: login
+	@echo "Building and pushing image: $(FULL_IMAGE):$(VERSION)"
+	@docker buildx build \
+		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
+		-t $(FULL_IMAGE):$(VERSION) .
+	@echo "Build completed: $(FULL_IMAGE):$(VERSION)"
+
+##@ DASH
+DASH_VARS = PROFILE=$(DASH_PROFILE) ACCOUNT_ID=$(DASH_ACCOUNT_ID) IMAGE_NAME=$(DASH_IMAGE)
+
+build-dash: ## Build and push DASH image
+	$(MAKE) build $(DASH_VARS)
+
+##@ PROD
+PROD_VARS = PROFILE=$(PROD_PROFILE) ACCOUNT_ID=$(PROD_ACCOUNT_ID) IMAGE_NAME=$(PROD_IMAGE)
+
+build-prod: ## Build and push PROD image
+	$(MAKE) build $(PROD_VARS)
+```
+
+**Template notes:**
+
+- `{{SERVICE_NAME}}` — the human-readable description (e.g., "DNS Zone Scanner")
+- `{{ECR_REPO}}` — the ECR repo path provided in Step 1 (e.g., `workflow-steps/dns-scanner`)
+- Platform is `linux/amd64` — workflow steps run on amd64 infrastructure, not ARM Lambda.
+- No `git_token` secret is included. If the user needs it, add `--secret id=git_token,env=GIT_TOKEN \` before the `-t` line in the `build` target.
+- No deploy targets — workflow step containers are only built and pushed to ECR. If the user explicitly requests deploy targets, add them following the patterns in the `/sg-makefile` skill.
+- All recipe lines **must** use tabs for indentation (Makefile requirement).
+- The `help` target uses `awk` to parse `##` comments for self-documentation. `##@` creates section headers.
 
 ---
 
 ## Important Conventions
 
 - The Dockerfile must NOT include any hardening blocks (no crontab removal, no suid cleanup, no admin command removal, etc.). Keep it minimal.
+- All apk and pip operations are combined into a **single `RUN` layer**, ending with `rm -rf /var/cache/apk/*`.
+- Use `ENTRYPOINT ["/usr/bin/env", "bash"]` with `CMD ["main.sh"]` — not a combined `CMD`.
 - The `main.sh` logging functions are canonical — copy them exactly from this skill template.
 - CI/CD workflows must reference `StackGuardian/sg-internal-github-actions/.github/workflows/_build.yml@main` — not a pinned SHA.
 - QA account: `790543352839`, Prod account: `476299211833`
-- The non-root user is always `stackguardian` with UID/GID `911`.
 - File indentation: 2 spaces for YAML, JSON, Dockerfile. Tabs for Makefile recipes only.

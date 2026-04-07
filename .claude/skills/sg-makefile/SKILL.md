@@ -40,7 +40,7 @@ Use the template below, replacing placeholders with user-provided values.
 # StackGuardian Service: {{SERVICE_NAME}}
 
 # Default version - can be overridden via command line: make dash VERSION=1.2.3
-VERSION ?= $(shell git describe --tags --always --dirty)
+VERSION ?= $(shell git describe --always --dirty)
 
 # Registry and image configuration
 BUILD_REGION ?= eu-central-1
@@ -152,7 +152,8 @@ build-deploy-prod-all: ## Build and deploy PROD all
 ### Git Token Secret
 
 **If git_token is enabled:**
-```
+
+````
 --secret id=git_token,env=GIT_TOKEN \
 		```
 
@@ -167,9 +168,10 @@ deploy:
 		--region $(DEPLOY_REGION) \
 		--function-name $(LAMBDA_NAME) \
 		--image-uri $(FULL_IMAGE):$(VERSION)
-```
+````
 
 **ECS deployment:**
+
 ```makefile
 deploy:
 	@aws ecs update-service \

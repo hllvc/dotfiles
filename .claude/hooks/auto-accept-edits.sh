@@ -8,9 +8,9 @@
 #   permission on Edit/Write operations even when the mode is enabled.
 #
 # SOLUTION:
-#   This PreToolUse hook intercepts tool calls and auto-approves file operations
-#   based on the current permission mode. PreToolUse fires for both the main
-#   session and spawned subagents/teammates.
+#   Dual-layer hook registered as both PreToolUse (primary) and
+#   PermissionRequest (backup). Detects which event fired via
+#   hook_event_name and outputs the correct JSON format for each.
 #
 # BEHAVIOR:
 #   - acceptEdits mode: Auto-accepts all Edit/Write/MultiEdit operations
@@ -25,12 +25,13 @@
 #      "PreToolUse": [
 #        {
 #          "matcher": "Edit|Write|MultiEdit",
-#          "hooks": [
-#            {
-#              "type": "command",
-#              "command": "bash ~/.claude/hooks/auto-accept-edits.sh"
-#            }
-#          ]
+#          "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/auto-accept-edits.sh" }]
+#        }
+#      ],
+#      "PermissionRequest": [
+#        {
+#          "matcher": "Edit|Write|MultiEdit",
+#          "hooks": [{ "type": "command", "command": "bash ~/.claude/hooks/auto-accept-edits.sh" }]
 #        }
 #      ]
 #
@@ -38,7 +39,6 @@
 #
 # DEBUGGING:
 #   Set CLAUDE_HOOK_DEBUG=1 to enable logging:
-#     export CLAUDE_HOOK_DEBUG=1
 #   Logs written to: /tmp/auto-accept-edits.log
 #   View live: tail -f /tmp/auto-accept-edits.log
 #
@@ -58,12 +58,30 @@ input=$(cat)
 tool_name=$(echo "$input" | jq -r '.tool_name // empty')
 permission_mode=$(echo "$input" | jq -r '.permission_mode // "ask"')
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // empty')
+hook_event=$(echo "$input" | jq -r '.hook_event_name // "PreToolUse"')
 
-log "hook fired: tool=$tool_name mode=$permission_mode file=$file_path"
+log "hook fired: event=$hook_event tool=$tool_name mode=$permission_mode file=$file_path"
 
 output_allow() {
-  log "AUTO-APPROVED: $tool_name -> $file_path"
-  echo '{"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "allow"}}'
+  log "AUTO-APPROVED ($hook_event): $tool_name -> $file_path"
+  if [[ "$hook_event" == "PermissionRequest" ]]; then
+    jq -n '{
+      hookSpecificOutput: {
+        hookEventName: "PermissionRequest",
+        decision: {
+          behavior: "allow"
+        }
+      }
+    }'
+  else
+    jq -n --arg reason "Auto-approved $tool_name in $permission_mode mode by auto-accept-edits hook" '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "allow",
+        permissionDecisionReason: $reason
+      }
+    }'
+  fi
 }
 
 # Only handle file operation tools
@@ -81,7 +99,7 @@ if [[ "$tool_name" == "Edit" ]] || [[ "$tool_name" == "Write" ]] || [[ "$tool_na
     exit 0
   fi
 
-  log "PASSTHROUGH: mode=$permission_mode (not auto-approving)"
+  log "PASSTHROUGH: event=$hook_event mode=$permission_mode (not auto-approving)"
 fi
 
 exit 0
