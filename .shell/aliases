@@ -42,9 +42,10 @@ alias gso='git status -bs . | awk "{print \$2}" | fzf | xargs nvim -'
 alias gsso='git status -bs | awk "{print \$2}" | fzf | xargs nvim -'
 alias gl='git log --oneline'
 alias gg='git branch'
-alias pru='gh pr view --json url | jq -r ".url"'
-alias prucp='gh pr view --json url | jq -r ".url" | tr -d "\n" | pbcopy'
+
 alias gpr='git pull --rebase origin $(git branch --show-current)'
+alias gprd='git pull --rebase origin develop'
+alias gprm='git pull --rebase origin $(gh repo view --json defaultBranchRef --jq .defaultBranchRef.name)'
 
 alias raycast='cd $MY_GIT_DIR/raycast'
 alias doc='cd ~/Documents'
