@@ -1,0 +1,139 @@
+#{{{ file operations
+
+cpg() {
+  if [ -d "$2" ];then
+    cp $1 $2 && cd $2
+  else
+    cp $1 $2
+  fi
+}
+
+mvg() {
+  if [ -d "$2" ];then
+    mv $1 $2 && cd $2
+  else
+    mv $1 $2
+  fi
+}
+
+take() {
+  mkdir -p $1
+  cd $1
+}
+
+bup() {
+  if [[ -d $1 ]]; then
+    sudo cp -r $1 $1.old
+  else
+    sudo cp $1 $1.old
+  fi
+  echo "delete original (Y/n): "
+  read choice
+  [[ $choice == "" ]] && choice="y"
+  if [[ $choice == "y" ]] || [[ $choice == "Y" ]]; then
+    echo "Deleted:"
+    if [[ -d $1 ]]; then
+      sudo rm -rfv $1
+    else
+      sudo rm -fv $1
+    fi
+  fi
+}
+
+res() {
+  arr=( $(awk '{last=split($0, a, "."); for (i in a) if ( i != last ) print i"%"a[i]}' <<< $1 | sort | sed 's/[0-9]%//') )
+  newname=$(echo $arr | sed 's/ /./g')
+  if [[ -d $1 ]]; then
+    echo "Deleted:"
+    sudo cp -r $1 $newname
+  else
+    sudo cp $1 $newname
+  fi
+  echo "delete original (Y/n): "
+  read choice
+  [[ $choice == "" ]] && choice="y"
+  if [[ $choice == "y" ]] || [[ $choice == "Y" ]]; then
+    if [[ -d $1 ]]; then
+      sudo rm -rfv $1
+    else
+      sudo rm -fv $1
+    fi
+  fi
+}
+
+#}}}: file operations
+
+#{{{ editor
+
+vi() {
+  echo $PWD > ~/.curr
+  if [[ -d "$1" ]]; then
+    cd "$1"; nvim .
+  else
+    nvim "$@"
+  fi
+}
+
+#}}}: editor
+
+#{{{ clipboard operations
+
+copy() {
+  mkdir /tmp/copy
+  for item in $@; do
+    if [[ -d $item ]]; then
+      cp -rv $item /tmp/copy/
+    else
+      cp -v $item /tmp/copy
+    fi
+  done
+}
+
+cpaste() {
+  if [[ -z $@ ]]; then
+    mv -v /tmp/copy/.* .
+    mv -v /tmp/copy/* .
+  else
+    if [[ $# > 1 ]]; then
+      for dest in $@; do
+        cp -rv /tmp/copy/* $dest
+        cp -rv /tmp/copy/.* $dest
+      done
+    else
+      cp -rv /tmp/copy/.* $1
+      cp -rv /tmp/copy/* $1
+    fi
+  fi
+}
+
+cclean() {
+  rm -rfv /tmp/copy/*
+}
+
+lscopy() {
+  if [[ -e /tmp/copy ]]; then
+    echo "items:"
+    ls -lAtG /tmp/copy
+    echo "---"
+    tree /tmp/copy
+  else
+    echo "Nothing copied!"
+  fi
+}
+
+#}}}: clipboard operations
+
+#{{{ macOS
+
+bundle_id() {
+  app_name="$(ls /Applications |\
+    sed 's/.app.*//' |\
+    sed 's/Utilities\///' |\
+    sort -r |\
+    fzf)"
+
+  osascript -e "id of app \"$app_name\"" |\
+    tr -d '\n' | pbcopy
+}
+
+#}}}: macOS
