@@ -294,28 +294,12 @@ return {
 						end
 					end
 
-					-- For gd: new buffer for cross-file, vsplit for same-file
-					local function on_list_definition(options)
-						vim.fn.setqflist({}, " ", options)
-						if #options.items == 1 then
-							local item = options.items[1]
-							local target_file = item.filename or vim.api.nvim_buf_get_name(item.bufnr)
-							local current_file = vim.api.nvim_buf_get_name(0)
-							if target_file == current_file then
-								vim.cmd("vsplit")
-							end
-							vim.cmd.cfirst()
-						else
-							vim.cmd("Trouble qflist open focus=true")
-						end
-					end
-
 					-- Navigation
 					map("n", "gD", function()
 						vim.lsp.buf.declaration({ on_list = on_list })
 					end, "Go to Declaration")
 					map("n", "gd", function()
-						vim.lsp.buf.definition({ on_list = on_list_definition })
+						vim.lsp.buf.definition({ on_list = on_list })
 					end, "Go to Definition")
 					map("n", "K", vim.lsp.buf.hover, "Hover")
 					map("n", "gi", function()
@@ -477,9 +461,18 @@ return {
 	-- JavaScript/TypeScript
 	{
 		"pmizio/typescript-tools.nvim",
-		dependencies = { "nvim-lua/plenary.nvim", "neovim/nvim-lspconfig" },
-		opts = {},
+		dependencies = { "nvim-lua/plenary.nvim", "neovim/nvim-lspconfig", "hrsh7th/cmp-nvim-lsp" },
 		ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+		config = function()
+			local capabilities = vim.lsp.protocol.make_client_capabilities()
+			local has_cmp, cmp_nvim_lsp = pcall(require, "cmp_nvim_lsp")
+			if has_cmp then
+				capabilities = vim.tbl_deep_extend("force", capabilities, cmp_nvim_lsp.default_capabilities())
+			end
+			require("typescript-tools").setup({
+				capabilities = capabilities,
+			})
+		end,
 	},
 
 	-- HTML/CSS

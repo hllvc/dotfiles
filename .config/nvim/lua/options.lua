@@ -1,7 +1,7 @@
 -- options
 local opt = vim.opt
-local o = vim.o
-local g = vim.g
+-- local o = vim.o
+-- local g = vim.g
 
 -- Basic options
 opt.termguicolors = true
@@ -101,6 +101,10 @@ opt.listchars = {
 	extends = "❯",
 	precedes = "❮",
 }
+
+-- Popup menu (nvim 0.12+)
+opt.pumborder = "single"
+opt.pummaxwidth = 50
 
 -- Color column
 opt.colorcolumn = "80"

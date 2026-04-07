@@ -288,6 +288,23 @@ vim.api.nvim_create_autocmd("QuitPre", {
 	end,
 })
 
+-- Cleanup daemon processes and LSP clients on exit
+vim.api.nvim_create_autocmd("VimLeavePre", {
+	group = augroup("cleanup"),
+	callback = function()
+		-- Stop daemon formatters/linters (they persist after Neovim exits)
+		for _, cmd in ipairs({ "prettierd", "eslint_d" }) do
+			if vim.fn.executable(cmd) == 1 then
+				pcall(vim.fn.system, { cmd, "stop" })
+			end
+		end
+		-- Stop all LSP clients (safety net for abnormal shutdown)
+		for _, client in ipairs(vim.lsp.get_clients()) do
+			pcall(client.stop, client)
+		end
+	end,
+})
+
 -- Detect external file changes (complements autoread)
 vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
 	group = augroup("checktime"),
@@ -308,4 +325,3 @@ vim.api.nvim_create_autocmd("FileChangedShellPost", {
 		vim.cmd("checktime")
 	end,
 })
-
