@@ -60,6 +60,12 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 │       ├── init/       # Startup scripts (tt.sh)
 │       ├── tmux/       # Tmux helper scripts
 │       └── unloaded/   # Inactive scripts
+├── .claude/            # Claude Code CLI
+│   ├── CLAUDE.md       # Global instructions
+│   ├── settings.json   # Settings, plugins, hooks
+│   ├── skills/         # Custom skills
+│   ├── commands/       # Slash commands
+│   └── hooks/          # Lifecycle hooks
 ├── .zshrc              # Main Zsh config
 ├── .tmux.conf          # Tmux config
 ├── .gitconfig          # Git config
@@ -99,6 +105,16 @@ Lua-based config with:
 - LSP (TypeScript, Python, Go, Rust, Terraform, Helm, YAML, JSON, Lua, Markdown)
 - Telescope, Treesitter, Copilot
 - Custom keymaps (jk escape, L/H buffer nav)
+
+### Claude Code
+
+LSP plugins (pyright, lua-language-server) reuse Neovim's Mason-managed binaries.
+Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by default.
+`mason-link.sh` symlinks all Mason binaries into `~/.local/bin/`:
+
+```bash
+~/.shell/scripts/mason-link.sh
+```
 
 ## Git Config
 
