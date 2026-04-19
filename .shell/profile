@@ -47,3 +47,6 @@ export BAT_THEME="gruvbox-dark"
 
 export HOMEBREW_NO_AUTO_UPDATE=1
 export SCRIPTS_DIRECTORY="$HOME/.shell/scripts"
+
+## git
+export GIT_ASKPASS="$HOME/.shell/scripts/unloaded/git-askpass.sh"
