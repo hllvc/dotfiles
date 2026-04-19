@@ -1,9 +1,10 @@
 {
+  "model": "opusplan",
+  "effortLevel": "xhigh",
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_DISABLE_ANALYTICS": "1",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "CLAUDE_CODE_ENABLE_TASKS": "true",
+    "CLAUDE_CODE_ENABLE_TASKS": "1",
     "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
     "ENABLE_LSP_TOOL": "1",
     "CLAUDE_CODE_NO_FLICKER": "1",
@@ -20,33 +21,35 @@
       "Bash(tree:*)",
       "Bash(tmux:*)"
     ],
-    "deny": [],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Edit(~/.ssh/**)",
+      "Write(~/.ssh/**)",
+      "Glob(~/.ssh/**)",
+      "Grep(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Edit(~/.aws/**)",
+      "Write(~/.aws/**)",
+      "Glob(~/.aws/**)",
+      "Grep(~/.aws/**)",
+      "Read(**/.env*)",
+      "Edit(**/.env*)",
+      "Write(**/.env*)",
+      "Glob(**/.env*)",
+      "Grep(**/.env*)",
+      "Read(~/.config/gh/hosts.yml)",
+      "Edit(~/.config/gh/hosts.yml)",
+      "Write(~/.config/gh/hosts.yml)",
+      "Glob(~/.config/gh/hosts.yml)",
+      "Grep(~/.config/gh/hosts.yml)",
+      "Read(~/.netrc)",
+      "Edit(~/.netrc)",
+      "Write(~/.netrc)",
+      "Glob(~/.netrc)",
+      "Grep(~/.netrc)"
+    ],
     "ask": [],
     "defaultMode": "plan"
-  },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/hooks/auto-accept-edits.sh"
-          }
-        ]
-      }
-    ],
-    "PermissionRequest": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash ~/.claude/hooks/auto-accept-edits.sh"
-          }
-        ]
-      }
-    ]
   },
   "statusLine": {
     "type": "command",
@@ -82,8 +85,12 @@
         "api.github.com",
         "gist.github.com",
         "raw.githubusercontent.com",
+        "objects.githubusercontent.com",
+        "codeload.github.com",
         "registry.npmjs.org",
+        "registry.yarnpkg.com",
         "pypi.org",
+        "files.pythonhosted.org",
         "stackoverflow.com",
         "api.anthropic.com",
         "api.openai.com",
@@ -95,8 +102,8 @@
     ]
   },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
-  "voiceEnabled": true,
-  "skipDangerousModePermissionPrompt": true
+  "tui": "default",
+  "skipDangerousModePermissionPrompt": true,
+  "voiceEnabled": true
 }
