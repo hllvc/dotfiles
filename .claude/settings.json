@@ -15,9 +15,9 @@
       "WebSearch",
       "WebFetch",
       "Bash(find:*)",
-      "Read(~/.git/**)",
-      "Glob(~/.git/**)",
-      "Grep(~/.git/**)",
+      "Read(~/.repos/**)",
+      "Glob(~/.repos/**)",
+      "Grep(~/.repos/**)",
       "Bash(tree:*)",
       "Bash(tmux:*)"
     ],

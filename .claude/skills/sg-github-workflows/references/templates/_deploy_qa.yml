@@ -1,0 +1,25 @@
+name: "🚫 _reusable_deploy_qa"
+
+on:
+  workflow_call:
+    inputs:
+      aws-region:
+        required: true
+        type: string
+        description: "AWS Region (eu-central-1 or eu-west-1)"
+      image-tag:
+        required: true
+        type: string
+        description: "Docker image tag to deploy"
+
+jobs:
+  deploy:
+    name: "Deploy"
+    uses: StackGuardian/sg-internal-github-actions/.github/workflows/_deploy_lambda.yml@main
+    with:
+      aws-account-id: "790543352839"
+      aws-region: ${{ inputs.aws-region }}
+      deploy-environment: "QA"
+      ecr-repo: "{{ECR_REPO}}"
+      function-name: "{{QA_FUNCTION_NAME}}"
+      image-tag: ${{ inputs.image-tag }}

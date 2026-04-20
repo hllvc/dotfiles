@@ -1,7 +1,8 @@
 - When indenting code, ALWAYS use 2 spaces as indentation (if not specified or used otherwise in the project).
 - When working with repositories, take into consideration that they are configured as git worktrees.
-- Personal GitHub repositories are stored in ~/.git/private/
-- Work (StackGuardian) GitHub repositories are stored in ~/.git/stackguardian/
+- Personal GitHub repositories are stored in ~/.repos/private/
+- Work (StackGuardian) GitHub repositories are stored in ~/.repos/stackguardian/
+- Satlantis repositories are stored in ~/.repos/satlantis/
 - Git commits must NEVER add Claude or claude-code as author or co-author, and must not include any "Generated with Claude Code", "Co-Authored-By: Claude ...", or similar trailer/footer. Commits and PR descriptions must not signal that they were machine-authored — write in the user's voice.
 - Commit message format follows the user's `~/.shell/scripts/com.sh` convention:
   - If current branch matches `<alpha>-<digit>` (e.g. `feat-123`), include `<alpha>-<digit>` as a ticket tag.

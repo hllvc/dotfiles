@@ -1,0 +1,20 @@
+name: "🚀 [PROD](EU) Deploy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        required: true
+        type: string
+        description: "Docker image tag to deploy"
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+
+jobs:
+  deploy-eu:
+    name: "Deploy EU"
+    uses: ./.github/workflows/_deploy_prod.yml
+    with:
+      aws-region: "eu-central-1"
+      image-tag: "${{ inputs.image-tag }}"

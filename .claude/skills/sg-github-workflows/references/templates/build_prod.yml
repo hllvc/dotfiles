@@ -1,0 +1,30 @@
+name: "🛠️ [PROD] Build and Push"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+  actions: write # This is required for trigger other GitHub Actions
+
+jobs:
+  build:
+    name: "Build and Push"
+    uses: StackGuardian/sg-internal-github-actions/.github/workflows/_build.yml@main
+    with:
+      aws-account-id: "476299211833"
+      aws-region: "eu-central-1"
+      deploy-environment: "BUILD"
+      ecr-repo: "{{ECR_REPO}}"
+      build-context: "{{BUILD_CONTEXT}}"
+      dotenv: "{{DOTENV_PROD}}"
+      deploy-workflows: "deploy_prod_eu.yml,deploy_prod_us.yml"
+    secrets:
+      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}  # include only if Dockerfile references GIT_TOKEN

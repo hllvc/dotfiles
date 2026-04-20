@@ -1,0 +1,52 @@
+name: "🚀 [Dash] Build and Deploy"
+
+on:
+  push:
+    branches:
+      - {{DEFAULT_BRANCH}}
+  workflow_dispatch:
+    inputs:
+      deploy-eu-dr:
+        required: true
+        type: boolean
+        default: false
+        description: "Deploy DR [eu-west-1]"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write # This is required for requesting the JWT
+  contents: read # This is required for actions/checkout
+
+jobs:
+  build:
+    name: "Build and Push"
+    uses: StackGuardian/sg-internal-github-actions/.github/workflows/_build.yml@main
+    with:
+      aws-account-id: "790543352839"
+      aws-region: "eu-central-1"
+      ecr-repo: "{{ECR_REPO}}"
+      deploy-environment: "QA"
+      build-context: "{{BUILD_CONTEXT}}"
+      dotenv: "{{DOTENV_QA}}"
+    secrets:
+      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}  # include only if Dockerfile references GIT_TOKEN
+
+  deploy-eu:
+    name: "Deploy to EU"
+    needs: build
+    uses: ./.github/workflows/_deploy_qa.yml
+    with:
+      aws-region: "eu-central-1"
+      image-tag: ${{ needs.build.outputs.image-tag }}
+
+  deploy-eu-dr:
+    name: "Deploy to EU/DR"
+    if: inputs.deploy-eu-dr
+    needs: build
+    uses: ./.github/workflows/_deploy_qa.yml
+    with:
+      aws-region: "eu-west-1"
+      image-tag: ${{ needs.build.outputs.image-tag }}
