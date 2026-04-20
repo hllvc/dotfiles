@@ -64,11 +64,29 @@ _launchctl_unload() { #{{{
 }
 #}}}: _launchctl_unload
 
+_clean_stale_symlinks() { #{{{
+  local pkg resolved rel home_path
+  pkg=$(pwd -P)
+
+  while IFS= read -r -d '' entry; do
+    rel="${entry#$pkg/}"
+    home_path="$HOME/$rel"
+    [[ -L "$home_path" ]] || continue
+    resolved=$(readlink -f "$home_path" 2>/dev/null || true)
+    if [[ "$resolved" != "$entry" ]]; then
+      rm -v "$home_path"
+    fi
+  done < <(find "$pkg" -mindepth 1 \
+    \( -path "$pkg/.git" -o -path "$pkg/.git/*" \) -prune -o \
+    \( -type f -o -type d \) -print0)
+}
+#}}}: _clean_stale_symlinks
+
 main() { #{{{
   case "$ACTION" in
-  adopt) stow -v -t "$HOME" . --adopt ;;
+  adopt) _clean_stale_symlinks && stow -v -t "$HOME" . --adopt ;;
   unload) _launchctl_unload ;;
-  *) stow -v -t "$HOME" . && _launchctl_load ;;
+  *) _clean_stale_symlinks && stow -v -t "$HOME" . && _launchctl_load ;;
   esac
 }
 #}}}: main

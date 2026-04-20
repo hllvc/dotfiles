@@ -120,4 +120,4 @@ Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by defau
 
 Conditional include for work repositories:
 
-- `~/.git/stackguardian/.gitconfig` - Included for repos under `~/.git/stackguardian/`
+- `~/.repos/stackguardian/.gitconfig` - Included for repos under `~/.repos/stackguardian/`

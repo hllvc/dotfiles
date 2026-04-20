@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 
-# Select session directory from ~/.git
-dir=$(find ~/.git -maxdepth 1 -mindepth 1 -type d | fzf --prompt="Working directory: ")
+# Select session directory from ~/.repos
+dir=$(find ~/.repos -maxdepth 1 -mindepth 1 -type d | fzf --prompt="Working directory: ")
 [[ -z "$dir" ]] && exit 0
 
 # Prompt for session name

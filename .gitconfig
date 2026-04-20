@@ -2,14 +2,14 @@
   name = hllvc
   email = github@hllvc.com
   signingkey = ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIClGTS44TwWwnZ5FcKpNKZh7cC9XQqRhk+vA6lOxRYmk
-[includeIf "gitdir:~/.git/stackguardian/"]
-  path = ~/.git/stackguardian/.gitconfig
+[includeIf "gitdir:~/.repos/stackguardian/"]
+  path = ~/.repos/stackguardian/.gitconfig
 [core]
   pager = less -x2
   editor = nvim
   sshCommand = ssh -i ~/.ssh/git_keys/personal_git.pub
-; [includeIf "gitdir:~/.git/stackguardian/"]
-;   path = ~/.git/stackguardian/.gitconfig
+; [includeIf "gitdir:~/.repos/stackguardian/"]
+;   path = ~/.repos/stackguardian/.gitconfig
 [gpg]
   format = ssh
 [gpg "ssh"]

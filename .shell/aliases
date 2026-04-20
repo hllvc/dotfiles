@@ -1,4 +1,4 @@
-MY_GIT_DIR="$HOME/.git"
+MY_GIT_DIR="$HOME/.repos"
 
 # personal directories
 alias gp='cd $MY_GIT_DIR/private'
@@ -41,6 +41,7 @@ alias gss='git status -bs'
 alias gso='git status -bs . | awk "{print \$2}" | fzf | xargs nvim -'
 alias gsso='git status -bs | awk "{print \$2}" | fzf | xargs nvim -'
 alias gl='git log --oneline'
+alias glm='git log --date=relative --pretty=medium'
 alias gg='git branch'
 
 alias gpr='git pull --rebase origin $(git branch --show-current)'
