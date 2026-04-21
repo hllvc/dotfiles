@@ -91,7 +91,7 @@ _fzf() { #{{{
     --track \
     --ansi \
     --layout=reverse-list \
-    --preview 'git log --oneline {}'
+    --preview 'git log --oneline --decorate --color=always {}'
 }
 #}}}: _fzf
 

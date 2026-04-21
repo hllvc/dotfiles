@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 
-readonly WIFI_NAME="halilovic5G"
+readonly WIFI_NAME="hllvc"
 readonly TARGET_SPEED="${1:-350}"
-readonly NQ_RESULT_EXAMPLE=$(cat <<EOF
+readonly NQ_RESULT_EXAMPLE=$(
+  cat <<EOF
 ==== SUMMARY ====
 Uplink capacity: 65.317 Mbps
 Downlink capacity: 384.164 Mbps
@@ -14,8 +15,8 @@ EOF
 declare downlink
 
 _target_wifi() { #{{{
-  ipconfig getsummary en0 \
-    | grep -q "SSID : $WIFI_NAME"
+  ipconfig getsummary en0 |
+    grep -q "SSID : $WIFI_NAME"
 
   return $?
 }
@@ -32,9 +33,9 @@ _get_capacity_for() { #{{{
   local result
 
   _extract_capacity_wrapper() { #{{{
-    _network_quality \
-      | grep "${capacity_type} capacity" \
-      | grep -Eo "[0-9]{1,3}\.[0-9]{1,3}"
+    _network_quality |
+      grep "${capacity_type} capacity" |
+      grep -Eo "[0-9]{1,3}\.[0-9]{1,3}"
   }
   #}}} _extract_capacity_wrapper
 
@@ -55,7 +56,7 @@ _is_target_speed() { #{{{
   local target="$TARGET_SPEED"
   local speed="${1%%.*}"
 
-  if (( speed < target )); then
+  if ((speed < target)); then
     return 1 # false
   else
     return 0 # true
