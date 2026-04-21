@@ -1,7 +1,6 @@
 {
-  "model": "opusplan",
-  "effortLevel": "xhigh",
   "env": {
+    "BASH_ENV": "/Users/hllvc/.local/bin/claude-shims-init.sh",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_DISABLE_ANALYTICS": "1",
     "CLAUDE_CODE_ENABLE_TASKS": "1",
@@ -19,7 +18,9 @@
       "Glob(~/.repos/**)",
       "Grep(~/.repos/**)",
       "Bash(tree:*)",
-      "Bash(tmux:*)"
+      "Bash(tmux:*)",
+      "Bash(aws:*)",
+      "Bash(op plugin run -- aws:*)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -32,11 +33,6 @@
       "Write(~/.aws/**)",
       "Glob(~/.aws/**)",
       "Grep(~/.aws/**)",
-      "Read(**/.env*)",
-      "Edit(**/.env*)",
-      "Write(**/.env*)",
-      "Glob(**/.env*)",
-      "Grep(**/.env*)",
       "Read(~/.config/gh/hosts.yml)",
       "Edit(~/.config/gh/hosts.yml)",
       "Write(~/.config/gh/hosts.yml)",
@@ -51,6 +47,7 @@
     "ask": [],
     "defaultMode": "plan"
   },
+  "model": "opusplan",
   "statusLine": {
     "type": "command",
     "command": "bash /Users/hllvc/.claude/statusline-command.sh"
@@ -94,7 +91,10 @@
         "stackoverflow.com",
         "api.anthropic.com",
         "api.openai.com",
-        "auth.openai.com"
+        "auth.openai.com",
+        "registry.opentofu.org",
+        "*.amazonaws.com",
+        "*.1password.com"
       ]
     },
     "additionalDirectories": [
@@ -102,6 +102,7 @@
     ]
   },
   "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
   "autoUpdatesChannel": "latest",
   "tui": "default",
   "skipDangerousModePermissionPrompt": true,

@@ -31,6 +31,47 @@
 - [ ] `build-deploy-dash` uses a single `$(MAKE) build deploy $(DASH_VARS)` call (two goals in one sub-make)
       while `build-deploy-prod-us` uses `&&`-chained sub-makes — inconsistent idiom, though both work.
 
+---
+
+## Container archetype checklist
+
+Use this section when the Makefile has **no `deploy:` target** and **no `build-deploy-*`
+targets** — i.e., it is a workflow-step / runtime container Makefile.
+
+Do NOT flag: missing `deploy:`, missing PROD US targets, missing `git_token` build
+secret, missing `build-deploy-*` targets, missing `LAMBDA_NAME` / `DEPLOY_REGION`.
+
+### CRITICAL
+
+- [ ] `PLATFORM = linux/amd64`
+- [ ] `DASH_ACCOUNT_ID = 790543352839`
+- [ ] `PROD_ACCOUNT_ID = 476299211833`
+
+### IMPORTANT
+
+- [ ] `DASH_PROFILE = default`
+- [ ] `PROD_PROFILE = sg-prod`
+- [ ] `VERSION ?= $(shell git describe --always --dirty)` (flag `TAG` as drift)
+- [ ] `BUILD_REGION ?= eu-central-1` (must be `?=`)
+- [ ] `DOCKER_BUILD_ARGS` includes `--provenance=false`
+- [ ] `.PHONY` contains exactly: `help version login build dash prod`
+- [ ] No `latest` tag in `build:` recipe (ambiguous for runtime-pulled images)
+
+### MINOR
+
+- [ ] `REGISTRY` uses `$(BUILD_REGION)` instead of hardcoded `eu-central-1`
+- [ ] `login` uses `$(BUILD_REGION)` (not hardcoded `eu-central-1`)
+
+### Expected differences (container — never flag)
+
+| Field | Notes |
+|---|---|
+| `SERVICE_NAME` | In header comment; varies by repo |
+| `IMAGE_NAME` | Varies — e.g. `workflow-steps/kubernetes` |
+| `--secret id=git_token,env=GIT_TOKEN` | Omitted by default; only needed if Dockerfile clones private repos |
+
+---
+
 ## Expected differences (project-specific — never flag)
 
 | Field | Notes |

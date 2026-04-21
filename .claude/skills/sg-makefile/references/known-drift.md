@@ -27,6 +27,78 @@ repos during the Docker build, which is a completely different credential. The r
 
 ---
 
+## DRIFT-3: Container archetype — `TAG` instead of `VERSION`
+
+**Severity:** IMPORTANT  
+**Applies to:** container archetype
+
+Uses `TAG` as the version variable with `git rev-parse --short HEAD` instead of
+`VERSION` with `git describe --always --dirty`.
+
+**Before (drift):**
+```makefile
+TAG ?= $(shell git rev-parse --short HEAD)
+```
+
+**After (canonical):**
+```makefile
+VERSION ?= $(shell git describe --always --dirty)
+```
+
+**Why it matters:** `git describe --always --dirty` produces meaningful version strings
+(e.g. `v1.2.3-4-gabcdef-dirty`) that make it easy to trace a running container back
+to its source tag. `git rev-parse --short HEAD` produces a bare hash with no tag
+context and no dirty indicator.
+
+---
+
+## DRIFT-4: Container archetype — `REGISTRY` hardcodes `eu-central-1`
+
+**Severity:** MINOR  
+**Applies to:** container archetype
+
+`REGISTRY` and/or the `login:` target hardcode `eu-central-1` instead of using
+`$(BUILD_REGION)`.
+
+**Before (drift):**
+```makefile
+REGISTRY = $(ACCOUNT_ID).dkr.ecr.eu-central-1.amazonaws.com
+...
+@aws --profile $(PROFILE) ecr get-login-password --region eu-central-1 \
+```
+
+**After (canonical):**
+```makefile
+BUILD_REGION ?= eu-central-1
+REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
+...
+@aws --profile $(PROFILE) ecr get-login-password --region $(BUILD_REGION) \
+```
+
+---
+
+## DRIFT-5: Container archetype — `DOCKER_BUILD_ARGS` missing `--provenance=false`
+
+**Severity:** IMPORTANT  
+**Applies to:** container archetype
+
+`DOCKER_BUILD_ARGS` omits `--provenance=false`, causing Docker BuildKit to attach
+OCI provenance attestations to the manifest. Some ECR configurations and older
+container runtimes do not handle multi-platform manifest lists with attestations
+correctly, which can cause image pull failures.
+
+**Before (drift):**
+```makefile
+DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM)
+```
+
+**After (canonical):**
+```makefile
+DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM) --provenance=false
+```
+
+---
+
 ## DRIFT-2: Hardcoded `eu-central-1` in `login:` private ECR step
 
 **Severity:** MINOR

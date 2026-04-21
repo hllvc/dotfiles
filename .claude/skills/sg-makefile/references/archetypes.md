@@ -1,5 +1,13 @@
 # Deploy Archetype Bodies
 
+## Container (workflow-step / runtime container)
+
+Workflow-step containers have **no deploy target** — the StackGuardian workflow
+engine pulls the image at runtime. Use `references/canonical-container-template.md`
+instead of this file. Targets: `help`, `version`, `login`, `build`, `dash`, `prod`.
+
+---
+
 Use these as the `{{DEPLOY_BODY}}` substitution in `canonical-template.md`.
 
 ---
