@@ -42,7 +42,7 @@ _handle_alert_action() { #{{{
 free_percentage=$(memory_pressure | awk '/percentage/ {print $NF}' | tr -d %)
 pressure=$((100 - free_percentage))
 
-if ((free_percentage < 30)); then
+if ((free_percentage < 40)); then
   alert_action="$(_alert "$pressure")"
 fi
 
