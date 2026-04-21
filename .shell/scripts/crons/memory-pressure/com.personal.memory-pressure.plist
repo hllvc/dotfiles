@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.personal.memory-pressure</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/hllvc/.repos/private/dotfiles/master/.shell/scripts/crons/memory-pressure/memory_pressure.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/hllvc/.repos/private/dotfiles/master/.shell/scripts/crons/memory-pressure</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/com.personal.memory-pressure.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/com.personal.memory-pressure.err.log</string>
+</dict>
+</plist>
