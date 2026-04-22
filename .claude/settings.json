@@ -47,7 +47,6 @@
     "ask": [],
     "defaultMode": "plan"
   },
-  "model": "opusplan",
   "statusLine": {
     "type": "command",
     "command": "bash /Users/hllvc/.claude/statusline-command.sh"

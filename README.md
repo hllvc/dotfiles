@@ -16,7 +16,7 @@ git clone --bare \
     && echo "gitdir: ./.bare" > .git \
     && printf "\tfetch = +refs/heads/*:refs/remotes/origin/*" >> .bare/config \
     && git worktree add "$(git branch --show-current)" \
-    && ./load.sh
+    && ./dotctl all
 ```
 
 Without `git worktree`, normal:
@@ -24,20 +24,22 @@ Without `git worktree`, normal:
 ```bash
 git clone "git@github.com:hllvc/dotfiles.git" \
     && cd "dotfiles" \
-    && ./load.sh
+    && ./dotctl all
 ```
 
-### load.sh Options
+### dotctl Commands
 
-- `./load.sh` - Symlink dotfiles to home
-- `./load.sh -a` - Adopt existing files (convert to symlinks)
-- `./load.sh -u` - Unload LaunchAgents
-- `./load.sh -h` - Show help
+- `./dotctl` - Show help (running without a command is a no-op)
+- `./dotctl all` - Stow + load launch agents + install crons
+- `./dotctl stow [--adopt]` - Symlink dotfiles into `$HOME` (adopt folds existing files into the repo)
+- `./dotctl agents <load|unload|list>` - Manage launch agents under `~/.config/launch-agents`
+- `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
+- `./dotctl -h` (or `./dotctl <command> -h`) - Help
 
 ## Prerequisites
 
-- [Homebrew](https://brew.sh) (auto-installed by `load.sh`)
-- [GNU Stow](https://www.gnu.org/software/stow/) (auto-installed by `load.sh`)
+- [Homebrew](https://brew.sh) (auto-installed by `dotctl`)
+- [GNU Stow](https://www.gnu.org/software/stow/) (auto-installed by `dotctl`)
 - Zsh with [Oh-My-Zsh](https://ohmyz.sh)
 - [Powerlevel10k](https://github.com/romkatv/powerlevel10k) theme
 
@@ -59,6 +61,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 │       ├── functions/  # Scripts that can cd (gbare.sh, sw.sh)
 │       ├── init/       # Startup scripts (tt.sh)
 │       ├── tmux/       # Tmux helper scripts
+│       ├── crons/      # Scheduled jobs (installed by `dotctl crons install`)
 │       └── unloaded/   # Inactive scripts
 ├── .claude/            # Claude Code CLI
 │   ├── CLAUDE.md       # Global instructions
@@ -70,7 +73,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 ├── .tmux.conf          # Tmux config
 ├── .gitconfig          # Git config
 ├── .p10k.zsh           # Powerlevel10k theme
-└── load.sh             # Installation script
+└── dotctl              # Dotfiles CLI (stow, agents, crons)
 ```
 
 See detailed documentation: [`.config/`](.config/) | [`.shell/`](.shell/)
@@ -89,7 +92,13 @@ Separate tmux sockets for work/personal contexts:
 - `personal` - Personal projects
 - `work` - Work projects
 
-LaunchAgents auto-start these on login.
+LaunchAgents auto-start these on login (`com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
+
+### Background Crons
+
+Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are installed via `dotctl crons install`. Each cron is free to define its own `install.sh` (e.g. for system-level hooks like `newsyslog.d` configs) — `dotctl` auto-discovers and runs them.
+
+- **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
 
 ### Key Scripts
 

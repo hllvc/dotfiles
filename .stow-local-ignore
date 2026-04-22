@@ -1,4 +1,4 @@
-load.sh
+dotctl
 \.git
 \.gitignore
 README.md

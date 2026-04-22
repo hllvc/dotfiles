@@ -12,7 +12,7 @@ if [[ "$1" == "-feat" ]]; then
 elif [[ "$1" == "-fix" ]]; then
   commit_prefix="fix"
   shift
-elif [[ "$1" == "-doc" ]]; then
+elif [[ "$1" == "-docs" ]]; then
   commit_prefix="docs"
 fi
 readonly commit_prefix

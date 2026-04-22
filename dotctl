@@ -1,0 +1,358 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+shopt -s nullglob
+
+readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly LAUNCH_AGENTS_SOURCE="$HOME/.config/launch-agents"
+readonly CRONS_DIR="$REPO_ROOT/.shell/scripts/crons"
+readonly REQUIRED_TOOLS=("brew" "stow")
+
+# ─── Help ──────────────────────────────────────────────────────────────── {{{
+
+usage() {
+  cat <<EOF
+Usage: ./dotctl <command> [options]
+
+Running without a command prints this help. Every action is explicit.
+
+Commands:
+  all                        Run stow, load launch agents, install crons
+  stow        [--adopt]      Symlink dotfiles into \$HOME via stow
+  agents      <load|unload|list>
+                             Manage launch agents under ~/.config/launch-agents
+  crons       <install|list>
+                             Orchestrate per-cron install.sh hooks under
+                             .shell/scripts/crons/*/install.sh
+
+Global:
+  -h, --help                 Show this help
+
+Per-command help:
+  ./dotctl <command> -h
+
+Examples:
+  ./dotctl all              # stow + agents load + crons install
+  ./dotctl stow --adopt     # adopt existing files as stow-managed
+  ./dotctl agents unload    # unload all launch agents
+  ./dotctl crons list       # list discovered cron install hooks
+EOF
+}
+
+usage_stow() {
+  cat <<EOF
+Usage: ./dotctl stow [--adopt]
+
+Symlinks this repo into \$HOME via GNU stow. Cleans stale symlinks first so
+renamed/removed files don't linger.
+
+Options:
+  --adopt    Run \`stow --adopt\`: files already in \$HOME that shadow repo files
+             get moved into the repo and replaced with symlinks. Use with care
+             — review \`git status\` afterwards.
+EOF
+}
+
+usage_agents() {
+  cat <<EOF
+Usage: ./dotctl agents <load|unload|list>
+
+Manages user LaunchAgents. Each *.plist in ~/.config/launch-agents/ is
+symlinked into ~/Library/LaunchAgents/ and bootstrapped via launchctl.
+
+Subcommands:
+  load       Symlink plists and bootstrap (no-op if already loaded)
+  unload     Bootout and remove the symlinks
+  list       Show each plist + whether it's currently loaded
+EOF
+}
+
+usage_crons() {
+  cat <<EOF
+Usage: ./dotctl crons <install|list>
+
+Orchestrates per-cron install hooks. Any .shell/scripts/crons/*/install.sh
+is auto-discovered; drop a new cron folder with its own install.sh and it
+will be picked up on the next run.
+
+Subcommands:
+  install    Run every discovered install.sh (may prompt for sudo)
+  list       Show discovered cron dirs and whether they have install.sh
+
+Notes:
+  - install.sh is invoked with cwd set to its own directory.
+  - Failures in one script do not abort the others; exit code reflects
+    whether any failed.
+EOF
+}
+
+# }}}
+
+# ─── Helpers ───────────────────────────────────────────────────────────── {{{
+
+_command_installed() {
+  command -v "$1" &>/dev/null
+}
+
+_install_brew() {
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  brew update
+}
+
+_require_tools() {
+  for tool in "${REQUIRED_TOOLS[@]}"; do
+    if ! _command_installed "$tool" && [[ "$tool" == "brew" ]]; then
+      _install_brew
+    elif ! _command_installed "$tool"; then
+      brew install "$tool"
+    fi
+  done
+}
+
+_clean_stale_symlinks() {
+  local pkg resolved rel home_path
+  pkg="$REPO_ROOT"
+
+  while IFS= read -r -d '' entry; do
+    rel="${entry#$pkg/}"
+    home_path="$HOME/$rel"
+    [[ -L "$home_path" ]] || continue
+    resolved=$(readlink -f "$home_path" 2>/dev/null || true)
+    if [[ "$resolved" != "$entry" ]]; then
+      rm -v "$home_path"
+    fi
+  done < <(find "$pkg" -mindepth 1 \
+    \( -path "$pkg/.git" -o -path "$pkg/.git/*" \) -prune -o \
+    \( -type f -o -type d \) -print0)
+}
+
+_agent_is_loaded() {
+  local label="$1" uid
+  uid=$(id -u)
+  launchctl print "gui/$uid/$label" &>/dev/null
+}
+
+# }}}
+
+# ─── stow ──────────────────────────────────────────────────────────────── {{{
+
+cmd_stow() {
+  local adopt=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --adopt)
+      adopt=1
+      shift
+      ;;
+    -h | --help)
+      usage_stow
+      return 0
+      ;;
+    *)
+      echo "stow: unknown option: $1" >&2
+      usage_stow >&2
+      return 1
+      ;;
+    esac
+  done
+
+  _require_tools
+  _clean_stale_symlinks
+
+  if ((adopt)); then
+    stow -v -t "$HOME" -d "$REPO_ROOT" . --adopt
+  else
+    stow -v -t "$HOME" -d "$REPO_ROOT" .
+  fi
+}
+
+# }}}
+
+# ─── agents ────────────────────────────────────────────────────────────── {{{
+
+_agents_load() {
+  [[ -d "$LAUNCH_AGENTS_SOURCE" ]] || {
+    echo "No launch-agents dir; skipping."
+    return 0
+  }
+
+  local uid filename label
+  uid=$(id -u)
+
+  for file in "$LAUNCH_AGENTS_SOURCE"/*.plist; do
+    filename=$(basename "$file")
+    label="${filename%.plist}"
+    ln -sfv "$file" "$HOME/Library/LaunchAgents/$filename"
+    launchctl bootstrap "gui/$uid" "$HOME/Library/LaunchAgents/$filename" ||
+      echo "  note: $label may already be loaded"
+  done
+}
+
+_agents_unload() {
+  [[ -d "$LAUNCH_AGENTS_SOURCE" ]] || {
+    echo "No launch-agents dir; skipping."
+    return 0
+  }
+
+  local uid filename label
+  uid=$(id -u)
+
+  for file in "$LAUNCH_AGENTS_SOURCE"/*.plist; do
+    filename=$(basename "$file")
+    label="${filename%.plist}"
+    if [[ -e "$HOME/Library/LaunchAgents/$filename" || -L "$HOME/Library/LaunchAgents/$filename" ]]; then
+      launchctl bootout "gui/$uid/$label" ||
+        echo "  note: $label may already be unloaded"
+      rm -fv "$HOME/Library/LaunchAgents/$filename"
+    fi
+  done
+}
+
+_agents_list() {
+  [[ -d "$LAUNCH_AGENTS_SOURCE" ]] || {
+    echo "No launch-agents dir."
+    return 0
+  }
+
+  local filename label status
+  printf '%-40s %s\n' "LABEL" "STATUS"
+  printf '%-40s %s\n' "-----" "------"
+  for file in "$LAUNCH_AGENTS_SOURCE"/*.plist; do
+    filename=$(basename "$file")
+    label="${filename%.plist}"
+    if _agent_is_loaded "$label"; then
+      status="loaded"
+    else
+      status="unloaded"
+    fi
+    printf '%-40s %s\n' "$label" "$status"
+  done
+}
+
+cmd_agents() {
+  local sub="${1:-}"
+  [[ -n "$sub" ]] || {
+    usage_agents >&2
+    return 1
+  }
+  shift
+  case "$sub" in
+  load) _agents_load ;;
+  unload) _agents_unload ;;
+  list) _agents_list ;;
+  -h | --help) usage_agents ;;
+  *)
+    echo "agents: unknown subcommand: $sub" >&2
+    usage_agents >&2
+    return 1
+    ;;
+  esac
+}
+
+# }}}
+
+# ─── crons ─────────────────────────────────────────────────────────────── {{{
+
+_discover_crons() {
+  [[ -d "$CRONS_DIR" ]] || return 0
+  for dir in "$CRONS_DIR"/*/; do
+    [[ -d "$dir" ]] && printf '%s\n' "${dir%/}"
+  done
+}
+
+_crons_install() {
+  local dir name install_path failed=0 ran=0
+  while IFS= read -r dir; do
+    name=$(basename "$dir")
+    install_path="$dir/install.sh"
+    if [[ -x "$install_path" || -f "$install_path" ]]; then
+      echo "── installing cron: $name ──"
+      if (cd "$dir" && bash "$install_path"); then
+        ran=$((ran + 1))
+      else
+        echo "  ✗ $name/install.sh failed" >&2
+        failed=$((failed + 1))
+      fi
+    fi
+  done < <(_discover_crons)
+
+  echo
+  echo "Cron install summary: $ran succeeded, $failed failed."
+  return "$failed"
+}
+
+_crons_list() {
+  local dir name
+  printf '%-30s %s\n' "CRON" "HAS install.sh"
+  printf '%-30s %s\n' "----" "--------------"
+  while IFS= read -r dir; do
+    name=$(basename "$dir")
+    if [[ -f "$dir/install.sh" ]]; then
+      printf '%-30s %s\n' "$name" "yes"
+    else
+      printf '%-30s %s\n' "$name" "no"
+    fi
+  done < <(_discover_crons)
+}
+
+cmd_crons() {
+  local sub="${1:-}"
+  [[ -n "$sub" ]] || {
+    usage_crons >&2
+    return 1
+  }
+  shift
+  case "$sub" in
+  install) _crons_install ;;
+  list) _crons_list ;;
+  -h | --help) usage_crons ;;
+  *)
+    echo "crons: unknown subcommand: $sub" >&2
+    usage_crons >&2
+    return 1
+    ;;
+  esac
+}
+
+# }}}
+
+# ─── all ───────────────────────────────────────────────────────────────── {{{
+
+cmd_all() {
+  cmd_stow "$@"
+  echo
+  _agents_load
+  echo
+  _crons_install || echo "  (some cron installs failed — see above)"
+}
+
+# }}}
+
+# ─── dispatch ──────────────────────────────────────────────────────────── {{{
+
+main() {
+  if [[ $# -eq 0 ]]; then
+    usage
+    exit 0
+  fi
+
+  local cmd="$1"
+  shift
+
+  case "$cmd" in
+  all) cmd_all "$@" ;;
+  stow) cmd_stow "$@" ;;
+  agents) cmd_agents "$@" ;;
+  crons) cmd_crons "$@" ;;
+  -h | --help) usage ;;
+  *)
+    echo "Unknown command: $cmd" >&2
+    usage >&2
+    exit 1
+    ;;
+  esac
+}
+
+main "$@"
+
+# }}}
