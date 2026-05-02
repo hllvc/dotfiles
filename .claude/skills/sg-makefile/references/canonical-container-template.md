@@ -56,6 +56,8 @@ version: ## Show current version
 
 login:
 	@echo "Logging into ECR using profile: $(PROFILE)..."
+	@aws --profile $(PROFILE) ecr-public get-login-password --region us-east-1 \
+		| docker login --username AWS --password-stdin public.ecr.aws
 	@aws --profile $(PROFILE) ecr get-login-password --region $(BUILD_REGION) \
 		| docker login --username AWS --password-stdin $(REGISTRY)
 
@@ -84,6 +86,10 @@ prod: build ## Build and push to PROD
 - No `deploy:` target — these images are consumed by the StackGuardian runtime.
 - No `git_token` build secret by default; add `--secret id=git_token,env=GIT_TOKEN \`
   to the `build:` recipe if the `Dockerfile` clones private repos.
+- `login:` always authenticates **both** public ECR (`public.ecr.aws`, always
+  `us-east-1`) and the private build registry. Required whenever the `Dockerfile`
+  pulls a base image from `public.ecr.aws/...` (e.g. `public.ecr.aws/lambda/python`).
+  Harmless if not used. Matches the Lambda/ECS canonical login pattern.
 - `latest` tag is intentionally omitted. The workflow engine references images
   by version tag; tagging `latest` adds ambiguity.
 - `IMAGE_NAME` uses `=` (not `?=`) because each container repo has exactly one

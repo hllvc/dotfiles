@@ -7,6 +7,12 @@
       Full line: `--secret id=git_token,env=GIT_TOKEN \`
 - [ ] `DASH_ACCOUNT_ID = 790543352839`
 - [ ] `PROD_ACCOUNT_ID = 476299211833`
+- [ ] `deploy:` recipe includes `--profile $(PROFILE)` on the `aws` command (DRIFT-7)
+- [ ] Registry/image split: `BUILD_REGISTRY`/`BUILD_IMAGE` use `$(BUILD_REGION)`,
+      `DEPLOY_REGISTRY`/`DEPLOY_IMAGE` use `$(DEPLOY_REGION)`. `build:` tags with
+      `$(BUILD_IMAGE)`; `deploy:` uses `--image-uri $(DEPLOY_IMAGE):$(VERSION)`.
+      Flag any Makefile still using a single `REGISTRY`/`FULL_IMAGE` derived from
+      `BUILD_REGION` for the deploy URI (DRIFT-6).
 
 ## IMPORTANT — Fix soon
 
@@ -56,6 +62,11 @@ secret, missing `build-deploy-*` targets, missing `LAMBDA_NAME` / `DEPLOY_REGION
 - [ ] `DOCKER_BUILD_ARGS` includes `--provenance=false`
 - [ ] `.PHONY` contains exactly: `help version login build dash prod`
 - [ ] No `latest` tag in `build:` recipe (ambiguous for runtime-pulled images)
+- [ ] `login:` authenticates **public ECR** (`aws ecr-public get-login-password
+      --region us-east-1 | docker login ... public.ecr.aws`) **before** the
+      private-registry login. CRITICAL when any `Dockerfile*` in the repo has a
+      `FROM public.ecr.aws/...` line (build will fail without it). IMPORTANT
+      otherwise — keep for parity with Lambda/ECS canonical.
 
 ### MINOR
 

@@ -44,6 +44,13 @@ Services with a `deploy:` step. Section order: `General → DASH → PROD → PR
 Images pushed to ECR only — no `deploy:` step, no PROD US/EU split, no `git_token` by
 default. Targets: `help version login build dash prod`. Template: `references/canonical-container-template.md`.
 
+`login:` always authenticates **both** `public.ecr.aws` (us-east-1) **and** the
+private build registry — required when any `Dockerfile*` pulls a base image from
+`public.ecr.aws/...`. During `setup`, grep the repo's Dockerfiles; if a public
+ECR base is found, treat the public-ecr login as mandatory. During `review`,
+flag a missing public-ecr login as **CRITICAL** when any `Dockerfile*` references
+`public.ecr.aws/`, otherwise IMPORTANT.
+
 Fixed constants: `references/variables.md`.
 
 ## Mode: review

@@ -16,10 +16,10 @@ Use these as the `{{DEPLOY_BODY}}` substitution in `canonical-template.md`.
 
 ```makefile
 deploy:
-	@aws lambda update-function-code \
+	@aws --profile $(PROFILE) lambda update-function-code \
 		--region $(DEPLOY_REGION) \
 		--function-name $(LAMBDA_NAME) \
-		--image-uri $(FULL_IMAGE):$(VERSION)
+		--image-uri $(DEPLOY_IMAGE):$(VERSION)
 ```
 
 ---
@@ -34,7 +34,7 @@ ECS_CLUSTER ?=
 ECS_SERVICE ?=
 
 deploy:
-	@aws ecs update-service \
+	@aws --profile $(PROFILE) ecs update-service \
 		--region $(DEPLOY_REGION) \
 		--cluster $(ECS_CLUSTER) \
 		--service $(ECS_SERVICE) \
@@ -55,7 +55,8 @@ The following variables are available:
 |---|---|
 | `$(DEPLOY_REGION)` | AWS region (default `eu-central-1`, overridable) |
 | `$(LAMBDA_NAME)` | Service/function name (set via DASH_VARS / PROD_VARS) |
-| `$(FULL_IMAGE)` | Full ECR image URI |
+| `$(BUILD_IMAGE)` | Full ECR image URI in `$(BUILD_REGION)` (used by `build:`) |
+| `$(DEPLOY_IMAGE)` | Full ECR image URI in `$(DEPLOY_REGION)` (used by `deploy:`) |
 | `$(VERSION)` | Image tag (git describe output) |
 | `$(PROFILE)` | AWS profile (set via DASH_VARS / PROD_VARS) |
 | `$(ACCOUNT_ID)` | AWS account ID (set via DASH_VARS / PROD_VARS) |

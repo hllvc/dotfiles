@@ -21,10 +21,15 @@ Placeholders:
 VERSION ?= $(shell git describe --always --dirty)
 
 # Registry and image configuration
-BUILD_REGION ?= eu-central-1
-REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
-IMAGE_NAME ?=
-FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME)
+BUILD_REGION  ?= eu-central-1
+DEPLOY_REGION ?= eu-central-1
+IMAGE_NAME    ?=
+
+BUILD_REGISTRY  = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
+DEPLOY_REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(DEPLOY_REGION).amazonaws.com
+
+BUILD_IMAGE  = $(BUILD_REGISTRY)/$(IMAGE_NAME)
+DEPLOY_IMAGE = $(DEPLOY_REGISTRY)/$(IMAGE_NAME)
 
 # Build settings
 PLATFORM = linux/amd64
@@ -52,8 +57,6 @@ PROFILE ?=
 ACCOUNT_ID ?=
 LAMBDA_NAME ?=
 
-DEPLOY_REGION ?= eu-central-1
-
 .PHONY: help version login build deploy build-dash deploy-dash build-deploy-dash build-prod deploy-prod-eu build-deploy-prod-eu deploy-prod-us build-deploy-prod-us deploy-prod-all build-deploy-prod-all
 
 ##@ General
@@ -70,15 +73,15 @@ login:
 	@aws --profile $(PROFILE) ecr-public get-login-password --region us-east-1 \
 		| docker login --username AWS --password-stdin public.ecr.aws
 	@aws --profile $(PROFILE) ecr get-login-password --region eu-central-1 \
-		| docker login --username AWS --password-stdin $(REGISTRY)
+		| docker login --username AWS --password-stdin $(BUILD_REGISTRY)
 
 build: login
-	@echo "Building and pushing image: $(FULL_IMAGE):$(VERSION)"
+	@echo "Building and pushing image: $(BUILD_IMAGE):$(VERSION)"
 	@docker buildx build \
 		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
 		--secret id=git_token,env=GIT_TOKEN \
-		-t $(FULL_IMAGE):$(VERSION) .
-	@echo "Build completed: $(FULL_IMAGE):$(VERSION)"
+		-t $(BUILD_IMAGE):$(VERSION) .
+	@echo "Build completed: $(BUILD_IMAGE):$(VERSION)"
 
 deploy:
 {{DEPLOY_BODY}}

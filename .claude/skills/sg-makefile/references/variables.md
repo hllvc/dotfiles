@@ -18,6 +18,15 @@ These values are canonical — deviations are drift.
 | PROD US override | `us-east-2` |
 | ECR-public login (always) | `us-east-1` |
 
+`BUILD_REGION` and `DEPLOY_REGION` must be independent. The build runs once to
+`$(BUILD_REGION)`; cross-region replication publishes the image into
+`us-east-2` for the US deploy. The canonical template therefore splits:
+
+- `BUILD_REGISTRY` / `BUILD_IMAGE` — derived from `$(BUILD_REGION)`, used by `build:` and `login:`.
+- `DEPLOY_REGISTRY` / `DEPLOY_IMAGE` — derived from `$(DEPLOY_REGION)`, used by `deploy:` (`--image-uri`).
+
+A single `REGISTRY`/`FULL_IMAGE` derived from `BUILD_REGION` is drift (see DRIFT-6).
+
 ## Platform
 
 ```makefile

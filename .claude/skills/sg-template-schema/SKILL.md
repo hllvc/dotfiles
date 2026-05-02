@@ -122,7 +122,9 @@ Show/hide fields based on enum selection (e.g., OS family):
 }
 ```
 
-**IMPORTANT**: When using `allOf` with `if/then`, do NOT add `additionalProperties: false` at the parent object level - it breaks form rendering.
+**IMPORTANT**: Do NOT set `"additionalProperties": false` at:
+- the **top-level (root) of `input_schema.json`** — it triggers `undefined: must NOT have additional properties NO_CODE_ERROR` in the SG no-code form renderer
+- any object using `allOf` with `if/then` — it breaks form rendering
 
 ## UI Schema Quick Reference
 
@@ -194,8 +196,9 @@ To create schemas from Terraform variables.tf:
    - Convert nested objects recursively
    - Add validation constraints (pattern, enum, minimum, etc.)
    - List required fields (those without defaults)
-   - Use `"additionalProperties": false` for strict object validation
-   - **Exception**: Do NOT use `additionalProperties: false` on objects with `allOf`/`if-then` conditional logic
+   - Use `"additionalProperties": false` for strict validation on **nested** objects only
+   - **Never** set `additionalProperties: false` at the schema root — breaks SG form rendering with `NO_CODE_ERROR`
+   - Also do NOT set it on objects using `allOf`/`if-then` conditional logic
    - Follow field ordering guidelines above
 3. Create ui_schema.json:
    - Mirror the structure of input_schema.json for nested objects

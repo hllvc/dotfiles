@@ -101,9 +101,11 @@
     ]
   },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "medium",
+  "effortLevel": "xhigh",
   "autoUpdatesChannel": "latest",
   "tui": "default",
   "skipDangerousModePermissionPrompt": true,
+  "preferredNotifChannel": "ghostty",
+  "agentPushNotifEnabled": true,
   "voiceEnabled": true
 }

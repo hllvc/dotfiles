@@ -6,8 +6,18 @@
 |---|---|---|---|
 | QA (DASH) | `790543352839` | `eu-central-1` | Used in `_deploy_qa.yml` and QA build |
 | PROD | `476299211833` | `eu-central-1` | Used in `_deploy_prod.yml` and PROD build |
-| PROD US | `476299211833` | `us-east-2` | Same account; dispatched by build_prod.yml |
+| PROD US | `476299211833` | `us-east-2` | Same account; deploy dispatched by `build_prod.yml`. **No separate US build job.** |
 | PROD EU DR | `790543352839` | `eu-west-1` | Optional DR; same QA account |
+
+## Single-build, multi-region deploy
+
+PROD builds **only to `eu-central-1`**. The ECR repository in `eu-central-1` is configured with a **cross-region replication rule** that mirrors every pushed image to `us-east-2` (and to any other region that hosts a deploy target). Region-specific deploy jobs (`deploy_prod_eu.yml`, `deploy_prod_us.yml`) reference the **same `image-tag`** from the single build, but each points at the ECR registry in its own region — the image is already there courtesy of replication.
+
+**Implication for new prod workflows:**
+
+- Never add a second `build-us` (or `build-<region>`) job. One `build` job, multiple deploy jobs sharing `${{ needs.build.outputs.image-tag }}`.
+- If a new prod region is added, ensure the ECR replication rule covers it before adding the deploy job.
+- For deploy jobs that reference a regional ECR URI (e.g., DynamoDB image-pin updates that store a region-qualified ECR URL per regional table), use the deploy job's region, not the build region — the same tag exists in both registries.
 
 ## Branch Pin Rule
 

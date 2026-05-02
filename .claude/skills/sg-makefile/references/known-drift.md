@@ -99,6 +99,92 @@ DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM) --provenance=false
 
 ---
 
+## DRIFT-6: Deploy `--image-uri` tied to `BUILD_REGION` instead of `DEPLOY_REGION`
+
+**Severity:** CRITICAL
+**Applies to:** Lambda/ECS/custom archetype
+
+The old canonical pattern used a single `REGISTRY`/`FULL_IMAGE` derived from
+`BUILD_REGION` for both build and deploy. When `deploy-prod-us` overrides
+`DEPLOY_REGION=us-east-2`, the `--image-uri` still points at the EU registry, so
+the US Lambda is updated with (or fails to find) the EU image URI. In PROD, EU →
+US replication makes the image available in the US ECR; the deploy must reference
+that US URI.
+
+**Before (drift):**
+```makefile
+BUILD_REGION ?= eu-central-1
+REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
+IMAGE_NAME ?=
+FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME)
+...
+deploy:
+	@aws --profile $(PROFILE) lambda update-function-code \
+		--region $(DEPLOY_REGION) \
+		--function-name $(LAMBDA_NAME) \
+		--image-uri $(FULL_IMAGE):$(VERSION)
+```
+
+**After (canonical):**
+```makefile
+BUILD_REGION  ?= eu-central-1
+DEPLOY_REGION ?= eu-central-1
+IMAGE_NAME    ?=
+
+BUILD_REGISTRY  = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
+DEPLOY_REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(DEPLOY_REGION).amazonaws.com
+
+BUILD_IMAGE  = $(BUILD_REGISTRY)/$(IMAGE_NAME)
+DEPLOY_IMAGE = $(DEPLOY_REGISTRY)/$(IMAGE_NAME)
+...
+build: login
+	...
+	-t $(BUILD_IMAGE):$(VERSION) .
+
+deploy:
+	@aws --profile $(PROFILE) lambda update-function-code \
+		--region $(DEPLOY_REGION) \
+		--function-name $(LAMBDA_NAME) \
+		--image-uri $(DEPLOY_IMAGE):$(VERSION)
+```
+
+**Why it matters:** One build pushes to `eu-central-1`; cross-region replication
+makes the image available in `us-east-2`. The deploy target must reference the
+image URI in the deploy region, not the build region.
+
+---
+
+## DRIFT-7: `deploy:` missing `--profile $(PROFILE)`
+
+**Severity:** CRITICAL
+**Applies to:** Lambda/ECS/custom archetype
+
+The `deploy:` recipe runs `aws lambda update-function-code` (or equivalent)
+without `--profile $(PROFILE)`, relying on the ambient default AWS profile. When
+`deploy-prod-*` is invoked with `PROFILE=sg-prod` via `PROD_VARS`, the variable
+is set but never consumed — the command silently runs against whichever profile
+is active in the shell.
+
+**Before (drift):**
+```makefile
+deploy:
+	@aws lambda update-function-code \
+		--region $(DEPLOY_REGION) \
+		...
+```
+
+**After (canonical):**
+```makefile
+deploy:
+	@aws --profile $(PROFILE) lambda update-function-code \
+		--region $(DEPLOY_REGION) \
+		...
+```
+
+Applies to all archetype bodies (Lambda, ECS, custom).
+
+---
+
 ## DRIFT-2: Hardcoded `eu-central-1` in `login:` private ECR step
 
 **Severity:** MINOR
