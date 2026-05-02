@@ -12,8 +12,11 @@ Drop a new folder with an `install.sh` and `dotctl` will run it on the next inst
 
 The LaunchAgent side is orthogonal: any `*.plist` in `.config/launch-agents/` is loaded by `./dotctl agents load`.
 
+`_lib/` holds bash snippets shared between crons (`log.sh` for the bordered-block logger, `notify.sh` for `alerter` wrappers). It has no `install.sh` so `dotctl crons install` skips it.
+
 ## Crons
 
 | Directory | Description |
 |-----------|-------------|
-| `memory-pressure/` | Samples `memory_pressure` every 5 minutes via `com.hllvc.memory-pressure` LaunchAgent; logs to `~/Library/Logs/com.hllvc.memory-pressure.log` and fires an `alerter` notification below 40% free. `install.sh` writes a `newsyslog.d` rotation rule (requires sudo). |
+| `memory-pressure/` | Samples `memory_pressure` every 5 minutes via `com.hllvc.memory-pressure` LaunchAgent; logs to `~/Library/Logs/com.hllvc.memory-pressure/main.log` and fires an `alerter` notification below 40% free. `install.sh` writes a `newsyslog.d` rotation rule (requires sudo). |
+| `tmux-warmup/` | Pre-starts the `work` and `personal` tmux servers at login (one plist per socket: `com.hllvc.{work,personal}.tmux`) so `tmux-continuum` auto-restore runs before the user attaches. Verifies the socket is up, counts restored sessions, logs to `~/Library/Logs/com.hllvc.tmux-warmup/main.log`, and fires an `alerter` notification on each launch (sticky on failure). `install.sh` writes a `newsyslog.d` rotation rule (requires sudo). |

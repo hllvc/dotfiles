@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# shellcheck source=../_lib/log.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../_lib/log.sh"
+# shellcheck source=../_lib/notify.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../_lib/notify.sh"
+
 readonly LOG_DIR="${HOME}/Library/Logs/com.hllvc.memory-pressure"
 readonly LOG_FILE="${LOG_DIR}/main.log"
 readonly CACHE_DIR="${HOME}/Library/Caches/com.hllvc.memory-pressure"
@@ -15,42 +20,6 @@ readonly COMP_PCT_CRITICAL=50
 readonly SWAP_RATE_ELEVATED=100 # pages/sec
 readonly SWAP_RATE_CRITICAL=500
 
-readonly _C_GREEN='\033[0;32m'
-readonly _C_YELLOW='\033[0;33m'
-readonly _C_RED='\033[0;31m'
-readonly _C_DIM='\033[2m'
-readonly _C_RESET='\033[0m'
-
-_color() { #{{{
-  local name="$1"
-  local text="$2"
-  case "$name" in
-  green) printf '%b%s%b' "$_C_GREEN" "$text" "$_C_RESET" ;;
-  yellow) printf '%b%s%b' "$_C_YELLOW" "$text" "$_C_RESET" ;;
-  red) printf '%b%s%b' "$_C_RED" "$text" "$_C_RESET" ;;
-  dim) printf '%b%s%b' "$_C_DIM" "$text" "$_C_RESET" ;;
-  *) printf '%s' "$text" ;;
-  esac
-}
-#}}}: _color
-
-_block_open() { #{{{
-  local ts
-  ts=$(date +"%d-%h-%y | %I:%M %p")
-  printf '┌─ %s ──────────────────────────────\n' "$ts" >>"$LOG_FILE"
-}
-#}}}: _block_open
-
-_block_line() { #{{{
-  printf '│  %b\n' "$1" >>"$LOG_FILE"
-}
-#}}}: _block_line
-
-_block_close() { #{{{
-  printf '└─────────────────────────────────────────────────────\n\n' >>"$LOG_FILE"
-}
-#}}}: _block_close
-
 _snooze() { #{{{
   local label="$1"
   local qty unit seconds expiry
@@ -63,52 +32,41 @@ _snooze() { #{{{
     esac
     expiry=$(($(date +%s) + seconds))
     printf '%s\n' "$expiry" >"$SNOOZE_FILE"
-    _block_open
-    _block_line "$(_color dim "Snoozed until $(date -r "$expiry" +'%I:%M %p') (${qty} ${unit})")"
-    _block_close
+    _block_open "$LOG_FILE"
+    _block_line "$LOG_FILE" "$(_color dim "Snoozed until $(date -r "$expiry" +'%I:%M %p') (${qty} ${unit})")"
+    _block_close "$LOG_FILE"
   else
-    _block_open
-    _block_line "$(_color yellow "Unrecognized snooze label: ${label}")"
-    _block_close
+    _block_open "$LOG_FILE"
+    _block_line "$LOG_FILE" "$(_color yellow "Unrecognized snooze label: ${label}")"
+    _block_close "$LOG_FILE"
   fi
 }
 #}}}: _snooze
 
-# shellcheck disable=SC2155
-_icon_path() { echo "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/warning.png"; }
-
 _alert_critical() { #{{{
   local pressure="$1" metrics="$2" triggers="$3"
-  alerter \
-    --message "${metrics} · ${triggers}" \
-    --title "Memory critical · ${pressure}%" \
-    --actions "Snooze for 5 minutes" \
-    --app-icon "$(_icon_path)" \
-    --ignore-dnd
+  _notify_actionable \
+    "Memory critical · ${pressure}%" \
+    "${metrics} · ${triggers}" \
+    "Snooze for 5 minutes"
 }
 #}}}: _alert_critical
 
 _alert_elevated() { #{{{
   local pressure="$1" metrics="$2" triggers="$3"
-  alerter \
-    --message "${metrics} · ${triggers}" \
-    --title "Memory rising · ${pressure}%" \
-    --app-icon "$(_icon_path)" \
-    --timeout 30 \
-    >/dev/null &
-  disown
+  _notify_quiet \
+    "Memory rising · ${pressure}%" \
+    "${metrics} · ${triggers}" \
+    30
 }
 #}}}: _alert_elevated
 
 _alert_recovery() { #{{{
   local metrics="$1"
-  alerter \
-    --message "$metrics" \
-    --title "Memory normal" \
-    --app-icon "$(_icon_path)" \
-    --timeout 5 \
-    >/dev/null &
-  disown
+  _notify_quiet \
+    "Memory normal" \
+    "$metrics" \
+    5
 }
 #}}}: _alert_recovery
 
@@ -218,10 +176,10 @@ swap_display="n/a"
 ((swap_rate >= 0)) && swap_display="${swap_rate} p/s"
 metrics_line="Free: ${free_pct}% | Comp: ${compressor_pct}% | Swap: ${swap_display}"
 
-_block_open
-_block_line "$(_color "$sev_color" "$metrics_line")   $(_color "$sev_color" "[ ${sev_label} ]")"
+_block_open "$LOG_FILE"
+_block_line "$LOG_FILE" "$(_color "$sev_color" "$metrics_line")   $(_color "$sev_color" "[ ${sev_label} ]")"
 if ((${#triggers[@]} > 0)); then
-  _block_line "$(_color dim "triggers: $(
+  _block_line "$LOG_FILE" "$(_color dim "triggers: $(
     IFS=,
     echo "${triggers[*]}"
   )")"
@@ -237,22 +195,22 @@ if [[ "$sev_label" == "CRITICAL" ]]; then
   [[ -f "$SNOOZE_FILE" ]] && snooze_until=$(<"$SNOOZE_FILE")
 
   if ((now < snooze_until)); then
-    _block_line "$(_color dim "Alert suppressed (snoozed until $(date -r "$snooze_until" +'%I:%M %p'))")"
-    _block_close
+    _block_line "$LOG_FILE" "$(_color dim "Alert suppressed (snoozed until $(date -r "$snooze_until" +'%I:%M %p'))")"
+    _block_close "$LOG_FILE"
   else
     alert_action="$(_alert_critical "$pressure" "$metrics_line" "$trigger_list")"
-    _block_line "Critical alert shown → action: ${alert_action:-none}"
-    _block_close
+    _block_line "$LOG_FILE" "Critical alert shown → action: ${alert_action:-none}"
+    _block_close "$LOG_FILE"
     _handle_alert_action "$alert_action"
   fi
 elif [[ "$prev_sev_label" == "HEALTHY" && "$sev_label" == "ELEVATED" ]]; then
   _alert_elevated "$pressure" "$metrics_line" "$trigger_list"
-  _block_line "$(_color dim "Rising alert shown (HEALTHY → ELEVATED)")"
-  _block_close
+  _block_line "$LOG_FILE" "$(_color dim "Rising alert shown (HEALTHY → ELEVATED)")"
+  _block_close "$LOG_FILE"
 elif [[ "$prev_sev_label" != "HEALTHY" && "$sev_label" == "HEALTHY" ]]; then
   _alert_recovery "$metrics_line"
-  _block_line "$(_color dim "Recovery alert shown (${prev_sev_label} → HEALTHY)")"
-  _block_close
+  _block_line "$LOG_FILE" "$(_color dim "Recovery alert shown (${prev_sev_label} → HEALTHY)")"
+  _block_close "$LOG_FILE"
 else
-  _block_close
+  _block_close "$LOG_FILE"
 fi
