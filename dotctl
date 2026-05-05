@@ -6,6 +6,7 @@ shopt -s nullglob
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly LAUNCH_AGENTS_SOURCE="$HOME/.config/launch-agents"
 readonly CRONS_DIR="$REPO_ROOT/.shell/scripts/crons"
+readonly MACOS_SCRIPT="$REPO_ROOT/.shell/scripts/macos/defaults.sh"
 readonly REQUIRED_TOOLS=("brew" "stow")
 
 # ─── Help ──────────────────────────────────────────────────────────────── {{{
@@ -17,13 +18,16 @@ Usage: ./dotctl <command> [options]
 Running without a command prints this help. Every action is explicit.
 
 Commands:
-  all                        Run stow, load launch agents, install crons
+  all                        Run stow, load launch agents, install crons,
+                             apply macOS defaults
   stow        [--adopt]      Symlink dotfiles into \$HOME via stow
   agents      <load|unload|list>
                              Manage launch agents under ~/.config/launch-agents
   crons       <install|list>
                              Orchestrate per-cron install.sh hooks under
                              .shell/scripts/crons/*/install.sh
+  macos       <apply>        Apply macOS \`defaults write\` tweaks
+                             (.shell/scripts/macos/defaults.sh)
 
 Global:
   -h, --help                 Show this help
@@ -32,10 +36,11 @@ Per-command help:
   ./dotctl <command> -h
 
 Examples:
-  ./dotctl all              # stow + agents load + crons install
+  ./dotctl all              # stow + agents load + crons install + macos apply
   ./dotctl stow --adopt     # adopt existing files as stow-managed
   ./dotctl agents unload    # unload all launch agents
   ./dotctl crons list       # list discovered cron install hooks
+  ./dotctl macos apply      # apply macOS defaults tweaks
 EOF
 }
 
@@ -83,6 +88,24 @@ Notes:
   - install.sh is invoked with cwd set to its own directory.
   - Failures in one script do not abort the others; exit code reflects
     whether any failed.
+EOF
+}
+
+usage_macos() {
+  cat <<EOF
+Usage: ./dotctl macos <apply>
+
+Applies personal macOS \`defaults write\` tweaks (Finder, Dock, trackpad,
+keyboard, Safari, Mail, …) defined in:
+  .shell/scripts/macos/defaults.sh
+
+Subcommands:
+  apply      Run the defaults script. Idempotent. Relaunches Dock, Finder,
+             SystemUIServer, and cfprefsd so changes take effect immediately.
+
+Notes:
+  - No-op on non-Darwin systems.
+  - Edit the script directly to add/remove tweaks; it IS the documentation.
 EOF
 }
 
@@ -316,6 +339,40 @@ cmd_crons() {
 
 # }}}
 
+# ─── macos ─────────────────────────────────────────────────────────────── {{{
+
+_macos_apply() {
+  [[ "$(uname -s)" == "Darwin" ]] || {
+    echo "macos: skipping — not on Darwin"
+    return 0
+  }
+  [[ -f "$MACOS_SCRIPT" ]] || {
+    echo "macos: $MACOS_SCRIPT not found" >&2
+    return 1
+  }
+  bash "$MACOS_SCRIPT"
+}
+
+cmd_macos() {
+  local sub="${1:-}"
+  [[ -n "$sub" ]] || {
+    usage_macos >&2
+    return 1
+  }
+  shift
+  case "$sub" in
+  apply) _macos_apply ;;
+  -h | --help) usage_macos ;;
+  *)
+    echo "macos: unknown subcommand: $sub" >&2
+    usage_macos >&2
+    return 1
+    ;;
+  esac
+}
+
+# }}}
+
 # ─── all ───────────────────────────────────────────────────────────────── {{{
 
 cmd_all() {
@@ -324,6 +381,8 @@ cmd_all() {
   _agents_load
   echo
   _crons_install || echo "  (some cron installs failed — see above)"
+  echo
+  _macos_apply || echo "  (macos apply failed — see above)"
 }
 
 # }}}
@@ -344,6 +403,7 @@ main() {
   stow) cmd_stow "$@" ;;
   agents) cmd_agents "$@" ;;
   crons) cmd_crons "$@" ;;
+  macos) cmd_macos "$@" ;;
   -h | --help) usage ;;
   *)
     echo "Unknown command: $cmd" >&2

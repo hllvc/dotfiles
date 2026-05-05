@@ -30,10 +30,11 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 ### dotctl Commands
 
 - `./dotctl` - Show help (running without a command is a no-op)
-- `./dotctl all` - Stow + load launch agents + install crons
+- `./dotctl all` - Stow + load launch agents + install crons + apply macOS defaults
 - `./dotctl stow [--adopt]` - Symlink dotfiles into `$HOME` (adopt folds existing files into the repo)
 - `./dotctl agents <load|unload|list>` - Manage launch agents under `~/.config/launch-agents`
 - `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
+- `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
 - `./dotctl -h` (or `./dotctl <command> -h`) - Help
 
 ## Prerequisites
@@ -62,6 +63,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 │       ├── init/       # Startup scripts (tt.sh)
 │       ├── tmux/       # Tmux helper scripts
 │       ├── crons/      # Scheduled jobs (installed by `dotctl crons install`)
+│       ├── macos/      # macOS `defaults write` tweaks (`dotctl macos apply`)
 │       └── unloaded/   # Inactive scripts
 ├── .claude/            # Claude Code CLI
 │   ├── CLAUDE.md       # Global instructions
