@@ -107,5 +107,6 @@
   "skipDangerousModePermissionPrompt": true,
   "preferredNotifChannel": "ghostty",
   "agentPushNotifEnabled": true,
+  "skipAutoPermissionPrompt": true,
   "voiceEnabled": true
 }
