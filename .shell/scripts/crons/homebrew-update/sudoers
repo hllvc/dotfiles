@@ -1,0 +1,10 @@
+# Allow hllvc to run Homebrew Cask install/upgrade non-interactively.
+# Scoped to the binaries Homebrew Cask actually invokes via sudo.
+hllvc ALL=(root) NOPASSWD: /usr/sbin/installer
+hllvc ALL=(root) NOPASSWD: /bin/rm
+hllvc ALL=(root) NOPASSWD: /bin/cp
+hllvc ALL=(root) NOPASSWD: /bin/mv
+hllvc ALL=(root) NOPASSWD: /bin/chmod
+hllvc ALL=(root) NOPASSWD: /usr/sbin/chown
+hllvc ALL=(root) NOPASSWD: /usr/bin/touch
+hllvc ALL=(root) NOPASSWD: /usr/bin/pkill

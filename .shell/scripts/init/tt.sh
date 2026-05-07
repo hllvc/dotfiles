@@ -4,6 +4,13 @@ export TMUX_TMPDIR="${HOME}/.tmux/sockets"
 
 socket="$1"
 
+if [[ -z "$socket" ]]; then
+  sleep 0.15
+  if (( $(tput lines) < 35 )); then
+    cd ~ && exec "${SHELL:-/bin/zsh}" -l
+  fi
+fi
+
 # if [[ -z "$socket" ]]; then
 #   exit
 # fi

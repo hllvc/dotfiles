@@ -5,13 +5,11 @@
 #
 # Every wrapper passes --ignore-dnd so alerts surface during Do Not Disturb.
 
-# Returns the path to a `warning.png` sitting next to the *calling* script,
-# or empty if not present. Callers can pass an explicit icon path instead.
+# Returns the path to the shared `warning.png` next to this file, or empty
+# if missing. Callers can pass an explicit icon path instead.
 _icon_default() {
-  # BASH_SOURCE[1] = the file that sourced/called us
-  local caller_dir
-  caller_dir="$(cd "$(dirname "${BASH_SOURCE[1]}")" && pwd)"
-  local candidate="${caller_dir}/warning.png"
+  local candidate
+  candidate="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/warning.png"
   [[ -f "$candidate" ]] && printf '%s' "$candidate"
 }
 

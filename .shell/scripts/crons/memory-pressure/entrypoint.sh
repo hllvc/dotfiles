@@ -96,16 +96,26 @@ _handle_alert_action() { #{{{
 }
 #}}}: _handle_alert_action
 
-# Parse memory_pressure output in a single pass.
-eval "$(memory_pressure | awk '
-  /^The system has/            { gsub(/[()]/,""); print "total_pages=" $5 }
-  /^Pages free:/               { print "free_pages=" $3 }
-  /^Pages used by compressor:/ { print "compressor_pages=" $5 }
-  /^Swapouts:/                 { print "swapouts=" $2 }
-  /free percentage:/           { gsub(/%/,"",$NF); print "free_pct=" $NF }
+# Read memory stats from vm_stat (Mach host_statistics64 query — pure read,
+# no allocation). Previously this called memory_pressure(1), which is in fact
+# a memory-pressure *generator*, and showed up as a CPU spike after wake.
+total_bytes=$(sysctl -n hw.memsize)
+
+eval "$(vm_stat | awk '
+  /page size of/                   { gsub(/\./,"",$8); print "page_size=" $8 }
+  /^Pages free:/                   { gsub(/\./,"",$3); print "free_pages=" $3 }
+  /^Pages inactive:/               { gsub(/\./,"",$3); print "inactive_pages=" $3 }
+  /^Pages speculative:/            { gsub(/\./,"",$3); print "speculative_pages=" $3 }
+  /^Pages purgeable:/              { gsub(/\./,"",$3); print "purgeable_pages=" $3 }
+  /^Pages occupied by compressor:/ { gsub(/\./,"",$5); print "compressor_pages=" $5 }
+  /^Swapouts:/                     { gsub(/\./,"",$2); print "swapouts=" $2 }
 ')"
 
+total_pages=$((total_bytes / page_size))
+available_pages=$((free_pages + inactive_pages + speculative_pages + purgeable_pages))
+
 now=$(date +%s)
+free_pct=$((available_pages * 100 / total_pages))
 pressure=$((100 - free_pct))
 compressor_pct=$((compressor_pages * 100 / total_pages))
 

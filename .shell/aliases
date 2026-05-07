@@ -72,7 +72,6 @@ alias rp='realpath'
 
 # tmux
 alias ttl='tmux list-sessions'
-# alias tt='_tt'
 
 alias to='echo $PWD > /tmp/.current_dir'
 alias goto='cd $(cat /tmp/.current_dir)'
@@ -86,10 +85,3 @@ alias k='kubectl'
 alias nq='networkQuality'
 
 alias ghostty='/Applications/Ghostty.app/Contents/MacOS/ghostty'
-
-# alias work="
-# open -na Ghostty.app --args \
-#   --config-default-files=false \
-#   --config-file=$HOME/.config/ghostty/tmux/init.conf \
-#   -e /Users/hllvc/.shell/scripts/init/tt.sh stackguardian
-# "
