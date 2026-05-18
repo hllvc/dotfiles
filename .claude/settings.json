@@ -1,5 +1,4 @@
 {
-  "model": "opusplan",
   "env": {
     "BASH_ENV": "/Users/hllvc/.local/bin/claude-shims-init.sh",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
@@ -47,6 +46,10 @@
     ],
     "ask": [],
     "defaultMode": "plan"
+  },
+  "model": "opusplan",
+  "worktree": {
+    "baseRef": "fresh"
   },
   "statusLine": {
     "type": "command",
