@@ -9,8 +9,8 @@ fi
 _load() { #{{{
   local file="$HOME/$1"
   if [[ ! -f "$file" ]]; then
-    echo "The $file does not exist!"
-    return
+    echo "The $file does not exist!" >&2
+    return 1
   fi
   source "$file"
 }
@@ -68,16 +68,29 @@ _load_scripts() { #{{{
 #}}}: _load_scripts
 #}}}: private init functions
 
+typeset -U fpath
+export ZSH_COMPDUMP="$HOME/.zcompdump"
 _load ".shell/zshinit"
 _load_scripts "init/"
 
 #{{{ load completions
 
-# brew completions
-eval "$(/opt/homebrew/bin/brew shellenv)"
+# brew completions (static — avoids forking brew on every shell start)
+export HOMEBREW_PREFIX="/opt/homebrew"
+export HOMEBREW_CELLAR="/opt/homebrew/Cellar"
+export HOMEBREW_REPOSITORY="/opt/homebrew"
+path=("/opt/homebrew/bin" "/opt/homebrew/sbin" $path)
+export MANPATH="/opt/homebrew/share/man${MANPATH+:$MANPATH}:"
+export INFOPATH="/opt/homebrew/share/info:${INFOPATH:-}"
 
-# 1password completion
-eval "$(op completion zsh)"; compdef _op op
+# 1password completion (cached — forking `op` is slow)
+_op_cache="${XDG_CACHE_HOME:-$HOME/.cache}/op-completion.zsh"
+if [[ ! -s "$_op_cache" || "$(command -v op)" -nt "$_op_cache" ]]; then
+  op completion zsh > "$_op_cache"
+fi
+source "$_op_cache"
+compdef _op op
+unset _op_cache
 
 # load zsh completions
 if type brew &>/dev/null; then
@@ -104,6 +117,8 @@ source /Users/hllvc/.config/op/plugins.sh
 
 zsh-defer _load_scripts
 zsh-defer _load_functions
+zsh-defer source $ZSH/custom/plugins/zsh-vi-mode/zsh-vi-mode.plugin.zsh
+zsh-defer source $ZSH/custom/plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 
 readonly configFiles=( ".shell/profile" ".shell/aliases" )
 
@@ -111,20 +126,14 @@ for cfgFile in "${configFiles[@]}"; do
   zsh-defer _load "$cfgFile"
 done
 
-_load ".shell/functions"
+zsh-defer _load ".shell/functions"
 
 ZVM_VI_EDITOR=nvim
 ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
-ZVM_READKEY_ENGINE=$ZVM_READKEY_ENGINE_NEX
+ZVM_READKEY_ENGINE=$ZVM_READKEY_ENGINE_ZLE
 ZVM_VI_HIGHLIGHT_BACKGROUND=#3c3836
 ZVM_LAZY_KEYBINDINGS=false
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
-autoload -Uz compinit
-if [ "$(date +'%j')" != "$(stat -f '%Sm' -t '%j' ~/.zcompdump 2>/dev/null)" ]; then
-    compinit
-else
-    compinit -C
-fi
