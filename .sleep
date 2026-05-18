@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Run by sleepwatcher before macOS sleeps or hibernates.
+exec "$HOME/.repos/private/dotfiles/master/.shell/scripts/crons/tmux-autosave/entrypoint.sh" --force
