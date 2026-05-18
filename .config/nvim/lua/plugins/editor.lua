@@ -365,6 +365,8 @@ return {
 				html = { "prettierd", "prettier", stop_after_first = true },
 				css = { "prettierd", "prettier", stop_after_first = true },
 				xml = { "xmlformatter" },
+				terraform = { "terraform_fmt" },
+				hcl = { "terraform_fmt" },
 			},
 			format_on_save = { timeout_ms = 3000, lsp_format = "fallback" },
 			formatters = {

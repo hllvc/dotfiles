@@ -89,15 +89,6 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
 	end,
 })
 
--- Terraform vars filetype detection
-vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile", "BufCreate" }, {
-	group = augroup("terraform_vars"),
-	pattern = "*.tfvars",
-	callback = function()
-		vim.bo.filetype = "terraform-vars"
-	end,
-})
-
 -- Helm chart filetype detection
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
 	group = augroup("helm_detection"),

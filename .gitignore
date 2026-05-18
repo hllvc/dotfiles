@@ -1,3 +1,4 @@
 .DS_Store
 .config/karabiner/automatic_backups/
 .shell/scripts/.data
+.config/nvim/nvim.log

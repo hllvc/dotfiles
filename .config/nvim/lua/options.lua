@@ -4,7 +4,7 @@ local opt = vim.opt
 -- local g = vim.g
 
 -- Basic options
-opt.termguicolors = true
+opt.termguicolors = vim.env.TMUX == nil
 opt.filetype = "on"
 
 -- Line numbers

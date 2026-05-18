@@ -42,11 +42,13 @@ return {
 					end
 				end
 			end
-			if mr.refresh then
-				mr.refresh(ensure_installed)
-			else
-				ensure_installed()
-			end
+			vim.defer_fn(function()
+				if mr.refresh then
+					mr.refresh(ensure_installed)
+				else
+					ensure_installed()
+				end
+			end, 2000)
 		end,
 	},
 
@@ -171,7 +173,12 @@ return {
 						run = "onSave",
 					},
 				},
-				terraformls = {},
+				terraformls = {
+					root_dir = function(fname)
+						local util = require("lspconfig.util")
+						return util.root_pattern("*.tf", ".terraform", ".terraform.lock.hcl", ".git")(fname)
+					end,
+				},
 				helm_ls = {
 					settings = {
 						["helm-ls"] = {
@@ -436,7 +443,7 @@ return {
 		ft = { "terraform", "tf" },
 		init = function()
 			vim.g.terraform_align = 0
-			vim.g.terraform_fmt_on_save = 1
+			vim.g.terraform_fmt_on_save = 0
 		end,
 	},
 
