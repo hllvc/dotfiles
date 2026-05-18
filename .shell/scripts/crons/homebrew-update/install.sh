@@ -7,6 +7,13 @@ NEWSYSLOG_DEST="/etc/newsyslog.d/com.hllvc.homebrew-update.conf"
 
 mkdir -p "${HOME}/Library/Logs/com.hllvc.homebrew-update"
 
+if ! command -v alerter &>/dev/null; then
+  echo "Installing alerter…"
+  brew install vjeantet/tap/alerter
+else
+  echo "alerter already installed"
+fi
+
 echo "Validating sudoers file syntax..."
 sudo visudo -cf "${SCRIPT_DIR}/sudoers"
 

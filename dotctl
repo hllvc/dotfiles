@@ -206,8 +206,13 @@ _agents_load() {
     filename=$(basename "$file")
     label="${filename%.plist}"
     ln -sfv "$file" "$HOME/Library/LaunchAgents/$filename"
-    launchctl bootstrap "gui/$uid" "$HOME/Library/LaunchAgents/$filename" ||
-      echo "  note: $label may already be loaded"
+    if _agent_is_loaded "$label"; then
+      echo "  $label: already loaded"
+    else
+      launchctl bootstrap "gui/$uid" "$HOME/Library/LaunchAgents/$filename" &&
+        echo "  $label: loaded" ||
+        echo "  $label: bootstrap failed"
+    fi
   done
 }
 

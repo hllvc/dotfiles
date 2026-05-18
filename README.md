@@ -43,6 +43,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 - [GNU Stow](https://www.gnu.org/software/stow/) (auto-installed by `dotctl`)
 - Zsh with [Oh-My-Zsh](https://ohmyz.sh)
 - [Powerlevel10k](https://github.com/romkatv/powerlevel10k) theme
+- [sleepwatcher](https://formulae.brew.sh/formula/sleepwatcher) — `brew install sleepwatcher` (required for sleep/hibernate save hooks)
 
 ## Structure
 
@@ -96,11 +97,20 @@ Separate tmux sockets for work/personal contexts:
 
 LaunchAgents auto-start these on login (`com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
 
+Session state is preserved across reboots via `tmux-resurrect` (forks: `hllvc/tmux-resurrect`, `hllvc/tmux-continuum`). The in-tmux auto-save is disabled (`@continuum-save-interval 0`) to avoid pty hitches; saving is handled externally:
+
+- **Idle / periodic** — `com.hllvc.tmux-autosave` fires every 30 min, saves when HID idle ≥ 30 s (force-saves after 90 min)
+- **Sleep / hibernate** — `sleepwatcher` runs `~/.sleep` before the system sleeps
+- **Shutdown / reboot** — `com.hllvc.tmux-shutdown-save` daemon catches `SIGTERM` from launchd during shutdown
+
 ### Background Crons
 
 Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are installed via `dotctl crons install`. Each cron is free to define its own `install.sh` (e.g. for system-level hooks like `newsyslog.d` configs) — `dotctl` auto-discovers and runs them.
 
+- **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `upgrade`, `autoremove`, `cleanup`; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
+- **tmux-autosave** — idle-gated tmux session saver; fires every 30 min, saves when idle ≥ 30 s or 90 min has elapsed; also triggered on sleep (`~/.sleep` via `sleepwatcher`) and shutdown (`SIGTERM` trap via `com.hllvc.tmux-shutdown-save`). Replaces `@continuum-save-interval` (LaunchAgents: `com.hllvc.tmux-autosave`, `com.hllvc.tmux-shutdown-save`, `com.hllvc.sleepwatcher`).
+- **tmux-warmup** — pre-starts the `work` and `personal` tmux servers at login so `tmux-continuum` auto-restore runs before first attach (LaunchAgents: `com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
 
 ### Key Scripts
 
@@ -124,7 +134,7 @@ Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by defau
 `mason-link.sh` symlinks all Mason binaries into `~/.local/bin/`:
 
 ```bash
-~/.shell/scripts/mason-link.sh
+~/.shell/scripts/unloaded/mason-link.sh
 ```
 
 ## Git Config
