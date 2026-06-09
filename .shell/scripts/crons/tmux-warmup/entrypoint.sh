@@ -43,23 +43,32 @@ _resurrect_save_present() {
 
 mkdir -p "${TMUX_TMPDIR:-/tmp}"
 
+# Whether a restore is expected shapes how long we wait below.
+save_state="none"
+_resurrect_save_present && save_state="present"
+
 start_err=$(tmux -L "$socket" start-server 2>&1 >/dev/null)
 start_rc=$?
 
-# Continuum's restore runs synchronously inside start-server, but give tmux a
-# beat to settle (plugin scripts shell out, file I/O, etc.) before counting.
-sleep 1
-
+# Continuum's restore runs asynchronously inside the server after start-server,
+# and a large restore (dozens of panes) takes many seconds — far longer than the
+# old single 1s peek, which falsely reported "FAILED" before sessions appeared.
+# Poll for the expected end-state instead: when a save exists, wait for sessions
+# to populate; otherwise a clean (empty) server is success. Cap ~20s.
+server_up=0
 session_count=0
-if tmux -L "$socket" has-session 2>/dev/null; then
-  server_up=1
-  session_count=$(tmux -L "$socket" list-sessions -F '#S' 2>/dev/null | wc -l | tr -d ' ')
-else
-  server_up=0
-fi
-
-save_state="none"
-_resurrect_save_present && save_state="present"
+for _ in $(seq 1 40); do
+  if tmux -L "$socket" has-session 2>/dev/null; then
+    server_up=1
+    session_count=$(tmux -L "$socket" list-sessions -F '#S' 2>/dev/null | wc -l | tr -d ' ')
+  fi
+  if [[ "$save_state" == "present" ]]; then
+    (( session_count > 0 )) && break   # wait for the restore to populate
+  else
+    break                              # no save expected → clean start, don't wait
+  fi
+  sleep 0.5
+done
 
 _block_open "$LOG_FILE"
 if ((start_rc == 0 && server_up == 1)); then
