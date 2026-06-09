@@ -629,7 +629,10 @@
   # sagging, try setting POWERLEVEL9K_VCS_MAX_INDEX_SIZE_DIRTY to a number lower than the output
   # of `git ls-files | wc -l`. Alternatively, add `bash.showDirtyState = false` to the repository's
   # config: `git config bash.showDirtyState false`.
-  typeset -g POWERLEVEL9K_VCS_MAX_INDEX_SIZE_DIRTY=-1
+  # Was -1 (infinity): gitstatus counted unstaged/untracked/conflicted files on
+  # every prompt for repos of ANY size. Capped so huge repos skip the dirty scan
+  # (the prompt still shows branch/ahead/behind); normal repos are unaffected.
+  typeset -g POWERLEVEL9K_VCS_MAX_INDEX_SIZE_DIRTY=50000
 
   # Don't show Git status in prompt for repositories whose workdir matches this pattern.
   # For example, if set to '~', the Git repository at $HOME/.git will be ignored.

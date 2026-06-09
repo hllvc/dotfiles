@@ -5,10 +5,13 @@
     <key>Label</key>
     <string>com.hllvc.personal.tmux</string>
     <key>ProgramArguments</key>
+    <!-- Staggered behind com.hllvc.work.tmux: both warm at login, and restoring
+         the work socket (60 panes) + personal (26 panes) at once spiked the load
+         average. The sleep lets work's restore settle before personal piles on. -->
     <array>
         <string>/bin/bash</string>
-        <string>entrypoint.sh</string>
-        <string>personal</string>
+        <string>-c</string>
+        <string>sleep 25; exec ./entrypoint.sh personal</string>
     </array>
     <key>WorkingDirectory</key>
     <string>/Users/hllvc/.repos/private/dotfiles/master/.shell/scripts/crons/tmux-warmup</string>
