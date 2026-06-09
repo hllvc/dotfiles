@@ -24,10 +24,13 @@ _notify_quiet() {
 }
 
 # Sticky notification (no timeout). Fire-and-forget.
-#   _notify_sticky <title> <message> [icon_path]
+#   _notify_sticky <title> <message> [action_label] [icon_path]
+# If action_label is given, the notification's action button shows it (replacing
+# the default "Show"); clicking it simply dismisses (the response is discarded).
 _notify_sticky() {
-  local title="$1" message="$2" icon="${3:-$(_icon_default)}"
+  local title="$1" message="$2" action="${3:-}" icon="${4:-$(_icon_default)}"
   local args=(--message "$message" --title "$title" --ignore-dnd)
+  [[ -n "$action" ]] && args+=(--actions "$action")
   [[ -n "$icon" ]] && args+=(--app-icon "$icon")
   alerter "${args[@]}" >/dev/null &
   disown
