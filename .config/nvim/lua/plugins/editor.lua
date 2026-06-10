@@ -368,7 +368,7 @@ return {
 				terraform = { "terraform_fmt" },
 				hcl = { "terraform_fmt" },
 			},
-			format_on_save = { timeout_ms = 3000, lsp_format = "fallback" },
+			format_on_save = { timeout_ms = 1000, lsp_format = "fallback" },
 			formatters = {
 				injected = { options = { ignore_errors = true } },
 			},

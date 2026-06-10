@@ -4,7 +4,10 @@ local opt = vim.opt
 -- local g = vim.g
 
 -- Basic options
-opt.termguicolors = vim.env.TMUX == nil
+-- Was `vim.env.TMUX == nil` (truecolor off inside tmux), but the colorscheme
+-- setup forces it back on unconditionally — so it flipped off→on at startup and
+-- caused a re-highlight. tmux now advertises RGB/Tc, so just enable it directly.
+opt.termguicolors = true
 opt.filetype = "on"
 
 -- Line numbers
