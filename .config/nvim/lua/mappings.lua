@@ -303,8 +303,8 @@ keymap.set("n", "<leader>ui", function()
 		elseif source == "tfsec" then
 			comment = "# tfsec:ignore:" .. code
 			placement = "above"
-		elseif source == "terraform_validate" then
-			vim.notify("No inline ignore syntax for terraform_validate", vim.log.levels.WARN)
+		elseif source == "terraform validate" then
+			vim.notify("No inline ignore syntax for terraform validate", vim.log.levels.WARN)
 			return
 		else
 			vim.notify("Unknown source: " .. (diag.source or "nil") .. " (code: " .. code .. ")", vim.log.levels.WARN)

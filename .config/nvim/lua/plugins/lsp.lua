@@ -12,8 +12,6 @@ return {
 				"prettierd",
 				"black",
 				"isort",
-				"eslint_d",
-				"actionlint",
 				"yamllint",
 				"jq",
 				"xmlformatter",
@@ -62,7 +60,8 @@ return {
 				sh = { "shellcheck" },
 				bash = { "shellcheck" },
 				yaml = { "yamllint" },
-				["yaml.ghaction"] = { "actionlint" },
+				-- GitHub Actions handled by gh_actions_ls (LSP) + yamlls schema. The old
+				-- ["yaml.ghaction"]=actionlint leg never ran: that filetype is never assigned.
 				python = { "ruff" },
 				terraform = { "terraform_validate", "tflint", "tfsec" },
 				tf = { "terraform_validate", "tflint", "tfsec" },
@@ -163,10 +162,6 @@ return {
 								autoSearchPaths = true,
 								useLibraryCodeForTypes = true,
 							},
-							formatting = {
-								provider = "black",
-								blackArgs = { "--line-length", "79" },
-							},
 						},
 					},
 				},
@@ -196,10 +191,6 @@ return {
 							schemas = {
 								["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
 								["https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json"] = "/*.k8s.yaml",
-								kubernetes = {
-									"*/templates/*.yaml",
-									"*/templates/*.tpl",
-								},
 							},
 							format = {
 								enable = true,

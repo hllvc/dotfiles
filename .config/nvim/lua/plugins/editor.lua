@@ -354,12 +354,14 @@ return {
 		opts = {
 			formatters_by_ft = {
 				lua = { "stylua" },
+				sh = { "shfmt" },
+				bash = { "shfmt" },
 				python = { "isort", "black" },
 				javascript = { "prettierd", "prettier", stop_after_first = true },
 				typescript = { "prettierd", "prettier", stop_after_first = true },
 				javascriptreact = { "prettierd", "prettier", stop_after_first = true },
 				typescriptreact = { "prettierd", "prettier", stop_after_first = true },
-				json = { "jq", "prettierd", "prettier", stop_after_first = true },
+				json = { "prettierd", "prettier", "jq", stop_after_first = true },
 				helm = { "prettierd", "prettier", stop_after_first = true },
 				markdown = { "prettierd", "prettier", stop_after_first = true },
 				html = { "prettierd", "prettier", stop_after_first = true },
@@ -379,6 +381,8 @@ return {
 				return { timeout_ms = 1000, lsp_format = "fallback" }
 			end,
 			formatters = {
+				-- 79-char black (the width the old, ignored, pyright formatting block intended)
+				black = { prepend_args = { "--line-length", "79" } },
 				injected = { options = { ignore_errors = true } },
 			},
 		},
