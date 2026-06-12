@@ -164,12 +164,17 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 	end,
 })
 
--- Save all files on focus lost
+-- Save all files on focus lost — but WITHOUT formatting. tmux fires FocusLost on
+-- every pane switch, and running conform across all modified buffers here stalled
+-- each switch. conform's format_on_save honors this flag (see plugins/editor.lua).
+-- The write is synchronous, so set/clear around it needs no async guard.
 vim.api.nvim_create_autocmd("FocusLost", {
 	group = augroup("save_on_focus_lost"),
 	pattern = "*",
 	callback = function()
+		vim.g.skip_format_on_save = true
 		vim.cmd("silent! wa")
+		vim.g.skip_format_on_save = false
 	end,
 })
 
@@ -279,17 +284,14 @@ vim.api.nvim_create_autocmd("QuitPre", {
 	end,
 })
 
--- Cleanup daemon processes and LSP clients on exit
+-- Stop LSP clients on exit (safety net for abnormal shutdown).
+-- NOTE: deliberately does NOT stop prettierd/eslint_d. Those daemons are meant to
+-- persist between sessions; killing them on every exit made each :wq pay ~100-300ms
+-- of synchronous node spawns AND guaranteed prettierd was cold on the next session's
+-- first format-on-save (up to conform's full 1000ms timeout).
 vim.api.nvim_create_autocmd("VimLeavePre", {
 	group = augroup("cleanup"),
 	callback = function()
-		-- Stop daemon formatters/linters (they persist after Neovim exits)
-		for _, cmd in ipairs({ "prettierd", "eslint_d" }) do
-			if vim.fn.executable(cmd) == 1 then
-				pcall(vim.fn.system, { cmd, "stop" })
-			end
-		end
-		-- Stop all LSP clients (safety net for abnormal shutdown)
 		for _, client in ipairs(vim.lsp.get_clients()) do
 			pcall(client.stop, client)
 		end

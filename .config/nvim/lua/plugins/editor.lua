@@ -368,7 +368,16 @@ return {
 				terraform = { "terraform_fmt" },
 				hcl = { "terraform_fmt" },
 			},
-			format_on_save = { timeout_ms = 1000, lsp_format = "fallback" },
+			format_on_save = function()
+				-- Skip autoformat when globally disabled, or during the FocusLost
+				-- write-all (autocmds.lua sets this flag): tmux fires FocusLost on
+				-- every pane switch, and formatting all modified buffers there
+				-- stalled each switch.
+				if vim.g.disable_autoformat or vim.g.skip_format_on_save then
+					return
+				end
+				return { timeout_ms = 1000, lsp_format = "fallback" }
+			end,
 			formatters = {
 				injected = { options = { ignore_errors = true } },
 			},
