@@ -37,8 +37,6 @@ return {
 
 			return {
 				options = {
-					-- theme = "gruvbox-material",
-					-- theme = "auto",
 					theme = auto_theme_custom,
 					globalstatus = true,
 					disabled_filetypes = { statusline = { "dashboard", "alpha", "starter" } },

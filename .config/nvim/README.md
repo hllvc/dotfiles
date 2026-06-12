@@ -1,6 +1,6 @@
 # Neovim
 
-Lua-based Neovim configuration with lazy.nvim plugin manager and native LSP.
+Lua-based Neovim configuration with lazy.nvim, the native LSP client (vim.lsp), and nvim-cmp completion.
 
 [Back to .config](../)
 
