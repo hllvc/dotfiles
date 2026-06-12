@@ -67,7 +67,9 @@ return {
 				terraform = { "terraform_validate", "tflint", "tfsec" },
 				tf = { "terraform_validate", "tflint", "tfsec" },
 			}
-			vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost", "InsertLeave" }, {
+			-- No InsertLeave: it fired on every <Esc> and spawned the linters (for terraform
+			-- that's terraform_validate + tflint + tfsec) on the interactive path.
+			vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost" }, {
 				group = vim.api.nvim_create_augroup("nvim-lint", { clear = true }),
 				callback = function()
 					lint.try_lint()
@@ -378,7 +380,8 @@ return {
 		config = function()
 			require("go").setup()
 		end,
-		event = { "CmdlineEnter" },
+		-- ft only: with event=CmdlineEnter too, lazy OR-combined them and loaded go.nvim
+		-- (+ guihua) on the first ":" in ANY buffer, not just Go files.
 		ft = { "go", "gomod" },
 		build = ':lua require("go.install").update_all_sync()',
 	},

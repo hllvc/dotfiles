@@ -53,8 +53,14 @@ local fold_blacklist = {
 }
 
 local function should_save_view()
+	-- Skip the entire view-save chain during the FocusLost write-all (below): formatting
+	-- and the whitespace passes are skipped there, so there are no fold changes to preserve.
+	if vim.g.skip_heavy_on_save then
+		return false
+	end
+
 	local ft = vim.bo.filetype
-	local bufname = vim.fn.expand("%")
+	local bufname = vim.api.nvim_buf_get_name(0)
 
 	-- Skip if no filename or blacklisted filetype
 	if bufname == "" or vim.tbl_contains(fold_blacklist, ft) then
@@ -132,6 +138,11 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 
 -- Strip trailing whitespace and newlines on save (combined for performance)
 local function clean_buffer_on_save()
+	-- Skip the trailing-whitespace/newline passes during the FocusLost write-all.
+	if vim.g.skip_heavy_on_save then
+		return
+	end
+
 	-- Skip for certain filetypes or special buffers
 	local ft = vim.bo.filetype
 	if vim.tbl_contains({ "markdown", "text", "diff", "gitcommit" }, ft) or vim.bo.buftype ~= "" then
@@ -164,16 +175,20 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 	end,
 })
 
--- Save all files on focus lost — but WITHOUT formatting. tmux fires FocusLost on
--- every pane switch, and running conform across all modified buffers here stalled
--- each switch. conform's format_on_save honors this flag (see plugins/editor.lua).
--- The write is synchronous, so set/clear around it needs no async guard.
+-- Save all files on focus lost — but WITHOUT formatting or the heavy view/clean chain.
+-- tmux fires FocusLost on every pane switch; running conform + mkview/loadview + the two
+-- :%s passes across all modified buffers here stalled each switch. skip_format_on_save is
+-- honored by conform's format_on_save (see plugins/editor.lua); skip_heavy_on_save is
+-- honored by should_save_view() and clean_buffer_on_save() above. Both writes are
+-- synchronous, so set/clear around the :wa needs no async guard.
 vim.api.nvim_create_autocmd("FocusLost", {
 	group = augroup("save_on_focus_lost"),
 	pattern = "*",
 	callback = function()
 		vim.g.skip_format_on_save = true
+		vim.g.skip_heavy_on_save = true
 		vim.cmd("silent! wa")
+		vim.g.skip_heavy_on_save = false
 		vim.g.skip_format_on_save = false
 	end,
 })
@@ -299,7 +314,10 @@ vim.api.nvim_create_autocmd("VimLeavePre", {
 })
 
 -- Detect external file changes (complements autoread)
-vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter" }, {
+-- Only on FocusGained: external processes can only change files while nvim is unfocused.
+-- BufEnter fired on every buffer/window switch and re-stat'd all loaded buffers — redundant
+-- with autoread + the FileChangedShellPost handler below, and a needless navigation cost.
+vim.api.nvim_create_autocmd("FocusGained", {
 	group = augroup("checktime"),
 	pattern = "*",
 	callback = function()

@@ -33,6 +33,7 @@ return {
 
 			-- Indent via treesitter
 			vim.api.nvim_create_autocmd("FileType", {
+				group = vim.api.nvim_create_augroup("ts_indent", { clear = true }),
 				callback = function()
 					if pcall(vim.treesitter.get_parser) then
 						vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
