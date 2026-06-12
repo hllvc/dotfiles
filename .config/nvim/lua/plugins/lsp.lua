@@ -257,28 +257,31 @@ return {
 				vim.lsp.enable(server)
 			end
 
-			-- Setup servers directly without deprecated API usage
-			local have_mason, mlsp = pcall(require, "mason-lspconfig")
-
+			-- mason-lspconfig 2.x dropped the `handlers` dispatch and only honors
+			-- ensure_installed/automatic_enable. So build the install list, turn OFF
+			-- automatic_enable (otherwise mason re-enables each server with stock config
+			-- and silently drops our per-server settings + cmp capabilities), then
+			-- configure every server ourselves via setup().
 			local ensure_installed = {}
 			for server, server_opts in pairs(servers) do
 				if server_opts then
 					server_opts = server_opts == true and {} or server_opts
-					-- Always try to setup the server
-					if server_opts.mason == false then
-						setup(server)
-					else
+					if server_opts.mason ~= false then
 						ensure_installed[#ensure_installed + 1] = server
 					end
 				end
 			end
 
+			local have_mason, mlsp = pcall(require, "mason-lspconfig")
 			if have_mason then
-				mlsp.setup({ ensure_installed = ensure_installed, handlers = { setup } })
+				mlsp.setup({ ensure_installed = ensure_installed, automatic_enable = false })
 			end
 
-			-- Disable stylua LSP (used as formatter via conform, crashes on shutdown)
-			vim.lsp.enable("stylua", false)
+			for server, server_opts in pairs(servers) do
+				if server_opts then
+					setup(server)
+				end
+			end
 
 			-- Configure diagnostics
 			vim.diagnostic.config(vim.deepcopy(opts.diagnostics))
@@ -312,9 +315,11 @@ return {
 					map("n", "gi", function()
 						vim.lsp.buf.implementation({ on_list = on_list })
 					end, "Go to Implementation")
-					map("n", "gr", function()
+					-- nowait: fire immediately instead of waiting timeoutlen to disambiguate
+					-- nvim 0.12's default grn/gra/grr/gri/grt chords (we use our own scheme).
+					vim.keymap.set("n", "gr", function()
 						vim.lsp.buf.references(nil, { on_list = on_list })
-					end, "References")
+					end, { buffer = ev.buf, nowait = true, desc = "References" })
 
 					-- Code actions (<leader>c group)
 					map("n", "<leader>cr", vim.lsp.buf.rename, "Rename")
@@ -350,22 +355,14 @@ return {
 		end,
 	},
 
-	-- Mason LSP config
+	-- Mason LSP config. No opts here on purpose: the nvim-lspconfig `config` above is
+	-- the single caller of mason-lspconfig.setup() (with automatic_enable=false). Giving
+	-- this spec `opts` would make lazy auto-call setup() a second time with the default
+	-- automatic_enable=true, re-enabling servers with stock config. Install list lives in
+	-- the `servers` table above and is derived in that config function.
 	{
 		"williamboman/mason-lspconfig.nvim",
 		dependencies = { "mason.nvim" },
-		opts = {
-			ensure_installed = {
-				"lua_ls",
-				"pyright",
-				"eslint",
-				"terraformls",
-				"helm_ls",
-				"yamlls",
-				"jsonls",
-				"marksman",
-			},
-		},
 	},
 
 	-- Language-specific tools and enhancements
