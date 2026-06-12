@@ -528,7 +528,8 @@ return {
 	},
 	{
 		"tpope/vim-fugitive",
-		cmd = { "Git", "Gwrite", "Gread", "Gvdiffsplit", "Gdiffsplit", "Gblame", "Gpush", "Gpull" },
+		dependencies = { "tpope/vim-rhubarb" },
+		cmd = { "Git", "Gwrite", "Gread", "Gvdiffsplit", "Gdiffsplit", "Gblame", "Gpush", "Gpull", "GBrowse" },
 		keys = {
 			{ "<leader>gs", "<cmd>Git<cr>", desc = "Git Status" },
 			{ "<leader>gc", "<cmd>Git commit<cr>", desc = "Git Commit" },
@@ -536,6 +537,10 @@ return {
 			{ "<leader>gl", "<cmd>Git log --oneline<cr>", desc = "Git Log" },
 			{ "<leader>gb", "<cmd>Git blame<cr>", desc = "Git Blame" },
 			{ "<leader>gds", "<cmd>Gvdiffsplit<cr>", desc = "Git Diff Split" },
+			{ "<leader>gB", "<cmd>silent GBrowse<cr>", desc = "Browse on GitHub", silent = true },
+			{ "<leader>gB", ":<C-u>silent '<,'>GBrowse<cr>", mode = "v", desc = "Browse selection on GitHub", silent = true },
+			{ "<leader>gY", "<cmd>silent GBrowse!<cr>", desc = "Copy GitHub URL", silent = true },
+			{ "<leader>gY", ":<C-u>silent '<,'>GBrowse!<cr>", mode = "v", desc = "Copy GitHub URL (selection)", silent = true },
 		},
 	},
 	{
