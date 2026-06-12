@@ -478,7 +478,12 @@ return {
 		"mattn/emmet-vim",
 		ft = { "html", "css", "javascript", "javascriptreact", "typescript", "typescriptreact" },
 		init = function()
-			vim.g.user_emmet_leader_key = "<C-y>"
+			-- <C-g> not <C-y>: <C-y> is the normal-mode scroll key (mappings.lua), <C-z> is
+			-- tmux suspend. mode "iv" + install_global=0 keep emmet in insert/visual and out
+			-- of non-emmet buffers, so the scroll map is never shadowed by an emmet prefix.
+			vim.g.user_emmet_leader_key = "<C-g>"
+			vim.g.user_emmet_mode = "iv"
+			vim.g.user_emmet_install_global = 0
 		end,
 	},
 

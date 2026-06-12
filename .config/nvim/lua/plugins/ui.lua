@@ -288,7 +288,6 @@ return {
 			},
 			spec = {
 				{ "g", group = "goto" },
-				{ "gs", group = "surround" },
 				{ "[", group = "prev" },
 				{ "]", group = "next" },
 				{ "<leader>a", group = "ai" },
@@ -297,6 +296,9 @@ return {
 				{ "<leader>c", group = "code" },
 				{ "<leader>d", group = "debug" },
 				{ "<leader>f", group = "file/find" },
+				{ "<leader>g", group = "git" },
+				{ "<leader>o", group = "open (tmux)" },
+				{ "<leader>s", group = "search" },
 				{ "<leader>sn", group = "noice" },
 				{ "<leader>u", group = "ui" },
 				{ "<leader>v", group = "venv" },

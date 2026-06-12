@@ -129,6 +129,9 @@ keymap.set("n", "<leader>wf", function()
 end, { noremap = true, silent = true, desc = "Wrap functions in fold markers" })
 
 keymap.set("v", "<leader>wf", function()
+	-- Flush <Esc> first so '< '> point at the just-made selection, not the previous one
+	-- (marks only update on leaving visual mode). Matches the other visual handlers below.
+	vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
 	wrap_functions_in_custom_fold("'<,'>")
 end, { noremap = true, silent = true, desc = "Wrap functions in fold markers" })
 
