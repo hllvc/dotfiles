@@ -47,7 +47,6 @@
     "ask": [],
     "defaultMode": "plan"
   },
-  "model": "opusplan",
   "worktree": {
     "baseRef": "fresh"
   },
@@ -60,7 +59,9 @@
     "typescript-lsp@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
     "lua-lsp@claude-plugins-official": true,
-    "codex@openai-codex": true
+    "codex@openai-codex": true,
+    "frontend-design@claude-plugins-official": true,
+    "shortcuts-playground@shortcuts-playground": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -73,6 +74,12 @@
       "source": {
         "source": "github",
         "repo": "openai/codex-plugin-cc"
+      }
+    },
+    "shortcuts-playground": {
+      "source": {
+        "source": "git",
+        "url": "https://github.com/viticci/shortcuts-playground-plugin.git"
       }
     }
   },
@@ -100,15 +107,14 @@
         "*.1password.com"
       ]
     },
-    "additionalDirectories": [
-      "/Users/hllvc/.claude/plugins/data"
-    ]
+    "additionalDirectories": ["/Users/hllvc/.claude/plugins/data"]
   },
   "alwaysThinkingEnabled": true,
-  "effortLevel": "xhigh",
   "autoUpdatesChannel": "latest",
   "tui": "default",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "editorMode": "normal",
   "preferredNotifChannel": "ghostty",
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
