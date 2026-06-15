@@ -21,6 +21,13 @@
         <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>TMUX_TMPDIR</key>
         <string>/Users/hllvc/.tmux/sockets</string>
+        <!-- Without these the server (started by launchd, not Ghostty) hands every
+             pane shell a C/POSIX locale until the deferred profile sets LANG —
+             after p10k/compinit/gitstatusd have already spawned under C. -->
+        <key>LANG</key>
+        <string>en_US.UTF-8</string>
+        <key>COLORTERM</key>
+        <string>truecolor</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>

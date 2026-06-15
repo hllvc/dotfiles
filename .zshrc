@@ -115,26 +115,30 @@ zsh-defer -c '[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/o
 # 1password plugins
 source /Users/hllvc/.config/op/plugins.sh
 
-zsh-defer _load_scripts
-zsh-defer _load_functions
+# Aliases, functions and shell env load eagerly — each measured at ~0ms, so
+# deferring them only delayed when commands/aliases became usable (the shell felt
+# "incomplete" for a beat after the prompt appeared). profile is eager so
+# LANG/KEYTIMEOUT/PATH/EDITOR are set before the prompt and before gitstatusd
+# spawns. Only genuinely heavy work stays deferred (nvm above; the two plugins
+# below — their init re-binds ZLE widgets and is fine to land at first idle).
+_load_scripts
+_load_functions
+_load ".shell/profile"
+_load ".shell/aliases"
+_load ".shell/functions"
+
 zsh-defer source $ZSH/custom/plugins/zsh-vi-mode/zsh-vi-mode.plugin.zsh
 zsh-defer source $ZSH/custom/plugins/fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 
-readonly configFiles=( ".shell/profile" ".shell/aliases" )
-
-for cfgFile in "${configFiles[@]}"; do
-  zsh-defer _load "$cfgFile"
-done
-
-zsh-defer _load ".shell/functions"
-
 ZVM_VI_EDITOR=nvim
 ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
-# NOTE: zsh-vi-mode is loaded via zsh-defer (above), so $ZVM_READKEY_ENGINE_ZLE
-# is not yet defined here. Use the literal 'zle' so zvm's `: ${ZVM_READKEY_ENGINE:=NEX}`
-# default (line ~309 of zsh-vi-mode.zsh) does not silently fall back to the
-# heavier NEX engine (which also forces KEYTIMEOUT=1).
-ZVM_READKEY_ENGINE=zle
+# Engine = NEX (the plugin default). NEX reads multi-key escape sequences itself
+# via ZVM_ESCAPE_KEYTIMEOUT (0.03s), independent of zsh's global KEYTIMEOUT — so
+# the `jk` insert-escape stays robust even though .shell/profile sets KEYTIMEOUT=1.
+# The 'zle' engine instead defers to KEYTIMEOUT, which KEYTIMEOUT=1 then breaks
+# (a 10ms window makes `jk` impossible / vi-mode "stops working"). That regression
+# is why this is back on NEX. NEX uses pure zsh builtins — no per-keystroke fork.
+ZVM_READKEY_ENGINE=nex
 ZVM_VI_HIGHLIGHT_BACKGROUND=#3c3836
 ZVM_LAZY_KEYBINDINGS=false
 
