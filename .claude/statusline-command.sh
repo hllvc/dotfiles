@@ -1,5 +1,15 @@
 #!/bin/bash
 input=$(cat)
+
+# Snapshot rate limits for the modelusage client (~/.modelusage-client)
+if echo "$input" | jq -e '.rate_limits' >/dev/null 2>&1; then
+  tracker_dir="$HOME/.claude_usage_tracker"
+  mkdir -p "$tracker_dir"
+  tmp_status=$(mktemp "$tracker_dir/.last_status.XXXXXX" 2>/dev/null) &&
+    printf '%s\n' "$input" >"$tmp_status" &&
+    mv -f "$tmp_status" "$tracker_dir/last_status.json"
+fi
+
 cwd=$(echo "$input" | jq -r '.workspace.current_dir')
 dir_path=$(echo "$cwd" | sed "s|^/Users/hllvc|~|")
 repo_root=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)
@@ -157,8 +167,96 @@ done
 # Restore leading / for absolute paths
 [[ "$dir_path" == /* ]] && result="/${result}"
 
+# --- Extract session fields for right side ---
+model_name=$(echo "$input" | jq -r '.model.display_name // empty' 2>/dev/null)
+effort_level=$(echo "$input" | jq -r '.effort.level // empty' 2>/dev/null)
+ctx_pct=$(echo "$input" | jq -r 'if .context_window.used_percentage then (.context_window.used_percentage | round | tostring) else empty end' 2>/dev/null)
+fh_pct=$(echo "$input" | jq -r 'if .rate_limits.five_hour.used_percentage then (.rate_limits.five_hour.used_percentage | round | tostring) else empty end' 2>/dev/null)
+fh_reset_epoch=$(echo "$input" | jq -r '.rate_limits.five_hour.resets_at // empty' 2>/dev/null)
+
+# --- Build right-side string ---
+# Sections are visually separated by a dim │; model and effort joined by ·
+
+DIM='\033[2m'
+RESET='\033[0m'
+SEP="${DIM} │ ${RESET}"
+
+pct_color() {
+  local pct="$1"
+  if (( pct < 60 )); then printf '\033[32m'
+  elif (( pct < 85 )); then printf '\033[33m'
+  else printf '\033[31m'; fi
+}
+
+sections=()
+
+# Section 1: model · effort
+if [[ -n "$model_name" ]]; then
+  sec="\033[37m${model_name}${RESET}"
+  if [[ -n "$effort_level" ]]; then
+    case "$effort_level" in
+      low)       effort_clr="${DIM}" ;;
+      medium)    effort_clr="\033[37m" ;;
+      high)      effort_clr="\033[33m" ;;
+      max|xhigh) effort_clr="\033[31m" ;;
+      *)         effort_clr="\033[37m" ;;
+    esac
+    sec+=" ${DIM}·${RESET} ${effort_clr}${effort_level}${RESET}"
+  fi
+  sections+=("$sec")
+fi
+
+# Section 2: ctx %
+if [[ -n "$ctx_pct" ]] && [[ "$ctx_pct" =~ ^[0-9]+$ ]]; then
+  ctx_clr=$(pct_color "$ctx_pct")
+  sections+=("${DIM}ctx${RESET} ${ctx_clr}${ctx_pct}%${RESET}")
+fi
+
+# Section 3: 5h % → HH:MM
+if [[ -n "$fh_pct" ]] && [[ "$fh_pct" =~ ^[0-9]+$ ]]; then
+  fh_clr=$(pct_color "$fh_pct")
+  sec="${DIM}5h${RESET} ${fh_clr}${fh_pct}%${RESET}"
+  if [[ -n "$fh_reset_epoch" ]] && [[ "$fh_reset_epoch" =~ ^[0-9]+$ ]]; then
+    now=$(date +%s)
+    secs_left=$(( fh_reset_epoch - now ))
+    if (( secs_left > 0 )); then
+      if (( secs_left >= 3600 )); then
+        h=$(( secs_left / 3600 ))
+        m=$(( (secs_left % 3600) / 60 ))
+        countdown="${h}h${m}m"
+      else
+        m=$(( secs_left / 60 ))
+        countdown="${m}m"
+      fi
+      sec+=" ${DIM}→ ${countdown}${RESET}"
+    fi
+  fi
+  sections+=("$sec")
+fi
+
+# Join sections with separator
+right=""
+for sec in "${sections[@]}"; do
+  [[ -n "$right" ]] && right+="$SEP"
+  right+="$sec"
+done
+
+# --- Build left string and pad to terminal width ---
 if [ -n "$branch" ]; then
-  printf '\033[34m%b \033[37mon \033[32m%b\033[0m\n' "$result" "$branch"
+  left_str=$(printf '\033[34m%b \033[37mon \033[32m%b\033[0m' "$result" "$branch")
 else
-  printf '\033[34m%b\033[0m\n' "$result"
+  left_str=$(printf '\033[34m%b\033[0m' "$result")
+fi
+
+if [[ -n "$right" ]]; then
+  term_width=""
+  { term_width=$(stty size </dev/tty 2>/dev/null | awk '{print $2}'); } 2>/dev/null
+  [[ -z "$term_width" ]] && term_width=${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}
+  left_visible=$(printf '%b' "$left_str" | sed $'s/\033\[[0-9;:]*m//g')
+  right_visible=$(printf '%b' "$right" | sed $'s/\033\[[0-9;:]*m//g')
+  pad=$(( term_width - ${#left_visible} - ${#right_visible} - 6 ))
+  (( pad < 2 )) && pad=2
+  printf '%b%*s%b\n' "$left_str" "$pad" "" "$right"
+else
+  printf '%b\n' "$left_str"
 fi
