@@ -2,4 +2,7 @@ dotctl
 \.git
 \.gitignore
 README.md
-\.claude
+.agents
+.codex
+AGENTS.md
+nvim.log
