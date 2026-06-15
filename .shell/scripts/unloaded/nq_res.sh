@@ -14,13 +14,18 @@ EOF
 
 declare downlink
 
-_target_wifi() { #{{{
-  ipconfig getsummary en0 |
-    grep -q "SSID : $WIFI_NAME"
-
-  return $?
+_default_iface() { #{{{
+  route -n get default 2>/dev/null |
+    awk '/interface:/ { print $2; exit }'
 }
-#}}}: _target_wifi
+#}}}: _default_iface
+
+_iface_ssid() { #{{{
+  local iface="$1"
+  ipconfig getsummary "$iface" 2>/dev/null |
+    awk -F' : ' '/ SSID : / { print $2; exit }'
+}
+#}}}: _iface_ssid
 
 _network_quality() { #{{{
   networkQuality -u
@@ -65,8 +70,17 @@ _is_target_speed() { #{{{
 #}}}: _is_target_speed
 
 main() { #{{{
-  if ! _target_wifi; then
-    echo "Not connected to <${WIFI_NAME}>"
+  local iface ssid
+  iface="$(_default_iface)"
+
+  if [[ -z "$iface" ]]; then
+    echo "Not connected to any network"
+    exit 0
+  fi
+
+  ssid="$(_iface_ssid "$iface")"
+  if [[ -n "$ssid" && "$ssid" != "$WIFI_NAME" ]]; then
+    echo "Not connected to <${WIFI_NAME}> (on WiFi <${ssid}>)"
     exit 0
   fi
 
