@@ -1,0 +1,10 @@
+# OpenTofu CLI config. Read on every `tofu` invocation, regardless of shell —
+# so the plugin cache applies to IDE/LSP and script runs too.
+#
+# Shared provider plugin cache: fetch each provider version once, then hardlink
+# it into every working directory. Without this, each module/example dir stores
+# its own copy — the AWS provider alone is ~780MB unpacked per directory.
+#
+# Keep in sync with ~/.terraformrc. OpenTofu would fall back to that file if
+# this one were absent, but both are declared so the behaviour is explicit.
+plugin_cache_dir = "$HOME/.terraform.d/plugin-cache"

@@ -7,6 +7,7 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly LAUNCH_AGENTS_SOURCE="$HOME/.config/launch-agents"
 readonly CRONS_DIR="$REPO_ROOT/.shell/scripts/crons"
 readonly MACOS_SCRIPT="$REPO_ROOT/.shell/scripts/macos/defaults.sh"
+readonly TF_PLUGIN_CACHE="$HOME/.terraform.d/plugin-cache"
 readonly REQUIRED_TOOLS=("brew" "stow")
 
 # ─── Help ──────────────────────────────────────────────────────────────── {{{
@@ -155,6 +156,12 @@ _agent_is_loaded() {
   launchctl print "gui/$uid/$label" &>/dev/null
 }
 
+# terraform/opentofu refuse to create plugin_cache_dir themselves — a missing
+# directory means caching is silently skipped, so make sure it exists.
+_ensure_plugin_cache_dir() {
+  [[ -d "$TF_PLUGIN_CACHE" ]] || mkdir -pv "$TF_PLUGIN_CACHE"
+}
+
 # }}}
 
 # ─── stow ──────────────────────────────────────────────────────────────── {{{
@@ -181,6 +188,7 @@ cmd_stow() {
 
   _require_tools
   _clean_stale_symlinks
+  _ensure_plugin_cache_dir
 
   if ((adopt)); then
     stow -v -t "$HOME" -d "$REPO_ROOT" . --adopt

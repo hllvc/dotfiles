@@ -31,3 +31,9 @@ export SCRIPTS_DIRECTORY="$HOME/.shell/scripts"
 
 ## git
 export GIT_ASKPASS="$HOME/.shell/scripts/unloaded/git-askpass.sh"
+
+## terraform / opentofu
+# Mirrors plugin_cache_dir from ~/.terraformrc and ~/.tofurc. The env var wins
+# over those files, so setting it keeps the cache active even when a tool points
+# the CLI at its own config via TF_CLI_CONFIG_FILE.
+export TF_PLUGIN_CACHE_DIR="$HOME/.terraform.d/plugin-cache"
