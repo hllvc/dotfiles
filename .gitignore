@@ -3,3 +3,4 @@
 .shell/scripts/.data
 .config/nvim/nvim.log
 nvim.log
+.config/1Password/telemetry-enabled
