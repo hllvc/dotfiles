@@ -2,7 +2,7 @@
 name: sg-github-workflows
 description: Review, update, or scaffold StackGuardian GitHub Actions workflows. Use for "review github actions", "audit workflows", "align workflows", "update workflows", "fix workflow drift", "create github actions", "scaffold workflows", "set up CI", "sg-github-workflows".
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, AskUserQuestion
-version: 2.0.0
+version: 2.1.0
 ---
 
 # StackGuardian GitHub Workflows Skill
@@ -46,6 +46,7 @@ Full reusable library API and account/region constants: `references/canonical-se
 1. `Glob` `.github/workflows/*.yml` in the target directory.
 2. Check that all 6 canonical files are present — flag missing files as CRITICAL.
 3. `Read` each file and compare against the corresponding template in `references/templates/`. When checking `secrets:` blocks: inspect the repo `Dockerfile` (at `build-context`/`dockerfile` path) for `GIT_TOKEN` references before flagging its presence or absence — it is only expected if the Dockerfile uses it.
+3a. **Dockerfile review** — `Read` the repo `Dockerfile` and check it against `references/dockerfile-conventions.md`. Flag: a private-git clone that uses `git_user`, an `x-access-token:` prefix, URL-encoded token, a mount id other than `git_token`, or a missing credential-rewrite cleanup. Classify per `references/review-checklist.md` (Dockerfile section).
 4. Detect archetype: check `build_deploy_qa.yml` for `ecs-service:` — if present, apply `references/archetype-ecs.md` checks.
 5. Classify all findings per `references/review-checklist.md` and match against `references/known-drift.md`.
 6. Check OIDC sub claim: resolve the repo slug via `gh repo view --json nameWithOwner -q .nameWithOwner` in the target directory. Run `gh api /repos/{slug}/actions/oidc/customization/sub` and verify `use_default: false` with keys `[repo, job_workflow_ref, environment]`. If wrong or default: add a CRITICAL finding (DRIFT-4) with the fix command from `references/canonical-set.md`.
@@ -81,7 +82,7 @@ Full reusable library API and account/region constants: `references/canonical-se
 2. **Auto-apply all CRITICAL fixes** immediately. List each change applied in the summary.
    - Workflow file fixes: apply via `Edit`.
    - OIDC sub claim (DRIFT-4): run the `gh api --method PUT` command from `references/canonical-set.md`.
-3. If any IMPORTANT or MINOR findings remain, surface them as a multi-select via `AskUserQuestion` ("Which of these should I also fix?"). Apply chosen items via `Edit`.
+3. If any IMPORTANT or MINOR findings remain, surface them as a multi-select via `AskUserQuestion` ("Which of these should I also fix?"). Apply chosen items via `Edit`. Dockerfile clone drift (`git_user`, `x-access-token`, mount id ≠ `git_token`, missing cleanup) is a CRITICAL fix per `references/dockerfile-conventions.md` — auto-apply it in step 2.
 4. If any file from the canonical 6-file set is missing entirely, `Write` it from the corresponding `references/templates/` file — ask for project-specific placeholder values first.
 5. Print a post-update summary and suggest running `git diff .github/workflows/`.
 
@@ -103,7 +104,7 @@ Ask for all of the following, with defaults shown:
 | Build context path | `.` |
 | Dockerfile path | `Dockerfile` |
 | Dotenv file (QA) | `.env.qa` |
-| Dotenv file (PROD) | `.env.production` |
+| Dotenv file (PROD) | `.env.prod` |
 | Default branch triggering QA builds | `main` |
 | Include EU DR deploy job? | `yes` |
 | Extra secrets? | Check repo `Dockerfile` for `GIT_TOKEN` references — include only if found. Ask if also INFRACOST_API_KEY, GH_APP_PEM pairs, export-secrets |
@@ -128,7 +129,9 @@ mkdir -p .github/workflows
 
 If EU DR deploy is not needed, omit the `deploy-eu-dr` job from `build_deploy_qa.yml`.
 
-**Step 4 — Print post-setup checklist:**
+**Step 4 — Align the Dockerfile:** `Read` the repo `Dockerfile` (at `build-context`/`dockerfile`) and verify it follows `references/dockerfile-conventions.md` — in particular the `git_token`-only private-git clone (no `git_user`, no `x-access-token`, no URL-encoding) so the shared `_build.yml` can build it. If it uses a `git_user` secret or another non-conforming clone, `Edit` it to the canonical snippet and note the change.
+
+**Step 5 — Print post-setup checklist:**
 - [ ] Configure GitHub OIDC sub claim for this repo — run the `gh api --method PUT` command from `references/canonical-set.md`
 - [ ] Add `BUILD` + `PROD` trust policy entries to `SGGithubActionsWrite` in PROD account (`sg-prod` AWS profile); add `QA` entries in Dash account (`default` AWS profile) — see `references/canonical-set.md`
 - [ ] Add `GIT_TOKEN` to repository secrets (only if Dockerfile references it; and any other additional secrets selected)
@@ -140,5 +143,6 @@ If EU DR deploy is not needed, omit the `deploy-eu-dr` job from `build_deploy_qa
 - `references/canonical-set.md` — full reusable library API, account/region constants, @main pin rationale
 - `references/templates/` — canonical YAML templates with `{{PLACEHOLDERS}}`
 - `references/archetype-ecs.md` — ECS-specific review checks (review mode only)
+- `references/dockerfile-conventions.md` — how the repo Dockerfile must clone private git deps (`git_token` only) and general SG Dockerfile style
 - `references/review-checklist.md` — CRITICAL / IMPORTANT / MINOR check catalogue
 - `references/known-drift.md` — confirmed drift patterns with before/after snippets

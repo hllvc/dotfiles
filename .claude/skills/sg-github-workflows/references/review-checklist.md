@@ -13,6 +13,21 @@
 - [ ] GitHub OIDC sub claim configured: `use_default: false` with keys `[repo, job_workflow_ref, environment]`
       (verify: `gh api /repos/{slug}/actions/oidc/customization/sub`; fix command in `canonical-set.md`)
 
+## CRITICAL — Dockerfile (private-git clone)
+
+Only applies when the repo Dockerfile clones private git deps. See
+`references/dockerfile-conventions.md` for the canonical snippet.
+
+- [ ] Clone uses the **bare token** `https://${GIT_TOKEN}@github.com` — no username,
+      no `x-access-token:` prefix, no URL-encoding of the token
+- [ ] Build secret mount id is `git_token`, mounted `env=GIT_TOKEN`
+      (must match what `_build.yml` forwards)
+- [ ] Does **not** read `git_user` / `/run/secrets/git_user` (never forwarded — build would fail)
+- [ ] The `insteadOf` credential rewrite is undone in the same layer
+      (`git config --unset-all ...` or `rm -f ~/.gitconfig`)
+- [ ] If Dockerfile mounts `git_token`, the workflow passes it
+      (`GIT_TOKEN: ${{ secrets.GIT_TOKEN }}` or `secrets: inherit`) and `GIT_TOKEN` is a repo secret
+
 ## IMPORTANT — Fix soon
 
 - [ ] `build_deploy_qa.yml` has `cancel-in-progress: true` in the concurrency block
@@ -43,7 +58,8 @@ These values differ legitimately between repos:
 | `ecs-service`, `ecs-cluster` | ECS archetype only |
 | `task-definition`, `container-name` | ECS archetype only |
 | `build-context` | Docker build context (e.g. `./src`, `./platform_api`) |
-| `dotenv` | Dotenv file (e.g. `.env.qa`, `.env.production`) |
+| `dotenv` | Dotenv file (SG convention: `.env.qa` for QA, `.env.prod` for PROD) |
+| Dockerfile base image / cleanup steps | Repo-specific; only the git-clone convention is enforced |
 | `build-args` | Extra build arguments |
 | `tag-match` | Version extraction regex |
 | `dockerfile` | Dockerfile path |
