@@ -4,7 +4,7 @@
 - Work (StackGuardian) GitHub repositories are stored in ~/.repos/stackguardian/
 - Satlantis repositories are stored in ~/.repos/satlantis/
 - For infrastructure as code, ALWAYS default to OpenTofu (`tofu`) rather than Terraform, unless specified otherwise. This covers new configs, the CLI used in Makefiles/scripts, and CI (`opentofu/setup-opentofu`, not `hashicorp/setup-terraform`). Do not migrate an existing Terraform-managed stack without being asked — the default governs what to reach for, not a mandate to convert what already works. HCL, `.tftest.hcl`, `TF_VAR_*` and backend config are identical either way.
-- Git commits must NEVER add Claude or claude-code as author or co-author, and must not include any "Generated with Claude Code", "Co-Authored-By: Claude ...", or similar trailer/footer. Commits and PR descriptions must not signal that they were machine-authored — write in the user's voice.
+- Git commits must NEVER credit an AI assistant — no Claude, Codex, Copilot, Cursor, Gemini, or any other agent as author or co-author, and no "Generated with ...", "Co-Authored-By: ...", or similar trailer/footer naming one. Commits and PR descriptions must not signal that they were machine-authored — write in the user's voice.
 - Commit message format follows the user's `~/.shell/scripts/com.sh` convention:
   - If current branch matches `<alpha>-<digit>` (e.g. `feat-123`), include `<alpha>-<digit>` as a ticket tag.
   - Types used: `feat`, `fix`, `docs` (only these three).
@@ -13,4 +13,4 @@
     - ticket only: `abc-123: message`
     - type only: `feat: message`
     - neither: `message`
-  - Keep messages short and in the user's voice (no Claude trailers — see rule above).
+  - Keep messages short and in the user's voice (no AI-assistant trailers — see rule above).
