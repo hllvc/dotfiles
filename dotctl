@@ -10,6 +10,18 @@ readonly MACOS_SCRIPT="$REPO_ROOT/.shell/scripts/macos/defaults.sh"
 readonly TF_PLUGIN_CACHE="$HOME/.terraform.d/plugin-cache"
 readonly REQUIRED_TOOLS=("brew" "stow")
 
+# A broken link is "ours" if its target path passes through the dotfiles
+# directory — that covers every worktree plus any old backup copy of it.
+readonly DOTFILES_MARKER="$(basename "$(dirname "$REPO_ROOT")")"
+
+# Subtrees skipped when hunting orphans: too big to be worth walking, or full
+# of links that are supposed to dangle.
+readonly ORPHAN_PRUNE=(
+  Library .Trash .repos Applications node_modules .git
+  Movies Music Pictures .npm .pnpm-store .cargo .rustup
+  .orbstack .docker .gradle .m2 go
+)
+
 # ─── Help ──────────────────────────────────────────────────────────────── {{{
 
 usage() {
@@ -29,6 +41,8 @@ Commands:
                              .shell/scripts/crons/*/install.sh
   macos       <apply>        Apply macOS \`defaults write\` tweaks
                              (.shell/scripts/macos/defaults.sh)
+  orphans     [--fix]        Report symlinks in \$HOME left behind by renamed
+                             or removed repo files
 
 Global:
   -h, --help                 Show this help
@@ -42,6 +56,8 @@ Examples:
   ./dotctl agents unload    # unload all launch agents
   ./dotctl crons list       # list discovered cron install hooks
   ./dotctl macos apply      # apply macOS defaults tweaks
+  ./dotctl orphans          # report dangling dotfile symlinks
+  ./dotctl orphans --fix    # ...and delete the ones pointing at this repo
 EOF
 }
 
@@ -89,6 +105,26 @@ Notes:
   - install.sh is invoked with cwd set to its own directory.
   - Failures in one script do not abort the others; exit code reflects
     whether any failed.
+EOF
+}
+
+usage_orphans() {
+  cat <<EOF
+Usage: ./dotctl orphans [--fix]
+
+Finds dangling symlinks in \$HOME. \`stow\` cleans stale links for files that
+still exist in the repo, but a file that was *renamed or deleted* leaves a
+link nothing ever visits again — this finds those.
+
+Reports three groups:
+  REPO     broken, and the target path contains "$DOTFILES_MARKER" — ours, safe to delete
+  FOREIGN  broken, pointing elsewhere — never touched, only listed. Wine drive
+           mappings and app caches live here and are usually meant to dangle.
+  STALE    resolves fine, but lands on a repo path git no longer tracks
+
+Options:
+  --fix    Delete the REPO group, then rmdir any parent directories the
+           deletion left empty. FOREIGN and STALE are never auto-deleted.
 EOF
 }
 
@@ -386,6 +422,128 @@ cmd_macos() {
 
 # }}}
 
+# ─── orphans ───────────────────────────────────────────────────────────── {{{
+
+_orphan_find_links() {
+  local -a prune=()
+  local first=1 p
+  for p in "${ORPHAN_PRUNE[@]}"; do
+    if ((first)); then
+      prune+=(-name "$p")
+      first=0
+    else
+      prune+=(-o -name "$p")
+    fi
+  done
+  find "$HOME" \( "${prune[@]}" \) -prune -o -type l -print 2>/dev/null || true
+}
+
+# Drop directories that the orphan sweep just emptied, walking upward until a
+# parent is non-empty. rmdir refuses non-empty dirs, so this cannot overreach.
+_orphan_prune_empty_dirs() {
+  local dir="$1"
+  while [[ "$dir" != "$HOME" && "$dir" == "$HOME"/* ]]; do
+    rmdir "$dir" 2>/dev/null || break
+    echo "  rmdir $dir"
+    dir="$(dirname "$dir")"
+  done
+}
+
+cmd_orphans() {
+  local fix=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --fix)
+      fix=1
+      shift
+      ;;
+    -h | --help)
+      usage_orphans
+      return 0
+      ;;
+    *)
+      echo "orphans: unknown option: $1" >&2
+      usage_orphans >&2
+      return 1
+      ;;
+    esac
+  done
+
+  local tracked repo_list foreign_list stale_list
+  tracked=$(mktemp)
+  repo_list=$(mktemp)
+  foreign_list=$(mktemp)
+  stale_list=$(mktemp)
+  # shellcheck disable=SC2064
+  trap "rm -f '$tracked' '$repo_list' '$foreign_list' '$stale_list'" RETURN
+
+  git -C "$REPO_ROOT" ls-files >"$tracked"
+
+  local link tgt short real rel
+  local n_repo=0 n_foreign=0 n_stale=0
+
+  while IFS= read -r link; do
+    tgt=$(readlink "$link")
+    short="${link/#$HOME/\~}"
+
+    if [[ ! -e "$link" ]]; then
+      if [[ "$tgt" == *"/$DOTFILES_MARKER/"* ]]; then
+        printf '%s\n' "$link" >>"$repo_list"
+        n_repo=$((n_repo + 1))
+      else
+        printf '  %s\n      -> %s\n' "$short" "$tgt" >>"$foreign_list"
+        n_foreign=$((n_foreign + 1))
+      fi
+      continue
+    fi
+
+    real=$(readlink -f "$link" 2>/dev/null || true)
+    [[ "$real" == "$REPO_ROOT"/* ]] || continue
+    rel="${real#$REPO_ROOT/}"
+
+    # git tracks files, never directories — a directory link is healthy as
+    # long as something tracked lives beneath it.
+    if [[ -d "$real" ]]; then
+      if grep -q "^${rel}/" "$tracked"; then continue; fi
+    else
+      if grep -qxF "${rel}" "$tracked"; then continue; fi
+    fi
+    printf '  %s\n      -> %s (in repo, untracked by git)\n' "$short" "$rel" >>"$stale_list"
+    n_stale=$((n_stale + 1))
+  done < <(_orphan_find_links)
+
+  echo "REPO — broken, ours ($n_repo)"
+  if ((n_repo)); then
+    while IFS= read -r link; do
+      printf '  %s\n      -> %s\n' "${link/#$HOME/\~}" "$(readlink "$link")"
+    done <"$repo_list"
+  else
+    echo "  none"
+  fi
+
+  echo
+  echo "FOREIGN — broken, not ours ($n_foreign)"
+  ((n_foreign)) && cat "$foreign_list" || echo "  none"
+
+  echo
+  echo "STALE — live, but untracked in repo ($n_stale)"
+  ((n_stale)) && cat "$stale_list" || echo "  none"
+
+  if ((fix)) && ((n_repo)); then
+    echo
+    echo "── removing $n_repo orphan(s) ──"
+    while IFS= read -r link; do
+      rm -v "$link"
+      _orphan_prune_empty_dirs "$(dirname "$link")"
+    done <"$repo_list"
+  elif ((n_repo)); then
+    echo
+    echo "Re-run with --fix to delete the REPO group."
+  fi
+}
+
+# }}}
+
 # ─── all ───────────────────────────────────────────────────────────────── {{{
 
 cmd_all() {
@@ -417,6 +575,7 @@ main() {
   agents) cmd_agents "$@" ;;
   crons) cmd_crons "$@" ;;
   macos) cmd_macos "$@" ;;
+  orphans) cmd_orphans "$@" ;;
   -h | --help) usage ;;
   *)
     echo "Unknown command: $cmd" >&2
