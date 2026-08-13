@@ -1,6 +1,14 @@
 #!/bin/bash
 input=$(cat)
 
+# ── Vibe Island: rate_limits bridge (managed, do not remove) ───
+_vi_usage_enabled=$(/usr/bin/defaults read app.vibeisland.macos showUsage 2>/dev/null || echo 0)
+if [ "$_vi_usage_enabled" = "1" ] || [ "$_vi_usage_enabled" = "true" ] || [ "$_vi_usage_enabled" = "TRUE" ]; then
+  _rl=$(echo "$input" | jq -c '.rate_limits // empty' 2>/dev/null)
+  [ -n "$_rl" ] && mkdir -p "$(dirname "/Users/hllvc/.vibe-island/cache/rl.json")" 2>/dev/null && printf '%s\n' "$_rl" > "/Users/hllvc/.vibe-island/cache/rl.json"
+fi
+# ── End Vibe Island bridge ─────────────────────────────
+
 # Snapshot rate limits for the modelusage client (~/.modelusage-client)
 if echo "$input" | jq -e '.rate_limits' >/dev/null 2>&1; then
   tracker_dir="$HOME/.claude_usage_tracker"
