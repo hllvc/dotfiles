@@ -1,13 +1,14 @@
 {
   "env": {
     "BASH_ENV": "/Users/hllvc/.local/bin/claude-shims-init.sh",
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_DISABLE_ANALYTICS": "1",
+    "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
     "CLAUDE_CODE_ENABLE_TASKS": "1",
-    "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
-    "ENABLE_LSP_TOOL": "1",
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "CLAUDE_CODE_NO_FLICKER": "1",
-    "CLAUDE_HOOK_DEBUG": "0"
+    "CLAUDE_HOOK_DEBUG": "0",
+    "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
+    "ENABLE_LSP_TOOL": "1"
   },
   "permissions": {
     "allow": [
@@ -15,7 +16,6 @@
       "WebFetch",
       "Bash(find:*)",
       "Read(~/.repos/**)",
-      "Glob(~/.repos/**)",
       "Grep(~/.repos/**)",
       "Bash(tree:*)",
       "Bash(tmux:*)",
@@ -25,28 +25,21 @@
     "deny": [
       "Read(~/.ssh/**)",
       "Edit(~/.ssh/**)",
-      "Write(~/.ssh/**)",
-      "Glob(~/.ssh/**)",
       "Grep(~/.ssh/**)",
       "Read(~/.aws/**)",
       "Edit(~/.aws/**)",
-      "Write(~/.aws/**)",
-      "Glob(~/.aws/**)",
       "Grep(~/.aws/**)",
       "Read(~/.config/gh/hosts.yml)",
       "Edit(~/.config/gh/hosts.yml)",
-      "Write(~/.config/gh/hosts.yml)",
-      "Glob(~/.config/gh/hosts.yml)",
       "Grep(~/.config/gh/hosts.yml)",
       "Read(~/.netrc)",
       "Edit(~/.netrc)",
-      "Write(~/.netrc)",
-      "Glob(~/.netrc)",
       "Grep(~/.netrc)"
     ],
     "ask": [],
-    "defaultMode": "plan"
+    "defaultMode": "auto"
   },
+  "model": "opus[1m]",
   "worktree": {
     "baseRef": "fresh"
   },
@@ -55,13 +48,13 @@
     "command": "bash /Users/hllvc/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "pyright-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true,
-    "swift-lsp@claude-plugins-official": true,
-    "lua-lsp@claude-plugins-official": true,
     "codex@openai-codex": true,
     "frontend-design@claude-plugins-official": true,
-    "shortcuts-playground@shortcuts-playground": true
+    "lua-lsp@claude-plugins-official": true,
+    "pyright-lsp@claude-plugins-official": true,
+    "shortcuts-playground@shortcuts-playground": true,
+    "swift-lsp@claude-plugins-official": true,
+    "typescript-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -84,7 +77,7 @@
     }
   },
   "sandbox": {
-    "enabled": true,
+    "enabled": false,
     "autoAllowBashIfSandboxed": true,
     "network": {
       "allowedDomains": [
@@ -107,9 +100,12 @@
         "*.1password.com"
       ]
     },
-    "additionalDirectories": ["/Users/hllvc/.claude/plugins/data"]
+    "additionalDirectories": [
+      "/Users/hllvc/.claude/plugins/data"
+    ]
   },
   "alwaysThinkingEnabled": true,
+  "effortLevel": "high",
   "autoUpdatesChannel": "latest",
   "tui": "default",
   "skipDangerousModePermissionPrompt": true,
