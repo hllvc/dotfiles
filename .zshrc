@@ -70,6 +70,15 @@ _load_scripts() { #{{{
 
 typeset -U fpath
 export ZSH_COMPDUMP="$HOME/.zcompdump"
+
+# Completion directories have to join fpath *before* zshinit, because oh-my-zsh
+# runs compinit in there. compinit scans fpath once and caches what it found in
+# $ZSH_COMPDUMP, so a directory added after it is never registered — which is
+# what kept both of these dead. The first line is the one `brew shellenv zsh`
+# emits and the static copy below leaves out; without it none of Homebrew's
+# site-functions (brew, aws, az, sg-dr, ...) are ever loaded.
+fpath=("/opt/homebrew/share/zsh/site-functions" ~/.zsh/zsh-completions $fpath)
+
 _load ".shell/zshinit"
 _load_scripts "init/"
 
@@ -92,15 +101,10 @@ source "$_op_cache"
 compdef _op op
 unset _op_cache
 
-# load zsh completions
-if type brew &>/dev/null; then
-  FPATH=~/.zsh/zsh-completions:$FPATH
-
-  # autoload -Uz compinit
-  # compinit
-  # autoload -Uz compaudit
-  # compaudit
-fi
+# zsh completion directories are set above, before zshinit runs compinit.
+# After installing something that ships completions, `rm -f ~/.zcompdump*` once:
+# oh-my-zsh reuses a fresh dump with `compinit -C`, which skips the scan for new
+# completion functions entirely.
 
 # kubectl completions
 # compdef __start_kubectl k
