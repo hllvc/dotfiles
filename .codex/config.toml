@@ -1,0 +1,14 @@
+sandbox_mode = "workspace-write"
+
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+BASH_ENV = "/Users/hllvc/.local/bin/claude-shims-init.sh"
+CLAUDE_CODE_DISABLE_ANALYTICS = "1"
+CLAUDE_CODE_ENABLE_TASKS = "1"
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"
+CLAUDE_CODE_NO_FLICKER = "1"
+CLAUDE_HOOK_DEBUG = "0"
+DISABLE_NON_ESSENTIAL_MODEL_CALLS = "1"
+ENABLE_LSP_TOOL = "1"
