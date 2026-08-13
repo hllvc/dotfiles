@@ -207,3 +207,76 @@ hardcodes the region rather than using `$(BUILD_REGION)`:
 **Why flagged:** If `BUILD_REGION` is ever overridden (e.g. `make build-dash BUILD_REGION=us-east-1`),
 the `login` target would authenticate the wrong region, causing a push failure. In practice
 `eu-central-1` is the only build region used, so this is MINOR.
+
+---
+
+## DRIFT-8: `build:` does not guard `GIT_TOKEN`
+
+**Severity:** IMPORTANT
+**Applies to:** any archetype whose `build:` passes `--secret id=git_token,env=GIT_TOKEN`
+
+The build passes the `git_token` BuildKit secret without first checking that
+`GIT_TOKEN` is exported. When it is unset, BuildKit happily mounts an empty
+secret and the failure surfaces much later, as an authentication error from
+`git clone` / `uv sync` inside the Docker build — several minutes in, with a
+message that points at the dependency rather than the missing credential.
+
+**Before (drift):**
+```makefile
+build: login
+	@echo "Building and pushing image: $(BUILD_IMAGE):$(VERSION)"
+	@docker buildx build \
+		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
+		--secret id=git_token,env=GIT_TOKEN \
+		...
+```
+
+**After (canonical):**
+```makefile
+build: login
+	@if [ -z "$$GIT_TOKEN" ]; then \
+		echo "GIT_TOKEN is not set — export a GitHub PAT with read access to the private deps"; \
+		exit 1; \
+	fi
+	@echo "Building and pushing image: $(BUILD_IMAGE):$(VERSION) (+ :latest)"
+	@docker buildx build \
+		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
+		--secret id=git_token,env=GIT_TOKEN \
+		...
+```
+
+Note `$$GIT_TOKEN` — the guard reads the shell environment, not a make variable.
+It runs after `login:` (prerequisites go first), which is fine: ECR auth is a
+read-only call. Do not add a separate `check-*` target for this; the canonical
+`.PHONY` list stays as-is.
+
+Container archetype: only applies if that Makefile opted into the build secret.
+
+---
+
+## DRIFT-9: `build:` pushes only the version tag, not `latest`
+
+**Severity:** IMPORTANT
+**Applies to:** all archetypes
+
+`build:` tags the image with `$(VERSION)` alone. Canonical pushes `latest`
+alongside it, in the same `buildx --push` invocation, for **both** DASH and PROD
+— each account's registry gets its own `latest` pointing at the newest push to
+that account.
+
+**Before (drift):**
+```makefile
+		-t $(BUILD_IMAGE):$(VERSION) .
+```
+
+**After (canonical):**
+```makefile
+		-t $(BUILD_IMAGE):$(VERSION) \
+		-t $(BUILD_IMAGE):latest .
+```
+
+Container archetype: use `$(FULL_IMAGE)` instead of `$(BUILD_IMAGE)`. This
+supersedes the earlier container rule that omitted `latest` deliberately.
+
+Deploys still reference `$(DEPLOY_IMAGE):$(VERSION)` — `latest` is a
+convenience pointer, never the thing a `deploy:` target ships.

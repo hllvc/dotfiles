@@ -26,6 +26,10 @@
 - [ ] `deploy-prod-us` overrides `DEPLOY_REGION=us-east-2`
 - [ ] `DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM) --provenance=false`
 - [ ] `VERSION ?= $(shell git describe --always --dirty)` (must be `?=`)
+- [ ] `build:` guards `GIT_TOKEN` as the first recipe line — required wherever the
+      `--secret id=git_token,env=GIT_TOKEN` line is present (DRIFT-8)
+- [ ] `build:` tags **both** `-t $(BUILD_IMAGE):$(VERSION)` and
+      `-t $(BUILD_IMAGE):latest` (DRIFT-9)
 
 ## MINOR — Nice to have
 
@@ -61,7 +65,11 @@ secret, missing `build-deploy-*` targets, missing `LAMBDA_NAME` / `DEPLOY_REGION
 - [ ] `BUILD_REGION ?= eu-central-1` (must be `?=`)
 - [ ] `DOCKER_BUILD_ARGS` includes `--provenance=false`
 - [ ] `.PHONY` contains exactly: `help version login build dash prod`
-- [ ] No `latest` tag in `build:` recipe (ambiguous for runtime-pulled images)
+- [ ] `build:` tags **both** `-t $(FULL_IMAGE):$(VERSION)` and
+      `-t $(FULL_IMAGE):latest` (DRIFT-9)
+- [ ] If (and only if) `build:` passes `--secret id=git_token,env=GIT_TOKEN`, it
+      also guards `GIT_TOKEN` as the first recipe line (DRIFT-8). A container that
+      clones nothing needs neither.
 - [ ] `login:` authenticates **public ECR** (`aws ecr-public get-login-password
       --region us-east-1 | docker login ... public.ecr.aws`) **before** the
       private-registry login. CRITICAL when any `Dockerfile*` in the repo has a

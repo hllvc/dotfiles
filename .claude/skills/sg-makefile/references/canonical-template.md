@@ -76,12 +76,17 @@ login:
 		| docker login --username AWS --password-stdin $(BUILD_REGISTRY)
 
 build: login
-	@echo "Building and pushing image: $(BUILD_IMAGE):$(VERSION)"
+	@if [ -z "$$GIT_TOKEN" ]; then \
+		echo "GIT_TOKEN is not set — export a GitHub PAT with read access to the private deps"; \
+		exit 1; \
+	fi
+	@echo "Building and pushing image: $(BUILD_IMAGE):$(VERSION) (+ :latest)"
 	@docker buildx build \
 		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
 		--secret id=git_token,env=GIT_TOKEN \
-		-t $(BUILD_IMAGE):$(VERSION) .
-	@echo "Build completed: $(BUILD_IMAGE):$(VERSION)"
+		-t $(BUILD_IMAGE):$(VERSION) \
+		-t $(BUILD_IMAGE):latest .
+	@echo "Build completed: $(BUILD_IMAGE):$(VERSION) (+ :latest)"
 
 deploy:
 {{DEPLOY_BODY}}

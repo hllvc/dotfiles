@@ -27,6 +27,8 @@ Two canonical shapes exist. Constants below apply to **both**; deviations are dr
 |---|---|
 | `PLATFORM` | `linux/amd64` |
 | Build secret (Lambda/ECS only) | `--secret id=git_token,env=GIT_TOKEN` |
+| `GIT_TOKEN` guard | first line of `build:`, wherever that build secret is used (DRIFT-8) |
+| Tags pushed by `build:` | both `:$(VERSION)` and `:latest`, on DASH and PROD (DRIFT-9) |
 | `DASH_ACCOUNT_ID` | `790543352839` |
 | `DASH_PROFILE` | `default` |
 | `PROD_ACCOUNT_ID` | `476299211833` |

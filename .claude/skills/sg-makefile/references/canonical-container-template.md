@@ -62,11 +62,12 @@ login:
 		| docker login --username AWS --password-stdin $(REGISTRY)
 
 build: login ## Build and push Docker image
-	@echo "Building and pushing image: $(FULL_IMAGE):$(VERSION)"
+	@echo "Building and pushing image: $(FULL_IMAGE):$(VERSION) (+ :latest)"
 	@docker buildx build \
 		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
-		-t $(FULL_IMAGE):$(VERSION) .
-	@echo "Build completed: $(FULL_IMAGE):$(VERSION)"
+		-t $(FULL_IMAGE):$(VERSION) \
+		-t $(FULL_IMAGE):latest .
+	@echo "Build completed: $(FULL_IMAGE):$(VERSION) (+ :latest)"
 
 ##@ DASH
 dash: PROFILE=$(DASH_PROFILE)
@@ -85,12 +86,22 @@ prod: build ## Build and push to PROD
 
 - No `deploy:` target — these images are consumed by the StackGuardian runtime.
 - No `git_token` build secret by default; add `--secret id=git_token,env=GIT_TOKEN \`
-  to the `build:` recipe if the `Dockerfile` clones private repos.
+  to the `build:` recipe if the `Dockerfile` clones private repos. When you do,
+  add the guard that goes with it as the first line of the recipe, so the build
+  fails fast with a readable message instead of deep inside the Docker build:
+
+  ```makefile
+  	@if [ -z "$$GIT_TOKEN" ]; then \
+  		echo "GIT_TOKEN is not set — export a GitHub PAT with read access to the private deps"; \
+  		exit 1; \
+  	fi
+  ```
 - `login:` always authenticates **both** public ECR (`public.ecr.aws`, always
   `us-east-1`) and the private build registry. Required whenever the `Dockerfile`
   pulls a base image from `public.ecr.aws/...` (e.g. `public.ecr.aws/lambda/python`).
   Harmless if not used. Matches the Lambda/ECS canonical login pattern.
-- `latest` tag is intentionally omitted. The workflow engine references images
-  by version tag; tagging `latest` adds ambiguity.
+- `build:` pushes **both** `:$(VERSION)` and `:latest`. Consumers that want a
+  pinned image reference the version tag; `latest` tracks the newest push to
+  that account's registry.
 - `IMAGE_NAME` uses `=` (not `?=`) because each container repo has exactly one
   image path — it is not meant to be overridden at call time.
