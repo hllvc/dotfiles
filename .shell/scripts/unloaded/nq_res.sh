@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 
-readonly WIFI_NAME="hllvc"
+# macOS redacts SSID/BSSID for processes without Location Services access, so
+# we fingerprint the home network by its router (default gateway) MAC instead.
+# Add more MACs here as needed (lowercase, colon-separated).
+readonly HOME_ROUTER_MACS=(
+  "18:3d:5e:a1:d4:80" # logosoft main router
+)
 readonly TARGET_SPEED="${1:-350}"
 readonly NQ_RESULT_EXAMPLE=$(
   cat <<EOF
@@ -20,12 +25,34 @@ _default_iface() { #{{{
 }
 #}}}: _default_iface
 
-_iface_ssid() { #{{{
+_router_mac() { #{{{
   local iface="$1"
-  ipconfig getsummary "$iface" 2>/dev/null |
-    awk -F' : ' '/ SSID : / { print $2; exit }'
+  local gw
+  gw="$(route -n get default 2>/dev/null | awk '/gateway:/ { print $2; exit }')"
+  [[ -z "$gw" ]] && return
+
+  # Prime the ARP cache, then read the gateway's MAC for this interface.
+  ping -c1 -t1 "$gw" >/dev/null 2>&1
+  arp -n "$gw" 2>/dev/null |
+    awk -v ifc="$iface" '$0 ~ ("on " ifc) {
+      for (i = 1; i <= NF; i++)
+        if ($i == "at") { print $(i + 1); exit }
+    }'
 }
-#}}}: _iface_ssid
+#}}}: _router_mac
+
+_is_home_router() { #{{{
+  local mac
+  mac="$(printf '%s' "$1" | tr "A-Z" "a-z")"
+  [[ -z "$mac" ]] && return 1
+
+  local known
+  for known in "${HOME_ROUTER_MACS[@]}"; do
+    [[ "$mac" == "$known" ]] && return 0
+  done
+  return 1
+}
+#}}}: _is_home_router
 
 _network_quality() { #{{{
   networkQuality -u
@@ -70,7 +97,7 @@ _is_target_speed() { #{{{
 #}}}: _is_target_speed
 
 main() { #{{{
-  local iface ssid
+  local iface mac
   iface="$(_default_iface)"
 
   if [[ -z "$iface" ]]; then
@@ -78,9 +105,9 @@ main() { #{{{
     exit 0
   fi
 
-  ssid="$(_iface_ssid "$iface")"
-  if [[ -n "$ssid" && "$ssid" != "$WIFI_NAME" ]]; then
-    echo "Not connected to <${WIFI_NAME}> (on WiFi <${ssid}>)"
+  mac="$(_router_mac "$iface")"
+  if ! _is_home_router "$mac"; then
+    echo "Not on home network (router <${mac:-unknown}>)"
     exit 0
   fi
 
