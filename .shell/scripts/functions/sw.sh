@@ -9,6 +9,8 @@
 #   -l, ls     list branches and exit
 #   -c, -n     create a branch: `sw -c`, `sw -c name`, `sw -c name base`
 #   -d         delete branches (TAB multi-select); refuses the default branch
+#   carry      manage gitignored local files carried into worktrees:
+#              `sw carry` picker (link/copy/detach/forget), `sw carry ls`, `sw carry apply`
 #   -h         this help
 #
 # Picker line: name  [worktree|local|remote] [merged] [gone]  ↑ahead ↓behind  age  subject
@@ -30,7 +32,7 @@ if ! command -v fzf >/dev/null; then
   exit 1
 fi
 
-fetchAll=0 deleteBranch=0 gitList=0 createBranch=0 showHelp=0 previewMode=0
+fetchAll=0 deleteBranch=0 gitList=0 createBranch=0 showHelp=0 previewMode=0 carryMode=0
 branch="" base=""
 
 for arg; do
@@ -41,6 +43,7 @@ for arg; do
   [cn] | -[cn]) createBranch=1 ;;
   '-h' | '--help') showHelp=1 ;;
   '--preview') previewMode=1 ;;
+  'carry') carryMode=1 ;;
   -*)
     echo "sw: unknown option '$arg' (try -h)" >&2
     exit 1
@@ -313,6 +316,8 @@ _preview() { #{{{
     else
       printf ' %s(clean)%s\n' "$C_GREEN" "$C_RESET"
     fi
+    _carryCounts "$path"
+    [[ -n $REPLY ]] && printf '%scarry%s %s\n' "$C_BOLD" "$C_RESET" "$REPLY"
     echo
   elif ! _hasLocal "$name"; then
     printf '%sremote only%s origin/%s\n\n' "$C_MAGENTA" "$C_RESET" "$name"
@@ -388,6 +393,7 @@ _createBranch() { #{{{
   dir="$(_addWorktree "$new" "$from")"
   cd "$dir"
   _rebaseOnto "$from"
+  _afterWorktreeCreated "$dir" "$(_baseWorktree "$from")"
   echo "$dir"
 }
 #}}}: _createBranch
@@ -412,7 +418,7 @@ _create() { #{{{
 
 _delete() { #{{{
   local -a targets=("$@")
-  local t path dirty summary="" leaving=0 rc=0
+  local t p path dirty summary="" leaving=0 rc=0
 
   ((${#targets[@]})) || _die "No branch selected!"
 
@@ -427,6 +433,9 @@ _delete() { #{{{
       ((dirty > 0)) && summary+=", ${C_YELLOW}${dirty} uncommitted change(s)${C_RESET}"
       summary+=")"
       [[ $PWD == "$path" || $PWD == "$path"/* ]] && leaving=1
+      while IFS= read -r p; do
+        summary+=$'\n'"      ${C_YELLOW}local copy of '$p' differs from the store and will be lost${C_RESET}"
+      done < <(_carryDivergent "$path")
     fi
     summary+=$'\n'
   done
@@ -464,7 +473,9 @@ _switch() { #{{{
   path="$(_worktreePath "$name")"
   if [[ -z $path ]]; then
     _branchExists "$name" || _die "No such branch: '$name'."
-    _addWorktree "$name"
+    path="$(_addWorktree "$name")"
+    _afterWorktreeCreated "$path" "$(_baseWorktree "")"
+    echo "$path"
     return 0
   fi
 
@@ -489,6 +500,364 @@ _offerCreate() { #{{{
   _createBranch "$new" "$defaultBranch"
 }
 #}}}: _offerCreate
+
+# ---------------------------------------------------------------- carry
+# Gitignored local files (tfvars, .env, ...) carried into every worktree.
+# Store:  <repo>/.local/<relpath>, beside .bare, never seen by git.
+# Config: repeated `sw.carry` values in .bare/config, "link:<path>" or
+#         "copy:<path>"; the value "none" means "asked, nothing chosen".
+# link = relative symlink into the store (shared, edit once);
+# copy = per-worktree copy seeded from the store (free to diverge).
+
+_carryStore() { #{{{
+  echo "$repoRoot/.local"
+}
+#}}}: _carryStore
+
+_carryCfg() { #{{{
+  git config --file "$barePath/config" "$@"
+}
+#}}}: _carryCfg
+
+_carryEntries() { #{{{
+  # Prints "mode<TAB>path" per configured entry (the none sentinel is skipped)
+  local e
+  while IFS= read -r e; do
+    case $e in
+    link:* | copy:*) printf '%s\t%s\n' "${e%%:*}" "${e#*:}" ;;
+    esac
+  done < <(_carryCfg --get-all sw.carry 2>/dev/null || true)
+}
+#}}}: _carryEntries
+
+_carryHasEntries() { #{{{
+  [[ -n "$(_carryEntries)" ]]
+}
+#}}}: _carryHasEntries
+
+_carryAsked() { #{{{
+  _carryCfg --get-all sw.carry >/dev/null 2>&1
+}
+#}}}: _carryAsked
+
+_carrySet() { #{{{
+  # $1 = link|copy, $2 = path. Replaces any existing entry for the path.
+  _carryForget "$2"
+  _carryCfg --fixed-value --unset-all sw.carry none 2>/dev/null || true
+  _carryCfg --add sw.carry "$1:$2"
+}
+#}}}: _carrySet
+
+_carryForget() { #{{{
+  local m
+  for m in link copy; do
+    _carryCfg --fixed-value --unset-all sw.carry "$m:$1" 2>/dev/null || true
+  done
+}
+#}}}: _carryForget
+
+_carryMarkNone() { #{{{
+  _carryAsked || _carryCfg --add sw.carry none
+}
+#}}}: _carryMarkNone
+
+_carryStatus() { #{{{
+  # $1 = worktree, $2 = path, $3 = configured mode or "". Sets REPLY to
+  # link | copy | detached | missing | - (present, not carried)
+  local f="$1/$2" mode="$3"
+  if [[ -L $f ]]; then
+    REPLY="link"
+  elif [[ -e $f ]]; then
+    case $mode in
+    link) REPLY="detached" ;;
+    copy) REPLY="copy" ;;
+    *) REPLY="-" ;;
+    esac
+  else
+    REPLY="missing"
+  fi
+}
+#}}}: _carryStatus
+
+_carryLinkTarget() { #{{{
+  # Absolute path a symlink $1 points to (no full resolution needed)
+  local t
+  t="$(readlink "$1")"
+  [[ $t == /* ]] || t="${1%/*}/$t"
+  echo "$t"
+}
+#}}}: _carryLinkTarget
+
+_carryLinkInto() { #{{{
+  # Make $1/$2 a relative symlink to the store. Returns 1 when skipped.
+  local f="$1/$2" store rel
+  store="$(_carryStore)/$2"
+  [[ -e $store ]] || { _msg "carry: '$2' is missing from the store, skipped."; return 1; }
+  rel="$(_relpath "${f%/*}" "$store")"
+  if [[ -L $f ]]; then
+    [[ "$(readlink "$f")" == "$rel" || "$(_carryLinkTarget "$f")" == "$store" ]] && return 0
+    rm "$f"
+  elif [[ -e $f ]]; then
+    if cmp -s "$f" "$store"; then
+      rm "$f"
+    else
+      _msg "carry: '$2' differs from the store, left as a detached copy."
+      return 1
+    fi
+  fi
+  mkdir -p "${f%/*}"
+  ln -s "$rel" "$f"
+}
+#}}}: _carryLinkInto
+
+_carryCopyInto() { #{{{
+  # Copy the store file to $1/$2 unless a real file is already there.
+  local f="$1/$2" store
+  store="$(_carryStore)/$2"
+  [[ -e $store ]] || { _msg "carry: '$2' is missing from the store, skipped."; return 1; }
+  if [[ -L $f ]]; then
+    rm "$f"
+  elif [[ -e $f ]]; then
+    return 0
+  fi
+  mkdir -p "${f%/*}"
+  cp -p "$store" "$f"
+}
+#}}}: _carryCopyInto
+
+_carryDetach() { #{{{
+  # Replace the symlink $1/$2 with a real copy of its current content.
+  local f="$1/$2" target
+  [[ -L $f ]] || { _msg "carry: '$2' is not a link here."; return 1; }
+  target="$(_carryLinkTarget "$f")"
+  [[ -e $target ]] || { _msg "carry: '$2' is a dangling link, left alone."; return 1; }
+  rm "$f"
+  cp -p "$target" "$f"
+}
+#}}}: _carryDetach
+
+_carrySeedStore() { #{{{
+  # Ensure the store has $2, taking it from worktree $1 when absent.
+  # $3 = link moves the file (and links it back), copy keeps the original.
+  local src="$1/$2" store
+  store="$(_carryStore)/$2"
+  if [[ ! -e $store ]]; then
+    [[ -f $src && ! -L $src ]] || _die "carry: '$2' is not a regular file in $1, cannot seed the store."
+    mkdir -p "${store%/*}"
+    if [[ $3 == link ]]; then mv "$src" "$store"; else cp -p "$src" "$store"; fi
+  fi
+  if [[ $3 == link ]]; then _carryLinkInto "$1" "$2" || true; fi
+}
+#}}}: _carrySeedStore
+
+_carryApply() { #{{{
+  # Apply every configured entry to worktree $1; one summary line on stderr.
+  local m p linked=0 copied=0 skipped=0 extra=""
+  while IFS=$'\t' read -r m p; do
+    if [[ $m == link ]]; then
+      if _carryLinkInto "$1" "$p"; then linked=$((linked + 1)); else skipped=$((skipped + 1)); fi
+    else
+      if _carryCopyInto "$1" "$p"; then copied=$((copied + 1)); else skipped=$((skipped + 1)); fi
+    fi
+  done < <(_carryEntries)
+  ((linked + copied + skipped)) || return 0
+  ((skipped)) && extra=", $skipped skipped"
+  _msg "carried $((linked + copied)) file(s) into $(basename "$1") ($linked linked, $copied copied$extra)"
+}
+#}}}: _carryApply
+
+_carryCounts() { #{{{
+  # Sets REPLY to "N ok, M missing, K detached" for worktree $1 ("" when no entries)
+  local m p ok=0 missing=0 detached=0
+  REPLY=""
+  while IFS=$'\t' read -r m p; do
+    _carryStatus "$1" "$p" "$m"
+    case $REPLY in
+    missing) missing=$((missing + 1)) ;;
+    detached) detached=$((detached + 1)) ;;
+    *) ok=$((ok + 1)) ;;
+    esac
+  done < <(_carryEntries)
+  ((ok + missing + detached)) || return 0
+  REPLY="$ok ok"
+  ((missing)) && REPLY+=", ${C_RED}$missing missing${C_RESET}"
+  ((detached)) && REPLY+=", ${C_YELLOW}$detached detached${C_RESET}"
+}
+#}}}: _carryCounts
+
+_carryDivergent() { #{{{
+  # Prints configured paths whose real file in worktree $1 differs from the store
+  local m p f
+  while IFS=$'\t' read -r m p; do
+    f="$1/$p"
+    [[ -f $f && ! -L $f ]] || continue
+    cmp -s "$f" "$(_carryStore)/$p" || echo "$p"
+  done < <(_carryEntries)
+}
+#}}}: _carryDivergent
+
+_ignoredFiles() { #{{{
+  # Ignored regular files of worktree $1, relative; ignored directories are dropped whole
+  local e
+  while IFS= read -r e; do
+    [[ $e == */ ]] && continue
+    [[ -f "$1/$e" || -L "$1/$e" ]] && echo "$e"
+  done < <(git -C "$1" ls-files --others --ignored --exclude-standard --directory)
+}
+#}}}: _ignoredFiles
+
+_humanSize() { #{{{
+  local b
+  b="$(stat -f%z "$1" 2>/dev/null || stat -c%s "$1" 2>/dev/null || echo 0)"
+  if ((b < 1024)); then REPLY="${b}B"
+  elif ((b < 1048576)); then REPLY="$((b / 1024))K"
+  else REPLY="$((b / 1048576))M"; fi
+}
+#}}}: _humanSize
+
+_carryTable() { #{{{
+  # One line per ignored or configured file of worktree $1:  path<TAB>display
+  local -A mode seen
+  local -a paths=()
+  local m p st size padSt
+  while IFS=$'\t' read -r m p; do mode[$p]="$m"; done < <(_carryEntries)
+  while IFS= read -r p; do paths+=("$p"); seen[$p]=1; done < <(_ignoredFiles "$1")
+  for p in "${!mode[@]}"; do [[ -n ${seen[$p]-} ]] || paths+=("$p"); done
+  ((${#paths[@]})) || return 0
+
+  while IFS= read -r p; do
+    _carryStatus "$1" "$p" "${mode[$p]-}"; st="$REPLY"
+    if [[ -e "$1/$p" || -L "$1/$p" ]]; then _humanSize "$1/$p"; size="$REPLY"; else size=""; fi
+    _pad "$st" 8; padSt="$REPLY"
+    case $st in
+    link) padSt="${C_GREEN}${padSt}${C_RESET}" ;;
+    copy) padSt="${C_BLUE}${padSt}${C_RESET}" ;;
+    detached) padSt="${C_YELLOW}${padSt}${C_RESET}" ;;
+    missing) padSt="${C_RED}${padSt}${C_RESET}" ;;
+    *) padSt="${C_DIM}${padSt}${C_RESET}" ;;
+    esac
+    printf '%s\t%s  %s%5s%s  %s\n' "$p" "$padSt" "$C_DIM" "$size" "$C_RESET" "$p"
+  done < <(printf '%s\n' "${paths[@]}" | sort -u)
+}
+#}}}: _carryTable
+
+_carryPick() { #{{{
+  # Multi-select picker over _carryTable of worktree $1; $2 = header hint.
+  # Prints the chosen paths, one per line.
+  _carryTable "$1" |
+    _fzf --multi --header "$(_header "$2")" \
+      --preview "ls -la '$1'/{1} 2>/dev/null; echo; printf '%s lines\n' \"\$(wc -l < '$1'/{1} 2>/dev/null)\"" |
+    cut -f1 || true
+}
+#}}}: _carryPick
+
+_carryAction() { #{{{
+  # $1 = allowed letters (subset of lcdf), $2 = file count. Sets REPLY.
+  local a menu=""
+  [[ $1 == *l* ]] && menu+="  [l]ink (shared)"
+  [[ $1 == *c* ]] && menu+="  [c]opy (per branch)"
+  [[ $1 == *d* ]] && menu+="  [d]etach (this worktree)"
+  [[ $1 == *f* ]] && menu+="  [f]orget"
+  read -n 1 -r -p ">> Action for $2 file(s):$menu: " a
+  echo >&2
+  [[ -n $a && $1 == *"$a"* ]] || _die "Aborted."
+  case $a in
+  l) REPLY="link" ;;
+  c) REPLY="copy" ;;
+  d) REPLY="detach" ;;
+  f) REPLY="forget" ;;
+  esac
+}
+#}}}: _carryAction
+
+_baseWorktree() { #{{{
+  # Worktree to take local files from: the base branch's, else the current, else the default's
+  local wt=""
+  [[ -n ${1-} ]] && wt="$(_worktreePath "$(_localName "$1")")"
+  [[ -z $wt && -n $currentBranch ]] && wt="$(_worktreePath "$currentBranch")"
+  [[ -z $wt && -n $defaultBranch ]] && wt="$(_worktreePath "$defaultBranch")"
+  echo "$wt"
+}
+#}}}: _baseWorktree
+
+_carryFirstTime() { #{{{
+  # $1 = new worktree, $2 = worktree to pick files from
+  local -a sel=()
+  local mode p
+  [[ -d ${2-} && $2 != "$1" ]] || return 0
+  mapfile -t sel < <(_carryPick "$2" "pick local files to carry into every worktree (TAB, Enter; Esc = none)")
+  if ((${#sel[@]} == 0)); then
+    _carryMarkNone
+    _msg "carry: nothing chosen. Run 'sw carry' inside a worktree to change that."
+    return 0
+  fi
+  _carryAction lc "${#sel[@]}"; mode="$REPLY"
+  for p in "${sel[@]}"; do
+    _carrySet "$mode" "$p"
+    _carrySeedStore "$2" "$p" "$mode"
+  done
+  _carryApply "$1"
+}
+#}}}: _carryFirstTime
+
+_afterWorktreeCreated() { #{{{
+  # $1 = new worktree, $2 = base worktree (may be empty)
+  [[ -n $barePath ]] || return 0
+  if _carryHasEntries; then
+    _carryApply "$1"
+  elif ! _carryAsked; then
+    _carryFirstTime "$1" "$2"
+  fi
+}
+#}}}: _afterWorktreeCreated
+
+_carryManage() { #{{{
+  # sw carry [ls|apply]
+  local wt sub="$1" mode p defaultWt
+  local -a sel=()
+  [[ -n $barePath ]] || _die "carry needs a bare+worktree repo."
+  wt="$(_worktreePath "$currentBranch")"
+  [[ -n $wt ]] || _die "Run 'sw carry' from inside a worktree."
+
+  case $sub in
+  ls)
+    if [[ -t 1 ]]; then _carryTable "$wt" | cut -f2
+    else _carryTable "$wt" | cut -f2 | sed $'s/\e\\[[0-9;]*m//g'; fi
+    return 0
+    ;;
+  apply)
+    _carryHasEntries || _die "carry: nothing configured. Run 'sw carry' to pick files."
+    _carryApply "$wt"
+    return 0
+    ;;
+  '') ;;
+  *) _die "sw carry: unknown subcommand '$sub' (ls, apply)" ;;
+  esac
+
+  mapfile -t sel < <(_carryPick "$wt" "TAB: multi  ·  then link / copy / detach / forget")
+  ((${#sel[@]})) || _die "No files selected!"
+  _carryAction lcdf "${#sel[@]}"; mode="$REPLY"
+  defaultWt="$(_worktreePath "$defaultBranch")"
+
+  for p in "${sel[@]}"; do
+    case $mode in
+    link)
+      _carrySet link "$p"
+      _carrySeedStore "$wt" "$p" link
+      [[ -n $defaultWt && $defaultWt != "$wt" && -e "$defaultWt/$p" ]] && { _carryLinkInto "$defaultWt" "$p" || true; }
+      ;;
+    copy)
+      _carrySet copy "$p"
+      _carrySeedStore "$wt" "$p" copy
+      _carryCopyInto "$wt" "$p" || true
+      ;;
+    detach) _carryDetach "$wt" "$p" || true ;;
+    forget) _carryForget "$p" ;;
+    esac
+  done
+  _msg "carry: $mode applied to ${#sel[@]} file(s)."
+}
+#}}}: _carryManage
 
 # ---------------------------------------------------------------- main
 
@@ -517,6 +886,13 @@ fi
 if ((fetchAll)); then
   _msg "Fetching all remotes..."
   git fetch --all --prune >&2
+fi
+
+if ((carryMode)); then
+  sub="$branch"
+  ((gitList)) && sub="ls"
+  _carryManage "$sub"
+  exit 0
 fi
 
 if ((gitList)); then

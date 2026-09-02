@@ -9,6 +9,7 @@ Custom shell scripts added to PATH or sourced as functions.
 | Directory | Description |
 |-----------|-------------|
 | [`functions/`](functions/) | Scripts sourced as shell functions (can `cd`) |
+| [`lib/`](lib/) | Shared helpers sourced by scripts (not commands) |
 | [`init/`](init/) | Startup and initialization scripts |
 | [`tmux/`](tmux/) | Tmux helper scripts |
 | [`crons/`](crons/) | Scheduled jobs invoked by LaunchAgents; each has its own `install.sh` picked up by `dotctl crons install` |
