@@ -1,5 +1,8 @@
 - When indenting code, ALWAYS use 2 spaces as indentation (if not specified or used otherwise in the project).
-- When working with repositories, take into consideration that they are configured as git worktrees.
+- When working with repositories, take into consideration that they are configured as git worktrees. When a repo uses the bare+worktree layout (`<repo>/.bare` plus one worktree directory per branch, e.g. `main/`, `develop/`), respect that convention:
+  - Branching out means creating a NEW sibling worktree — `git worktree add ../<dir-name> <branch>` — and working there. Never `git checkout -b` (or otherwise switch branches) inside an existing worktree directory: each directory stays pinned to its branch.
+  - Branch names are slash-namespaced by type (`feat/<topic>`, `fix/<topic>`); the worktree directory is the branch name with `/` flattened to `-` (`fix/iac-naming` → `fix-iac-naming/`). Ticket-style branches without a slash (e.g. `SG-4352-load-testing`) map 1:1 to the directory name.
+  - Check `git worktree list` before creating branches or assuming layout.
 - Personal GitHub repositories are stored in ~/.repos/private/
 - Work (StackGuardian) GitHub repositories are stored in ~/.repos/stackguardian/
 - Satlantis repositories are stored in ~/.repos/satlantis/

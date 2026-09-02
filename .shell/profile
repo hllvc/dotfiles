@@ -7,7 +7,8 @@ export PATH="$HOME/.local/bin:${KREW_ROOT:-$HOME/.krew}/bin:$GOPATH/bin:$HOME/.j
 # export JIRA_API_TOKEN="op://"
 
 ## gemini-cli
-export GEMINI_API_KEY="op://Personal/Gemini API Key/credential"
+#export GEMINI_API_KEY="op://Personal/Gemini API Key/credential"
+export TELEGRAM_BOT_TOKEN="op://Personal/Telegram Bot Token/credential"
 
 # history
 export HISTSIZE=10000

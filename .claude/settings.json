@@ -39,7 +39,7 @@
     "ask": [],
     "defaultMode": "auto"
   },
-  "model": "opus[1m]",
+  "model": "claude-fable-5-1[1m]",
   "worktree": {
     "baseRef": "fresh"
   },
@@ -54,7 +54,8 @@
     "pyright-lsp@claude-plugins-official": true,
     "shortcuts-playground@shortcuts-playground": true,
     "swift-lsp@claude-plugins-official": true,
-    "typescript-lsp@claude-plugins-official": true
+    "typescript-lsp@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -99,19 +100,30 @@
         "*.amazonaws.com",
         "*.1password.com"
       ]
-    },
-    "additionalDirectories": [
-      "/Users/hllvc/.claude/plugins/data"
-    ]
+    }
   },
+  "feedbackDrafts": "notify",
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
+  "modelSettings": {
+    "claude-fable-5": {
+      "effortLevel": "medium"
+    },
+    "claude-fable-5-1": {
+      "effortLevel": "medium"
+    }
+  },
+  "askUserQuestionTimeout": "never",
   "autoUpdatesChannel": "latest",
   "tui": "default",
+  "timeFormat": "auto",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "preferredNotifChannel": "ghostty",
+  "teammateMode": "auto",
+  "remoteControlAtStartup": false,
+  "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
   "autoMode": {
@@ -121,49 +133,6 @@
       "Bash(make build-prod) — pushes to PROD ECR account 476299211833, no :latest tag safety net",
       "Bash(make build-prod) and Bash(make build-deploy-prod-*) in this repo — pushes to PROD AWS deploy targets, review rather than auto-approve",
       "Bash(aws s3 sync:*) targeting non-dev namespaces — mass artifact sync should be reviewed, not auto-approved"
-    ],
-    "environment": [
-      "### Org-wide",
-      "**Organization**: StackGuardian (this repo is under the StackGuardian GitHub org — github.com:StackGuardian/workflow-step-templates)",
-      "**Cloud provider(s)**: AWS (DASH account 790543352839, PROD account 476299211833 / profile sg-prod — from CLAUDE.md build targets)",
-      "**Repository visibility**: private (StackGuardian/workflow-step-templates, confirmed via gh)",
-      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
-      "**Secrets management**: 1Password CLI (`op read` marker found); secrets also handled via `secrets.auto.tfvars` (auto-loaded by tofu, scrubbed before bundling) per CLAUDE.md",
-      "**Default / protected branches**: `main` (default), protected via active ruleset on `main` (gh-confirmed)",
-      "**CI/CD deploy targets**: AWS ECR — `make build-dash` (DASH 790543352839), `make build-prod` (PROD 476299211833, profile sg-prod), built once in eu-central-1 and regionally replicated by ECR",
-      "**Network posture**: None configured",
-      "**Source control**: StackGuardian/workflow-step-templates (this repo) and its origin remote only",
-      "**Trusted internal domains**: None configured",
-      "**Trusted cloud buckets**: orchestrator-resources-qa (config-derived — not a confirmed upload destination; uploads of local data still require confirmation)",
-      "**Key internal services**: landfast (backend app dispatching workflow steps), run-controller (syncs artifacts dir via `aws s3 sync`) — per CLAUDE.md architecture notes",
-      "**Internal package registry**: None configured",
-      "**Sensitive data locations & audiences**: `tests/.env`, `secrets.auto.tfvars`, provider auth env vars/credentials (AWS AKIA/ASIA keys, Azure client_secret/JWT, GCP PEM/ya29/SA-JSON) — never printed, set, or overridden by the model per `_provider_auth_safety.md`; `terraform.tfstate` (plaintext sensitive attributes) is container-only, never in the shipped bundle",
-      "**Data retention / declassification**: None configured",
-      "**Sensitive remote targets**: any namespace/host/container with `prod` or `production` as a whole word/segment — includes the PROD AWS account (476299211833, profile sg-prod) called out in CLAUDE.md",
-      "**Protected deployment namespaces / environments**: PROD account 476299211833 (profile sg-prod) — do not add per-region builds or push `:latest` there per CLAUDE.md",
-      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything tagged prod/production — plus provider-auth credentials/config which CLAUDE.md explicitly forbids the model from reading, printing, or modifying",
-      "**Organization**: StackGuardian (this repo is under the StackGuardian GitHub org — github.com:StackGuardian/sg-clickhouse-mcp)",
-      "**Cloud provider(s)**: AWS (account 790543352839, eu-central-1 — Lambda `lakehouse-mcp` behind API Gateway, per CLAUDE.md)",
-      "**Repository visibility**: internal (StackGuardian/sg-clickhouse-mcp, confirmed via gh)",
-      "**Secrets management**: AWS Secrets Manager via `<VAR>_SECRET_NAME` pointer convention (secrets.py), e.g. `lambdas/clickhouse-credentials#password`; `GIT_TOKEN` used as a CI/BuildKit secret for the private `core` clone",
-      "**Default / protected branches**: `main` (default and protected, gh-confirmed; no rulesets listed)",
-      "**CI/CD deploy targets**: AWS Lambda/ECR — `build_deploy_qa.yml` on push to `main`, `build_prod.yml` on `v*` tag, then dispatched `deploy_prod_eu.yml` / `deploy_prod_us.yml`; Makefile targets `build-deploy-dash`, `build-deploy-prod-eu`, `build-deploy-prod-us`, `build-deploy-prod-all`",
-      "**Source control**: StackGuardian/sg-clickhouse-mcp (this repo) and its origin remote only",
-      "**Trusted cloud buckets**: None configured",
-      "**Key internal services**: sg-sage-agent (LangGraph agent, primary MCP consumer), auth (Lambda authorizer for API Gateway, Cognito + custom policy), ClickHouse Cloud lakehouse — per CLAUDE.md architecture",
-      "**Sensitive data locations & audiences**: `.env` / `.env.local` / `.env.bak` (gitignored), `.env.example` placeholders, `lakehouse_mcp/secrets.py` (Secrets Manager resolution), `tests/test_secrets.py`, ClickHouse credentials (`CLICKHOUSE_*`), `terraform/*` state and variable files — never printed or committed in plaintext",
-      "**Sensitive remote targets**: any namespace/host/container with `prod` or `production` as a whole word/segment — includes the AWS account 790543352839 PROD deploy paths (`build-deploy-prod-eu`, `build-deploy-prod-us`, `build-deploy-prod-all`) and k8s namespaces `build-deploy-prod-us` / `deploy-prod-us` seen in usage",
-      "**Protected deployment namespaces / environments**: PROD deploy targets (`build-prod`, `build-deploy-prod-eu`, `build-deploy-prod-us`, `build-deploy-prod-all`, and k8s namespaces `deploy-prod-us` / `build-deploy-prod-us`) — per Makefile and observed usage",
-      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything tagged prod/production; `terraform/` module and state files (`terraform/main.tf`, `terraform/variables.tf`, `terraform/outputs.tf`, `.terraform.lock.hcl`, `terraform/modules/lakehouse-mcp/*`) — infra-owned, not routinely modified from this repo per CLAUDE.md",
-      "### User-specific",
-      "**Primary use of Claude Code**: software development (infrastructure-as-code tooling — OpenTofu/Terraform code generation agent)",
-      "**Trusted repo**: StackGuardian/workflow-step-templates (github.com:StackGuardian/workflow-step-templates), private — confidential material OK to commit here, but content ported from outside this repo is not this repo's own work",
-      "**Org-specific CLIs**: `tofu` (OpenTofu, preferred over `terraform` per user CLAUDE.md), `sg`/`sgcode`, `gh`, `op` (1Password), `com` (user's commit-message script per ~/.claude/CLAUDE.md)",
-      "routine under sgcode-agent/ prefix: prompt/template edits, `make test-*` targets, `tests/run_local.sh`, `tests/run_docker.sh`",
-      "**Primary use of Claude Code**: software development (MCP server / lakehouse tooling for StackGuardian)",
-      "**Trusted repo**: StackGuardian/sg-clickhouse-mcp (github.com:StackGuardian/sg-clickhouse-mcp), internal visibility — confidential material OK to commit here, but content ported from outside this repo is not this repo's own work",
-      "**Org-specific CLIs**: `uv` (Python package/env manager, seen 6× in usage), `aws` (seen 5× in usage), `gh`",
-      "routine under sg-clickhouse-mcp/ prefix: `make dev`, `make test`, `uv run pytest`, `uv sync`"
     ]
   },
   "voiceEnabled": true

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-readonly bot_api_key=""
-readonly channel=""
+readonly bot_api_key="$TELEGRAM_BOT_TOKEN"
+readonly channel="-1668635756"
 
 [[ -z "$bot_api_key" ]] && exit 0
 
