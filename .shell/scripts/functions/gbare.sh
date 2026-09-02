@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# shellcheck source=../lib/worktree.sh
+source "${BASH_SOURCE[0]%/*}/../lib/worktree.sh"
+
 readonly REQUIRED_COMMANDS=(
   "gh"
   "fzf"
@@ -7,8 +10,7 @@ readonly REQUIRED_COMMANDS=(
 
 for cmd in "${REQUIRED_COMMANDS[@]}"; do
   if ! command -v "$cmd" &> /dev/null; then
-    echo "Required command '$cmd' not found." >&2
-    exit 1
+    _die "Required command '$cmd' not found."
   fi
 done
 

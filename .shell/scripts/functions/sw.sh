@@ -60,52 +60,21 @@ done
 
 # ---------------------------------------------------------------- helpers
 
+# shellcheck source=../lib/worktree.sh
+source "${BASH_SOURCE[0]%/*}/../lib/worktree.sh"
+
 C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_DIM=$'\e[2m'
 C_GREEN=$'\e[32m' C_RED=$'\e[31m' C_YELLOW=$'\e[33m' C_BLUE=$'\e[34m' C_MAGENTA=$'\e[35m'
 
-_msg() { #{{{
-  echo "$*" >&2
-}
-#}}}: _msg
 
-_die() { #{{{
-  _msg "$*"
-  exit 1
-}
-#}}}: _die
 
 _usage() { #{{{
   sed -n '/^# Usage/,/^$/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^$/d'
 }
 #}}}: _usage
 
-_prompt() { #{{{
-  local yn
-  read -n 1 -r -p ">> $1 [y/N]: " yn
-  echo >&2
-  [[ $yn == [yY] ]] || _die "Aborted."
-}
-#}}}: _prompt
 
-_flatten() { #{{{
-  # feat/topic -> feat-topic, so worktrees are never nested
-  echo "${1//\//-}"
-}
-#}}}: _flatten
 
-_worktreePath() { #{{{
-  # $1 = branch name; empty selects the bare repo. Prints nothing when absent.
-  local want="$1" path="" line
-  while IFS= read -r line; do
-    case $line in
-    "worktree "*) path="${line#worktree }" ;;
-    'bare') [[ -z $want ]] && { echo "$path"; return 0; } ;;
-    "branch refs/heads/$want") [[ -n $want ]] && { echo "$path"; return 0; } ;;
-    esac
-  done < <(git worktree list --porcelain)
-  return 0
-}
-#}}}: _worktreePath
 
 _localName() { #{{{
   # origin/feat/x -> feat/x when it is a remote-tracking ref, otherwise unchanged
