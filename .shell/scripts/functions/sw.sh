@@ -1,92 +1,118 @@
 #!/usr/bin/env bash
+#
+# sw — fzf branch switcher with bare+worktree support.
+#
+# Usage: sw [a|-a] [l|ls|-l] [c|n|-c|-n] [d|-d] [branch]
+#   (none)  pick a branch and switch to it (worktree-aware)
+#   -a      fetch all remotes and include remote branches in the picker
+#   -l      list branches and exit
+#   -c/-n   create a new branch (base picked via fzf, name from arg or prompt)
+#   -d      delete a branch (and its worktree)
+#   branch  skip the picker and use this branch name directly
+#
+# Prints a directory on stdout when the caller should cd there; everything
+# else goes to stderr. The .zshrc wrapper turns a printed directory into cd.
 
-# set -eo pipefail
+set -euo pipefail
+
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 3))); then
+  echo "sw: bash >= 4.3 required, found $BASH_VERSION" >&2
+  exit 1
+fi
+
+if ! command -v fzf >/dev/null; then
+  echo "sw: required command 'fzf' not found" >&2
+  exit 1
+fi
+
+fetchAll=0 deleteBranch=0 gitList=0 createBranch=0 branch=""
 
 for arg; do
   case $arg in
-  'a' | '-a')
-    fetchAll=1
-    shift
+  'a' | '-a') fetchAll=1 ;;
+  'd' | '-d') deleteBranch=1 ;;
+  'ls' | 'l' | '-l') gitList=1 ;;
+  [cn] | -[cn]) createBranch=1 ;;
+  -*)
+    echo "sw: unknown option '$arg'" >&2
+    exit 1
     ;;
-  'd' | '-d')
-    deleteBranch=1
-    shift
-    ;;
-  'ls' | 'l' | '-l')
-    gitList=1
-    shift
-    ;;
-  [cn] | -[cn])
-    createBranch=1
-    shift
-    ;;
-  *)
-    git switch "$*"
-    exit 0
-    ;;
+  *) branch="$arg" ;;
   esac
 done
 
-_prompt() { #{{{
-  local message="$1"
+_msg() { #{{{
+  echo "$*" >&2
+}
+#}}}: _msg
 
-  read -n 1 -r -p ">> $message [y/N]: " yn
-  case $yn in
-  'y' | 'Y')
-    return
-    ;;
-  *)
-    exit 1
-    ;;
-  esac
+_die() { #{{{
+  _msg "$*"
+  exit 1
+}
+#}}}: _die
+
+_prompt() { #{{{
+  local yn
+  read -n 1 -r -p ">> $1 [y/N]: " yn
+  echo >&2
+  [[ $yn == [yY] ]] || _die "Aborted."
 }
 #}}}: _prompt
 
-_cutSpaces() { #{{{
-  cat | tr -d ' '
+_flatten() { #{{{
+  # feat/topic -> feat-topic, so worktrees are never nested
+  echo "${1//\//-}"
 }
-#}}}: _cutSpaces
+#}}}: _flatten
 
-_formatBranch() { #{{{
-  # cat | tr '/' ' ' | tr -d '*+' | cut -d' ' -f3
-  cat | tr -d '*+' | cut -d' ' -f3
+_worktreePath() { #{{{
+  # $1 = branch name; empty selects the bare repo. Prints nothing when absent.
+  local want="$1" path="" line
+  while IFS= read -r line; do
+    case $line in
+    "worktree "*) path="${line#worktree }" ;;
+    'bare') [[ -z $want ]] && { echo "$path"; return 0; } ;;
+    "branch refs/heads/$want") [[ -n $want ]] && { echo "$path"; return 0; } ;;
+    esac
+  done < <(git worktree list --porcelain)
+  return 0
 }
-#}}}: _formatBranch
+#}}}: _worktreePath
 
-_ifWorktreeSetup() { #{{{
-  git worktree list | grep -q "(bare)"
-  return $?
-}
-#}}}: _ifWorktreeSetup
-
-_gitBranchList() { #{{{
-  git branch $@
-}
-#}}}: _gitBranchList
-
-_gitBranch() { #{{{
-  if _ifWorktreeSetup && ((!fetchAll)); then
-    _gitBranchList | grep "[+*].*"
+_localName() { #{{{
+  # origin/feat/x -> feat/x when it is a remote-tracking ref, otherwise unchanged
+  local name="${1#remotes/}"
+  if git show-ref --verify -q "refs/remotes/$name"; then
+    echo "${name#*/}"
   else
-    _gitBranchList $@
+    echo "$name"
   fi
 }
-#}}}: _gitBranch
+#}}}: _localName
 
-_getBranches() { #{{{
-  if ((fetchAll && deleteBranch)); then
-    echo "Cannot use -d on remote branch."
-    exit 1
-  elif ((fetchAll)); then
-    _gitBranch -a
+_branchExists() { #{{{
+  git show-ref --verify -q "refs/heads/$1" ||
+    git show-ref --verify -q "refs/remotes/origin/$1"
+}
+#}}}: _branchExists
+
+_branches() { #{{{
+  if ((fetchAll)); then
+    git branch -a --format='%(refname)' |
+      sed -e '/\/HEAD$/d' -e 's#^refs/heads/##' -e 's#^refs/remotes/##'
+  elif [[ -n $barePath ]]; then
+    # In a worktree setup only branches that already have a worktree
+    git branch --format='%(if)%(worktreepath)%(then)%(refname:short)%(end)' |
+      sed -e '/^$/d' -e '/^(HEAD/d'
   else
-    _gitBranch
+    git branch --format='%(refname:short)' | sed '/^(HEAD/d'
   fi
 }
-#}}}: _getBranches
+#}}}: _branches
 
 _fzf() { #{{{
-  cat | _cutSpaces | _formatBranch | fzf \
+  fzf \
     --no-sort \
     --track \
     --ansi \
@@ -95,211 +121,153 @@ _fzf() { #{{{
 }
 #}}}: _fzf
 
-_gitRebase() { #{{{
-  git pull --rebase origin "$1" >/dev/null
+_pick() { #{{{
+  local selected
+  selected="$(_branches | _fzf)" || true
+  [[ -n $selected ]] || _die "No branch selected!"
+  echo "$selected"
 }
-#}}}: _gitRebase
+#}}}: _pick
 
-# _gitFetch() { #{{{
-#   git fetch -pP "${1##remotes/}"
-#   branch="${1##*/}"
-# }
-# #}}}: _gitFetch
+_addWorktree() { #{{{
+  # $1 = branch, $2 = optional base; with a base a new branch is created.
+  local name="$1" base="${2-}" dir
+  dir="$repoRoot/$(_flatten "$name")"
 
-_getHeadBranch() { #{{{
-  git remote show origin | grep -o "HEAD branch: .*" | cut -d':' -f2 | tr -d ' \n'
-}
-#}}}: _getHeadBranch
-
-_getWorktreePath() { #{{{
-  local branch="\[$1\]"
-
-  if [[ "$branch" == "\[\]" ]]; then
-    branch="(bare)"
-  fi
-
-  git worktree list |
-    grep "$branch" |
-    awk '{print $1}' |
-    tr -d "\n"
-}
-#}}}: _getWorktreePath
-
-_addBranchToWorktree() { #{{{
-  local -n worktreePath="$1"
-  local branch="$2"
-  local headBranch="$3"
-
-  # If newBranch contains "/" in the name, replace with "-"
-  # This is required so worktree does not get created nested
-  # Usually used with feat/feature-name, fix/bugfix-name branch names
-  # Will result in worktree path named like feat-feature-name, fix-bugfix-name
-  worktreePath="${branch/\//-}"
-
-  cd "$(_getWorktreePath)/.." || exit 1
-
-  # If headBranch is passed, we assume that we want a new branch based on headBranch
-  # Otherwise, just create new worktree path with existing branch
-  if [[ -n "$headBranch" ]]; then
-    git worktree add -b "$branch" "$worktreePath" "$headBranch" >/dev/null
+  if [[ -n $base ]]; then
+    git worktree add -b "$name" "$dir" "$base" >/dev/null ||
+      _die "Failed to create worktree for '$name'."
   else
-    git worktree add "$worktreePath" "$branch" >/dev/null
+    git worktree add "$dir" "$name" >/dev/null ||
+      _die "Failed to create worktree for '$name'."
   fi
-  worktreePath="$(_getWorktreePath "$branch")"
+  echo "$dir"
 }
-#}}}: _addBranchToWorktree
+#}}}: _addWorktree
 
-_createBranch() { #{{{
-  local newBranch newBranchWorktreePath headBranch currentBranch currentWorktreePath
-
-  # Get head branch which will be used as base for new branch.
-  headBranch="$(_getBranches | _fzf)"
-  if [[ -z "$headBranch" ]]; then
-    echo "No branch selected!"
-    exit 1
-  fi
-  readonly headBranch
-
-  # Get active branch name and worktree path of the branch
-  currentBranch="$(git branch --show-current)"
-  if [[ -n "$currentBranch" ]]; then
-    currentWorktreePath="$(_getWorktreePath "$currentBranch")"
-  fi
-  readonly currentBranch currentWorktreePath
-
-  # Prompt for new branch name
-  read -r -p ">> New branch: " newBranch
-  if [[ -z "$newBranch" ]]; then
-    echo "Branch name cannot be empty!"
-    exit 1
-  fi
-  readonly newBranch
-
-  if _ifWorktreeSetup; then
-    # Switch to .bare path
-    # cd "$(_getWorktreePath)" || exit 1
-    # if [[ -n "$currentWorktreePath" ]]; then
-    #   cd "${currentWorktreePath/$currentBranch//}" || exit 1
-    # fi
-
-    # read -r -p ">> Worktree Directory (default: $dirBranch): " dirBranch
-    # git worktree add -b "$newBranch" "$newBranchWorktreePath" "$headBranch" >/dev/null
-    _addBranchToWorktree newBranchWorktreePath "$newBranch" "$headBranch"
-    cd "$newBranchWorktreePath" || exit 1
-    _gitRebase "$headBranch"
-    echo "$PWD"
-    exit 0
+_rebaseOnto() { #{{{
+  # Rebase the current branch on the remote counterpart of $1, if it has one.
+  local base="$1" upstream
+  if git show-ref --verify -q "refs/remotes/$base"; then
+    upstream="$base"
   else
-    git checkout -b "$newBranch" "$headBranch"
+    upstream="$(git for-each-ref --format='%(upstream:short)' "refs/heads/$base")"
+    # Many bare clones have no upstream configured; fall back to origin/<base>
+    if [[ -z $upstream ]] && git show-ref --verify -q "refs/remotes/origin/$base"; then
+      upstream="origin/$base"
+    fi
   fi
+  if [[ -z $upstream ]]; then
+    _msg "No remote counterpart for '$base', skipping rebase."
+    return 0
+  fi
+  git pull --rebase -q "${upstream%%/*}" "${upstream#*/}" >&2 ||
+    _die "Rebase onto '$upstream' failed."
 }
-#}}}: _createBranch
+#}}}: _rebaseOnto
 
-_deleteBranch() { #{{{
-  ## Exit early if deletBranch is not selected
-  ((!deleteBranch)) && return 1
+_create() { #{{{
+  local base new dir
+  base="$(_pick)"
 
-  local branchToDelete="$1"
-  local worktreePath activeBranch exitCode
-
-  activeBranch="$(git branch --show-current)"
-
-  _prompt "Delete branch: $branchToDelete"
-  if _ifWorktreeSetup; then
-    # If the activeBranch is same as branchToDelete,
-    # go back once in the directory tree.
-    # This will prevent being stuck in deleted path.
-    [[ "$activeBranch" == "$branchToDelete" ]] && cd ..
-
-    worktreePath="$(_getWorktreePath "$branchToDelete")"
-    git worktree remove "$worktreePath" -f
-    exitCode="$?"
+  new="$branch"
+  if [[ -z $new ]]; then
+    read -r -p ">> New branch: " new
   fi
-  git branch -D "$branchToDelete" >&2 >/dev/null
-  exitCode="$((exitCode + $?))"
+  [[ -n $new ]] || _die "Branch name cannot be empty!"
 
-  if ((exitCode > 0)); then
-    exit 1
+  if [[ -z $barePath ]]; then
+    git checkout -b "$new" "$base" >&2
+    return 0
   fi
 
-  return 0
-
-  # If the activeBranch is same as branchToDelete,
-  # return to the ${repo}/.bare directory.
-  # After deleting branch, it removes working directory.
-  # This will stuck user in deleted path,
-  # and prevent navigating.
-  # [[ "$activeBranch" == "$branchToDelete" ]] && _getWorktreePath
-  # [[ "$activeBranch" == "$branchToDelete" ]] && echo "$PWD"
-  # TODO: Add flag to enable deleting remote branches
-  # git push origin --delete "$branch"
+  dir="$(_addWorktree "$new" "$base")"
+  cd "$dir"
+  _rebaseOnto "$base"
+  echo "$dir"
 }
-#}}}: _deleteBranch
+#}}}: _create
 
-_isOriginBranch() { #{{{
-  local branch="$1"
+_delete() { #{{{
+  local target="$1" path default rc=0
 
-  if echo "$branch" | grep "remotes/origin" >/dev/null; then
-    return 1
+  [[ $target == remotes/* ]] && _die "Cannot delete a remote branch."
+
+  if [[ -n $barePath ]]; then
+    default="$(git --git-dir="$barePath" symbolic-ref --short HEAD 2>/dev/null || true)"
+    [[ $target == "$default" ]] && _die "Refusing to delete the default branch '$default'."
   fi
 
+  _prompt "Delete branch: $target"
+
+  path="$(_worktreePath "$target")"
+  if [[ -n $path ]]; then
+    # Leave the worktree before removing it so git never runs from a deleted cwd
+    cd "$repoRoot"
+    git worktree remove -f "$path" || rc=1
+  fi
+  git branch -D "$target" >/dev/null || rc=1
+  ((rc == 0)) || _die "Failed to delete '$target'."
+
+  [[ -n $barePath ]] && echo "$repoRoot"
   return 0
 }
-#}}}: _isOriginBranch
+#}}}: _delete
 
-((fetchAll)) && git fetch --all
-((gitList)) && _getBranches && exit 0
-((createBranch)) && _createBranch
+_switch() { #{{{
+  local name path current working
+  name="$(_localName "$1")"
 
-branch="$(_getBranches | _fzf)"
-if [[ -z "$branch" ]]; then
-  echo "No branch selected!"
-  exit 2
+  if [[ -z $barePath ]]; then
+    git switch "$name" >&2
+    return 0
+  fi
+
+  path="$(_worktreePath "$name")"
+  if [[ -z $path ]]; then
+    _branchExists "$name" || _die "No such branch: '$name'."
+    _addWorktree "$name"
+    return 0
+  fi
+
+  # Preserve the nested directory when it also exists in the target worktree
+  current="$(_worktreePath "$(git branch --show-current)")"
+  if [[ -n $current && $PWD == "$current"/* ]]; then
+    working="$path${PWD#"$current"}"
+    if [[ -d $working ]]; then
+      echo "$working"
+      return 0
+    fi
+  fi
+  echo "$path"
+}
+#}}}: _switch
+
+barePath="$(_worktreePath "")"
+repoRoot="${barePath%/*}"
+readonly barePath repoRoot
+
+((fetchAll && deleteBranch)) && _die "Cannot combine -a with -d."
+
+if ((fetchAll)); then
+  git fetch --all >&2
 fi
 
-if _deleteBranch "$branch"; then
-  cd "$(_getWorktreePath)/.." || exit 1
-  echo "$PWD"
+if ((gitList)); then
+  _branches
   exit 0
 fi
 
-# (( $(_isOriginBranch "$branch") )) && _gitFetch "$branch"
-
-if _ifWorktreeSetup; then
-  declare currentWorktreePath newWorktreePath workingPath
-  declare newWorktreePath
-
-  # Get current working path
-  currentWorktreePath="$(_getWorktreePath "$(git branch --show-current)")"
-  # Get working path of desired branch
-  newWorktreePath="$(_getWorktreePath "$branch")"
-  # Replace current working path base with new working path
-  # This will perserve nested directories
-  workingPath="${PWD/$currentWorktreePath/$newWorktreePath}"
-
-  # If new working path exists, including nested directories, go there
-  # Otherwise, if new worktree path existsing as it is, go there
-  # In any other case, create new worktree path with new branch
-  if [[ -n "$newWorktreePath" && -e "$workingPath" && "$workingPath" =~ .*$newWorktreePath.* ]]; then
-    echo "$workingPath"
-  elif [[ -e "$newWorktreePath" ]]; then
-    echo "$newWorktreePath"
-  else
-    _addBranchToWorktree newWorktreePath "${branch##remotes/origin/}"
-    echo "$newWorktreePath"
-  fi
+if ((createBranch)); then
+  _create
   exit 0
-
-  # (( $(_isOriginBranch "$branch") )) && _gitRebase "$branch"
-  # _gitRebase "$branch"
-
-  # if [[ -e "$workingPath" && "$workingPath" =~ .*$newWorktreePath.* ]]; then
-  #   echo "$workingPath"
-  # else
-  #   echo "$newWorktreePath"
-  # fi
-else
-  git switch "$branch"
-  # _gitRebase "$branch"
-  # (( $(_isOriginBranch "$branch") )) && _gitRebase "$branch"
 fi
+
+target="${branch:-$(_pick)}"
+
+if ((deleteBranch)); then
+  _delete "$target"
+  exit 0
+fi
+
+_switch "$target"

@@ -33,18 +33,20 @@ _load_functions() { #{{{
         local script_file_name="$(basename "$0").sh"
         local script_path="${script_directory_path}/functions/${script_file_name}"
 
-        local output="$("$script_path" "$@")"
+        # Keep declaration and assignment apart: `local x=$(...)` masks the exit code.
+        local output
+        output="$("$script_path" "$@")"
+        local rc=$?
 
-        if (( $? == 0 )); then
+        if (( rc == 0 )); then
           if [[ -d "$output" ]]; then
-            # echo "Chaning dir to $output."
             cd "$output"
-          else
+          elif [[ -n "$output" ]]; then
             echo "$output"
           fi
         else
-          echo "Error: $output"
-          return 1
+          [[ -n "$output" ]] && echo "Error: $output"
+          return $rc
         fi
       }
     done
