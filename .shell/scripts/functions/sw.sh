@@ -317,6 +317,7 @@ _branchTable() { #{{{
 _fzf() { #{{{
   # Shows and searches the display column; callers cut -f1 for the name.
   fzf \
+    --exact \
     --ansi \
     --no-sort \
     --track \
