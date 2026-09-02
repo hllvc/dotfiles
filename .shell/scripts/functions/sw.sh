@@ -563,7 +563,8 @@ _carryMarkNone() { #{{{
 
 _carryStatus() { #{{{
   # $1 = worktree, $2 = path, $3 = configured mode or "". Sets REPLY to
-  # link | copy | detached | missing | - (present, not carried)
+  # link | copy | detached | missing (carried, absent here) |
+  # - (present, not carried) | elsewhere (not carried, only in other worktrees)
   local f="$1/$2" mode="$3"
   if [[ -L $f ]]; then
     REPLY="link"
@@ -573,8 +574,10 @@ _carryStatus() { #{{{
     copy) REPLY="copy" ;;
     *) REPLY="-" ;;
     esac
-  else
+  elif [[ -n $mode ]]; then
     REPLY="missing"
+  else
+    REPLY="elsewhere"
   fi
 }
 #}}}: _carryStatus
@@ -697,14 +700,96 @@ _carryDivergent() { #{{{
 #}}}: _carryDivergent
 
 _ignoredFiles() { #{{{
-  # Ignored regular files of worktree $1, relative; ignored directories are dropped whole
+  # Ignored regular files of worktree $1, relative; ignored directories are
+  # dropped whole and .DS_Store is noise.
   local e
   while IFS= read -r e; do
-    [[ $e == */ ]] && continue
+    [[ $e == */ || ${e##*/} == .DS_Store ]] && continue
     [[ -f "$1/$e" || -L "$1/$e" ]] && echo "$e"
   done < <(git -C "$1" ls-files --others --ignored --exclude-standard --directory)
 }
 #}}}: _ignoredFiles
+
+_worktrees() { #{{{
+  # Prints "path<TAB>branch" for every non-bare worktree
+  local path="" line
+  while IFS= read -r line; do
+    case $line in
+    "worktree "*) path="${line#worktree }" ;;
+    "branch refs/heads/"*) printf '%s\t%s\n' "$path" "${line#branch refs/heads/}" ;;
+    esac
+  done < <(git worktree list --porcelain)
+}
+#}}}: _worktrees
+
+_scanIgnored() { #{{{
+  # Ignored files across all worktrees. Prints per path:
+  #   path<US>branches (comma separated)<US>differs (0|1)<US>first source file
+  local wt br p h
+  local -A where hash differs first
+  local -a order=()
+  while IFS=$'\t' read -r wt br; do
+    while IFS= read -r p; do
+      [[ -n ${where[$p]-} ]] || { order+=("$p"); first[$p]="$wt/$p"; }
+      where[$p]+="${where[$p]:+,}$br"
+      [[ -L "$wt/$p" ]] && continue
+      h="$(shasum "$wt/$p" 2>/dev/null | cut -c1-40)"
+      if [[ -z ${hash[$p]-} ]]; then hash[$p]="$h"
+      elif [[ ${hash[$p]} != "$h" ]]; then differs[$p]=1; fi
+    done < <(_ignoredFiles "$wt")
+  done < <(_worktrees)
+  for p in "${order[@]+"${order[@]}"}"; do
+    printf '%s\x1f%s\x1f%s\x1f%s\n' "$p" "${where[$p]}" "${differs[$p]-0}" "${first[$p]}"
+  done
+}
+#}}}: _scanIgnored
+
+_carrySources() { #{{{
+  # Prints "path<TAB>branch" of every worktree holding $1 as a real file or link
+  local wt br
+  while IFS=$'\t' read -r wt br; do
+    [[ -e "$wt/$1" || -L "$wt/$1" ]] && printf '%s\t%s\n' "$wt" "$br"
+  done < <(_worktrees)
+  return 0
+}
+#}}}: _carrySources
+
+_carrySource() { #{{{
+  # Worktree to seed the store from for $1, preferring $2 (here); asks when copies differ.
+  local here="$2" wt br n
+  local -a wts=() brs=()
+  [[ -f "$here/$1" && ! -L "$here/$1" ]] && { echo "$here"; return 0; }
+  while IFS=$'\t' read -r wt br; do
+    [[ -f "$wt/$1" && ! -L "$wt/$1" ]] || continue
+    wts+=("$wt"); brs+=("$br")
+  done < <(_carrySources "$1")
+  n=${#wts[@]}
+  ((n)) || return 1
+  ((n == 1)) && { echo "${wts[0]}"; return 0; }
+  local firstWt="${wts[0]}" same=1 i
+  for ((i = 1; i < n; i++)); do cmp -s "$firstWt/$1" "${wts[i]}/$1" || { same=0; break; }; done
+  ((same)) && { echo "$firstWt"; return 0; }
+  # Copies differ: pick the source branch
+  local pick
+  pick="$(for ((i = 0; i < n; i++)); do printf '%s\t%s\n' "${wts[i]}" "${brs[i]}"; done |
+    fzf --exact --delimiter=$'\t' --with-nth=2 --layout=reverse-list \
+      --header "'$1' differs between worktrees: pick the source" \
+      --preview "$(_previewFileCmd '{1}'"/$1")" --preview-window="right:60%,wrap" |
+    cut -f1)" || true
+  [[ -n $pick ]] || _die "No source selected for '$1'."
+  echo "$pick"
+}
+#}}}: _carrySource
+
+_previewFileCmd() { #{{{
+  # Shell snippet that prints file $1 with syntax colors when bat is available
+  if command -v bat >/dev/null; then
+    echo "bat --color=always --style=plain --line-range=:300 $1 2>/dev/null"
+  else
+    echo "head -n 300 $1 2>/dev/null"
+  fi
+}
+#}}}: _previewFileCmd
 
 _humanSize() { #{{{
   local b
@@ -716,19 +801,43 @@ _humanSize() { #{{{
 #}}}: _humanSize
 
 _carryTable() { #{{{
-  # One line per ignored or configured file of worktree $1:  path<TAB>display
+  # One line per ignored (any worktree) or configured file, relative to worktree $1:
+  #   path<TAB>display<TAB>preview file
+  # display = "status  size  from  path"; status is for $1 ("here").
+  local here="$1" hereBr
   local -A mode seen
-  local -a paths=()
-  local m p st size padSt
+  local -a rows=()
+  local m p b br diff src st size padSt from padFrom
+  hereBr="$(git -C "$here" branch --show-current 2>/dev/null || true)"
   while IFS=$'\t' read -r m p; do mode[$p]="$m"; done < <(_carryEntries)
-  while IFS= read -r p; do paths+=("$p"); seen[$p]=1; done < <(_ignoredFiles "$1")
-  for p in "${!mode[@]}"; do [[ -n ${seen[$p]-} ]] || paths+=("$p"); done
-  ((${#paths[@]})) || return 0
+  while IFS=$'\x1f' read -r p br diff src; do
+    rows+=("$p"$'\x1f'"$br"$'\x1f'"$diff"$'\x1f'"$src"); seen[$p]=1
+  done < <(_scanIgnored)
+  for p in "${!mode[@]}"; do
+    [[ -n ${seen[$p]-} ]] || rows+=("$p"$'\x1f'""$'\x1f'"0"$'\x1f'"")
+  done
+  ((${#rows[@]})) || return 0
 
-  while IFS= read -r p; do
-    _carryStatus "$1" "$p" "${mode[$p]-}"; st="$REPLY"
-    if [[ -e "$1/$p" || -L "$1/$p" ]]; then _humanSize "$1/$p"; size="$REPLY"; else size=""; fi
-    _pad "$st" 8; padSt="$REPLY"
+  while IFS=$'\x1f' read -r p br diff src; do
+    _carryStatus "$here" "$p" "${mode[$p]-}"; st="$REPLY"
+    if [[ -e "$here/$p" || -L "$here/$p" ]]; then
+      _humanSize "$here/$p"; size="$REPLY"; src="$here/$p"
+    elif [[ -n $src ]]; then
+      _humanSize "$src"; size="$REPLY"
+    else
+      size=""
+    fi
+    from=""
+    local -a brs=()
+    IFS=',' read -r -a brs <<<"$br"
+    for b in "${brs[@]+"${brs[@]}"}"; do
+      [[ $b == "$hereBr" ]] && b="here"
+      from+="${from:+,}$b"
+    done
+    [[ -z $from ]] && from="(store only)"
+    ((diff)) && from+=" differs"
+    _pad "$st" 9; padSt="$REPLY"
+    _pad "$from" 28; padFrom="$REPLY"
     case $st in
     link) padSt="${C_GREEN}${padSt}${C_RESET}" ;;
     copy) padSt="${C_BLUE}${padSt}${C_RESET}" ;;
@@ -736,17 +845,22 @@ _carryTable() { #{{{
     missing) padSt="${C_RED}${padSt}${C_RESET}" ;;
     *) padSt="${C_DIM}${padSt}${C_RESET}" ;;
     esac
-    printf '%s\t%s  %s%5s%s  %s\n' "$p" "$padSt" "$C_DIM" "$size" "$C_RESET" "$p"
-  done < <(printf '%s\n' "${paths[@]}" | sort -u)
+    padFrom="${padFrom//differs/${C_RED}differs${C_RESET}}"
+    printf '%s\t%s  %s%5s%s  %s%s%s  %s\t%s\n' \
+      "$p" "$padSt" "$C_DIM" "$size" "$C_RESET" "$C_MAGENTA" "$padFrom" "$C_RESET" "$p" "$src"
+  done < <(printf '%s\n' "${rows[@]}" | sort -t $'\x1f' -k1,1 -u)
 }
 #}}}: _carryTable
 
 _carryPick() { #{{{
   # Multi-select picker over _carryTable of worktree $1; $2 = header hint.
+  # The query starts as the current subdirectory so nearby files come first.
   # Prints the chosen paths, one per line.
+  local query=""
+  [[ $PWD == "$1"/* ]] && query="${PWD#"$1"/}/"
   _carryTable "$1" |
-    _fzf --multi --header "$(_header "$2")" \
-      --preview "ls -l '$1'/{1} 2>/dev/null; echo; if command -v bat >/dev/null; then bat --color=always --style=plain --line-range=:200 '$1'/{1} 2>/dev/null; else head -n 200 '$1'/{1} 2>/dev/null; fi" |
+    _fzf --multi --query "$query" --header "$(_header "$2")" \
+      --preview "$(_previewFileCmd '{3}')" --preview-window="right:50%,wrap,<120(down:50%)" |
     cut -f1 || true
 }
 #}}}: _carryPick
@@ -784,8 +898,7 @@ _carryFirstTime() { #{{{
   # $1 = new worktree, $2 = worktree to pick files from
   local -a sel=()
   local mode p
-  [[ -d ${2-} && $2 != "$1" ]] || return 0
-  mapfile -t sel < <(_carryPick "$2" "pick local files to carry into every worktree (TAB, Enter; Esc = none)")
+  mapfile -t sel < <(_carryPick "$1" "pick local files to carry into every worktree (TAB, Enter; Esc = none)")
   if ((${#sel[@]} == 0)); then
     _carryMarkNone
     _msg "carry: nothing chosen. Run 'sw carry' inside a worktree to change that."
@@ -794,11 +907,27 @@ _carryFirstTime() { #{{{
   _carryAction lc "${#sel[@]}"; mode="$REPLY"
   for p in "${sel[@]}"; do
     _carrySet "$mode" "$p"
-    _carrySeedStore "$2" "$p" "$mode"
+    _carrySeedFrom "$p" "$mode" "${2:-$1}"
   done
   _carryApply "$1"
 }
 #}}}: _carryFirstTime
+
+_carrySeedFrom() { #{{{
+  # Seed the store with $1 (mode $2) from the best source worktree, preferring $3.
+  # For link mode every worktree holding an identical copy becomes a link.
+  local src wt br
+  if [[ ! -e "$(_carryStore)/$1" ]]; then
+    src="$(_carrySource "$1" "$3")" || { _msg "carry: '$1' found nowhere, skipped."; return 0; }
+    _carrySeedStore "$src" "$1" "$2"
+  fi
+  if [[ $2 == link ]]; then
+    while IFS=$'\t' read -r wt br; do
+      [[ -L "$wt/$1" ]] || { _carryLinkInto "$wt" "$1" || true; }
+    done < <(_carrySources "$1")
+  fi
+}
+#}}}: _carrySeedFrom
 
 _afterWorktreeCreated() { #{{{
   # $1 = new worktree, $2 = base worktree (may be empty)
@@ -813,7 +942,7 @@ _afterWorktreeCreated() { #{{{
 
 _carryManage() { #{{{
   # sw carry [ls|apply]
-  local wt sub="$1" mode p defaultWt
+  local wt sub="$1" mode p
   local -a sel=()
   [[ -n $barePath ]] || _die "carry needs a bare+worktree repo."
   wt="$(_worktreePath "$currentBranch")"
@@ -837,18 +966,17 @@ _carryManage() { #{{{
   mapfile -t sel < <(_carryPick "$wt" "TAB: multi  ·  then link / copy / detach / forget")
   ((${#sel[@]})) || _die "No files selected!"
   _carryAction lcdf "${#sel[@]}"; mode="$REPLY"
-  defaultWt="$(_worktreePath "$defaultBranch")"
 
   for p in "${sel[@]}"; do
     case $mode in
     link)
       _carrySet link "$p"
-      _carrySeedStore "$wt" "$p" link
-      [[ -n $defaultWt && $defaultWt != "$wt" && -e "$defaultWt/$p" ]] && { _carryLinkInto "$defaultWt" "$p" || true; }
+      _carrySeedFrom "$p" link "$wt"
+      _carryLinkInto "$wt" "$p" || true
       ;;
     copy)
       _carrySet copy "$p"
-      _carrySeedStore "$wt" "$p" copy
+      _carrySeedFrom "$p" copy "$wt"
       _carryCopyInto "$wt" "$p" || true
       ;;
     detach) _carryDetach "$wt" "$p" || true ;;
