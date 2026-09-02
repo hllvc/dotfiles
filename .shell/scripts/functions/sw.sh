@@ -324,7 +324,7 @@ _fzf() { #{{{
     --delimiter=$'\t' \
     --with-nth=2 \
     --preview "'$0' --preview {1}" \
-    --preview-window=right:50%:wrap \
+    --preview-window="right:40%,wrap,<120(down:40%)" \
     "$@"
 }
 #}}}: _fzf
@@ -568,7 +568,7 @@ if ((deleteBranch)); then
     _delete "$branch"
   else
     mapfile -t picked < <(
-      _branchTable | _fzf --multi --header "$(_header "TAB: multi-select  ·  filter: merged / gone")" | cut -f1
+      _branchTable | _fzf --multi --header "$(_header "TAB: multi  ·  filter: merged, gone")" | cut -f1
     )
     _delete "${picked[@]+"${picked[@]}"}"
   fi
@@ -588,7 +588,7 @@ fi
 
 rc=0
 out="$(_branchTable | awk -F'\t' -v cur="$currentBranch" '$1 != cur' |
-  _fzf --print-query --header "$(_header "Enter: switch  ·  unknown name + Enter: create from $defaultBranch")")" || rc=$?
+  _fzf --print-query --header "$(_header "Enter: switch  ·  new name: create from $defaultBranch")")" || rc=$?
 
 query="${out%%$'\n'*}"
 selected="$(printf '%s\n' "$out" | sed -n '2p' | cut -f1)"
