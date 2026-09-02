@@ -746,7 +746,7 @@ _carryPick() { #{{{
   # Prints the chosen paths, one per line.
   _carryTable "$1" |
     _fzf --multi --header "$(_header "$2")" \
-      --preview "ls -la '$1'/{1} 2>/dev/null; echo; printf '%s lines\n' \"\$(wc -l < '$1'/{1} 2>/dev/null)\"" |
+      --preview "ls -l '$1'/{1} 2>/dev/null; echo; if command -v bat >/dev/null; then bat --color=always --style=plain --line-range=:200 '$1'/{1} 2>/dev/null; else head -n 200 '$1'/{1} 2>/dev/null; fi" |
     cut -f1 || true
 }
 #}}}: _carryPick
