@@ -2,20 +2,34 @@
 #
 # sw — fzf branch switcher with bare+worktree support.
 #
-# Usage: sw [-a] [-l] [-c|-n] [-d] [-h] [branch] [base]
+# Usage: sw [-a] [-l] [-L] [-c|-n] [-d] [-h] [branch] [base]
 #   (none)     pick a branch and switch to it (worktree-aware)
 #   branch     skip the picker; an unknown name offers to create it
+#   -          switch back to the previous branch
 #   -a         fetch --all --prune first (the picker always shows known remotes)
 #   -l, ls     list branches and exit
+#   -L         local branches only (hide remote-only refs)
 #   -c, -n     create a branch: `sw -c`, `sw -c name`, `sw -c name base`
+#   --no-rebase  skip the rebase onto the base's remote after -c
 #   -d         delete branches (TAB multi-select); refuses the default branch
-#   carry      manage gitignored local files carried into worktrees:
-#              `sw carry` picker (link/copy/detach/forget), `sw carry ls`, `sw carry apply`
+#   st         status of every worktree: dirty, ahead/behind, carry
+#   carry      gitignored local files carried into every worktree:
+#              `sw carry` picker (link/copy/detach/forget), `sw carry ls|apply`,
+#              `sw carry diff|reset|edit [path]`
 #   -h         this help
 #
-# Picker line: name  [worktree|local|remote] [merged] [gone]  ↑ahead ↓behind  age  subject
-# Type "merged" or "gone" to filter. In switch mode, typing a name with no
-# match and pressing Enter offers to create it from the default branch.
+# Picker keys: Enter switch  ctrl-x delete  ctrl-o create from highlighted
+#              ctrl-f fetch + reload  ctrl-r reload
+#   carry:     ctrl-s link  ctrl-o copy  ctrl-x detach  ctrl-f forget
+#
+# Config (git config, e.g. in .bare/config):
+#   sw.remote      remote to track (default origin)
+#   sw.rebase      false = never rebase after -c
+#   sw.postCreate  shell command run inside every new worktree
+#
+# Picker line: name  [worktree|local|remote] [merged] [gone] [recent]  ↑ahead ↓behind  age  subject
+# In switch mode, typing a name with no match and pressing Enter offers to
+# create it from the default branch.
 #
 # Prints a directory on stdout when the caller should cd there; everything
 # else goes to stderr. The .zshrc wrapper turns a printed directory into cd.
@@ -33,6 +47,7 @@ if ! command -v fzf >/dev/null; then
 fi
 
 fetchAll=0 deleteBranch=0 gitList=0 createBranch=0 showHelp=0 previewMode=0 carryMode=0
+tableMode=0 statusMode=0 goBack=0 localOnly=0 noRebase=0
 branch="" base=""
 
 for arg; do
@@ -40,10 +55,15 @@ for arg; do
   'a' | '-a') fetchAll=1 ;;
   'd' | '-d') deleteBranch=1 ;;
   'ls' | 'l' | '-l') gitList=1 ;;
+  '-L') localOnly=1 ;;
   [cn] | -[cn]) createBranch=1 ;;
+  '--no-rebase') noRebase=1 ;;
   '-h' | '--help') showHelp=1 ;;
   '--preview') previewMode=1 ;;
+  '--table') tableMode=1 ;;
+  'st' | 'status') statusMode=1 ;;
   'carry') carryMode=1 ;;
+  '-') goBack=1 ;;
   -*)
     echo "sw: unknown option '$arg' (try -h)" >&2
     exit 1
@@ -72,12 +92,16 @@ C_GREEN=$'\e[32m' C_RED=$'\e[31m' C_YELLOW=$'\e[33m' C_BLUE=$'\e[34m' C_MAGENTA=
 
 
 _usage() { #{{{
-  sed -n '/^# Usage/,/^$/p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^$/d'
+  sed -n '/^# Usage/,/^# Picker line/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'
 }
 #}}}: _usage
 
-
-
+_cfg() { #{{{
+  # $1 = key (without sw.), $2 = default. Read through the normal git config
+  # chain, so .bare/config, ~/.gitconfig and the environment all work.
+  git config --get "sw.$1" 2>/dev/null || echo "${2-}"
+}
+#}}}: _cfg
 
 _localName() { #{{{
   # origin/feat/x -> feat/x when it is a remote-tracking ref, otherwise unchanged
@@ -96,7 +120,7 @@ _hasLocal() { #{{{
 #}}}: _hasLocal
 
 _hasRemote() { #{{{
-  git show-ref --verify -q "refs/remotes/origin/$1"
+  git show-ref --verify -q "refs/remotes/$remote/$1"
 }
 #}}}: _hasRemote
 
@@ -107,9 +131,49 @@ _branchExists() { #{{{
 
 _logRef() { #{{{
   # A ref `git log` understands for a branch that may be remote-only
-  if _hasLocal "$1"; then echo "$1"; else echo "origin/$1"; fi
+  if _hasLocal "$1"; then echo "$1"; else echo "$remote/$1"; fi
 }
 #}}}: _logRef
+
+_recentFile() { #{{{
+  echo "${barePath:-$(git rev-parse --git-common-dir 2>/dev/null)}/sw.recent"
+}
+#}}}: _recentFile
+
+_recent() { #{{{
+  # Branches visited most recently first (stale names are filtered by callers)
+  cat "$(_recentFile)" 2>/dev/null || true
+}
+#}}}: _recent
+
+_recentAdd() { #{{{
+  # Put $@ in front of the recent list (first argument ends up first), max 20
+  local f tmp
+  f="$(_recentFile)"
+  [[ -d ${f%/*} ]] || return 0
+  tmp="$(printf '%s\n' "$@"; _recent)"
+  printf '%s\n' "$tmp" | awk 'NF && !seen[$0]++' | head -n 20 >"$f.tmp" && mv "$f.tmp" "$f"
+}
+#}}}: _recentAdd
+
+_recentDrop() { #{{{
+  local f
+  f="$(_recentFile)"
+  [[ -f $f ]] || return 0
+  _recent | awk -v drop="$1" '$0 != drop' >"$f.tmp" && mv "$f.tmp" "$f"
+}
+#}}}: _recentDrop
+
+_previousBranch() { #{{{
+  # Most recently visited branch other than the current one that still exists
+  local b
+  while IFS= read -r b; do
+    [[ $b == "$currentBranch" ]] && continue
+    _branchExists "$b" && { echo "$b"; return 0; }
+  done < <(_recent)
+  return 1
+}
+#}}}: _previousBranch
 
 _defaultBranch() { #{{{
   local d=""
@@ -117,8 +181,8 @@ _defaultBranch() { #{{{
     d="$(git --git-dir="$barePath" symbolic-ref --short HEAD 2>/dev/null || true)"
   fi
   if [[ -z $d ]]; then
-    d="$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null || true)"
-    d="${d#origin/}"
+    d="$(git symbolic-ref --short "refs/remotes/$remote/HEAD" 2>/dev/null || true)"
+    d="${d#"$remote"/}"
   fi
   if [[ -z $d ]]; then
     local c
@@ -167,9 +231,9 @@ _track() { #{{{
     [[ $text =~ ahead\ ([0-9]+) ]] && ahead="${BASH_REMATCH[1]}"
     [[ $text =~ behind\ ([0-9]+) ]] && behind="${BASH_REMATCH[1]}"
   elif [[ -z $upstream && -n $remoteSha && $remoteSha != "$localSha" ]]; then
-    # No upstream configured and origin/<name> differs: count the divergence.
+    # No upstream configured and <remote>/<name> differs: count the divergence.
     # Equal shas (the common case after a bare clone) cost nothing.
-    counts="$(git rev-list --left-right --count "$name...origin/$name" 2>/dev/null || true)"
+    counts="$(git rev-list --left-right --count "$name...$remote/$name" 2>/dev/null || true)"
     ahead="${counts%%[[:space:]]*}"
     behind="${counts##*[[:space:]]}"
     [[ $ahead == 0 ]] && ahead=""
@@ -192,26 +256,29 @@ _branchTable() { #{{{
   # $1 = branch to put first (used to preselect a base).
   local front="${1-}"
   local -a names tagList trackList ageList subjectList
-  local -A isLocal isRemote isMerged
+  local -A isLocal isRemote isMerged index
   local ref sha wt upstream track date subject name kind tagText
   local n=0 nameWidth=0 tagWidth=0 trackWidth=0
 
   while IFS= read -r name; do isLocal[$name]=1; done \
     < <(git branch --format='%(refname:short)' | sed '/^(HEAD/d')
   local sha
-  while read -r name sha; do isRemote[${name#origin/}]="$sha"; done \
-    < <(git for-each-ref --format='%(refname:short) %(objectname)' refs/remotes/origin | sed '/^origin /d')
+  while read -r name sha; do isRemote[${name#"$remote"/}]="$sha"; done \
+    < <(git for-each-ref --format='%(refname:short) %(objectname)' "refs/remotes/$remote" | sed "/^$remote /d")
 
   if [[ -n $defaultBranch ]]; then
     while IFS= read -r name; do
-      name="${name#origin/}"
-      [[ $name == "$defaultBranch" || $name == origin ]] && continue
+      name="${name#"$remote"/}"
+      [[ $name == "$defaultBranch" || $name == "$remote" ]] && continue
       isMerged[$name]=1
     done < <(
       git branch --format='%(refname:short)' --merged "$defaultBranch" 2>/dev/null
       git branch -r --format='%(refname:short)' --merged "$defaultBranch" 2>/dev/null
     )
   fi
+
+  local -a refDirs=(refs/heads)
+  ((localOnly)) || refDirs+=("refs/remotes/$remote")
 
   while IFS=$'\x1f' read -r ref sha wt upstream track date subject; do
     case $ref in
@@ -220,9 +287,9 @@ _branchTable() { #{{{
       if [[ -n $wt && -n $barePath ]]; then kind="worktree"; else kind="local"; fi
       _track "$name" "$track" "$upstream" "$sha" "${isRemote[$name]-}"
       ;;
-    refs/remotes/origin/HEAD) continue ;;
-    refs/remotes/origin/*)
-      name="${ref#refs/remotes/origin/}"
+    "refs/remotes/$remote/HEAD") continue ;;
+    "refs/remotes/$remote/"*)
+      name="${ref#refs/remotes/"$remote"/}"
       [[ -n ${isLocal[$name]-} ]] && continue
       kind="remote"
       REPLY=""
@@ -241,22 +308,31 @@ _branchTable() { #{{{
     _age "$date"
     names[n]="$name" tagList[n]="$tagText" trackList[n]="$track"
     ageList[n]="$REPLY" subjectList[n]="${subject:0:60}"
+    index[$name]=$n
     ((${#name} > nameWidth && ${#name} <= 48)) && nameWidth=${#name}
-    ((${#tagText} > tagWidth)) && tagWidth=${#tagText}
     ((${#track} > trackWidth)) && trackWidth=${#track}
     n=$((n + 1))
   done < <(git for-each-ref --sort=-committerdate \
     --format='%(refname)%1f%(objectname)%1f%(worktreepath)%1f%(upstream:short)%1f%(upstream:track,nobracket)%1f%(committerdate:relative)%1f%(subject)' \
-    refs/heads refs/remotes/origin)
+    "${refDirs[@]}")
 
+  # Order: the requested front branch, then recently visited ones, then by date
   local i mark padName padTags padTrack
   local -a order=()
+  local -A placed
+  if [[ -n $front && -n ${index[$front]-} ]]; then
+    order+=("${index[$front]}"); placed[$front]=1
+  fi
+  while IFS= read -r name; do
+    [[ -n ${index[$name]-} && -z ${placed[$name]-} && $name != "$currentBranch" ]] || continue
+    order+=("${index[$name]}"); placed[$name]=1
+    i="${index[$name]}"; tagList[i]+=" recent"
+  done < <(_recent)
   for ((i = 0; i < n; i++)); do
-    if [[ ${names[i]} == "$front" ]]; then
-      order=("$i" "${order[@]+"${order[@]}"}")
-    else
-      order+=("$i")
-    fi
+    [[ -n ${placed[${names[i]}]-} ]] || order+=("$i")
+  done
+  for ((i = 0; i < n; i++)); do
+    ((${#tagList[i]} > tagWidth)) && tagWidth=${#tagList[i]}
   done
 
   for i in "${order[@]+"${order[@]}"}"; do
@@ -272,6 +348,7 @@ _branchTable() { #{{{
     padTags="${padTags//remote/${C_MAGENTA}remote${C_RESET}}"
     padTags="${padTags//merged/${C_YELLOW}merged${C_RESET}}"
     padTags="${padTags//gone/${C_RED}gone${C_RESET}}"
+    padTags="${padTags//recent/${C_DIM}recent${C_RESET}}"
     padTrack="${padTrack//↑/${C_GREEN}↑}"
     padTrack="${padTrack//↓/${C_RED}↓}"
 
@@ -320,7 +397,7 @@ _preview() { #{{{
     [[ -n $REPLY ]] && printf '%scarry%s %s\n' "$C_BOLD" "$C_RESET" "$REPLY"
     echo
   elif ! _hasLocal "$name"; then
-    printf '%sremote only%s origin/%s\n\n' "$C_MAGENTA" "$C_RESET" "$name"
+    printf '%sremote only%s %s/%s\n\n' "$C_MAGENTA" "$C_RESET" "$remote" "$name"
   fi
 
   git log --oneline --decorate --color=always -n 40 "$(_logRef "$name")" 2>/dev/null ||
@@ -348,6 +425,8 @@ _addWorktree() { #{{{
   # $1 = branch, $2 = optional base; with a base a new branch is created.
   local name="$1" base="${2-}" dir
   dir="$repoRoot/$(_flatten "$name")"
+  # feat/x and feat-x flatten to the same directory
+  [[ -e $dir ]] && _die "'$dir' already exists (another branch flattens to the same directory?)."
 
   if [[ -n $base ]]; then
     git worktree add -b "$name" "$dir" "$base" >/dev/null ||
@@ -367,9 +446,9 @@ _rebaseOnto() { #{{{
     upstream="$base"
   else
     upstream="$(git for-each-ref --format='%(upstream:short)' "refs/heads/$base")"
-    # Many bare clones have no upstream configured; fall back to origin/<base>
+    # Many bare clones have no upstream configured; fall back to <remote>/<base>
     if [[ -z $upstream ]] && _hasRemote "$base"; then
-      upstream="origin/$base"
+      upstream="$remote/$base"
     fi
   fi
   if [[ -z $upstream ]]; then
@@ -381,19 +460,76 @@ _rebaseOnto() { #{{{
 }
 #}}}: _rebaseOnto
 
+_offerMoveChanges() { #{{{
+  # Offer to take the uncommitted changes of worktree $1 along to a new one.
+  # Prints the path of a patch holding them (empty when declined or clean).
+  local dirty patch
+  dirty="$(_dirtyCount "$1")"
+  ((dirty > 0)) || return 0
+  _ask "Move $dirty uncommitted change(s) from $(basename "$1") into the new worktree?" || return 0
+  patch="$(mktemp "${TMPDIR:-/tmp}/sw-move.XXXXXX")"
+  # Intent-to-add makes untracked files part of the diff; staged and unstaged
+  # changes end up together, which is what a fresh worktree needs anyway.
+  git -C "$1" add -A -N
+  git -C "$1" diff --binary HEAD >"$patch"
+  git -C "$1" reset -q
+  echo "$patch"
+}
+#}}}: _offerMoveChanges
+
+_applyMovedChanges() { #{{{
+  # $1 = source worktree, $2 = new worktree, $3 = patch from _offerMoveChanges
+  # Plain apply first (a fresh worktree matches the patch exactly); fall back
+  # to a three-way merge when the rebase moved the base.
+  if ! git -C "$2" apply --whitespace=nowarn "$3" 2>/dev/null &&
+    ! git -C "$2" apply --3way --whitespace=nowarn "$3" >&2; then
+    _msg "Could not apply the changes in $(basename "$2"); they stay in $(basename "$1"), patch kept at $3."
+    return 0
+  fi
+  if git -C "$1" apply -R --whitespace=nowarn "$3" >&2; then
+    rm -f "$3"
+    _msg "Moved the uncommitted changes into $(basename "$2")."
+  else
+    _msg "Changes applied in $(basename "$2") but not removed from $(basename "$1"); patch kept at $3."
+  fi
+}
+#}}}: _applyMovedChanges
+
+_postCreate() { #{{{
+  # Run the sw.postCreate command inside the new worktree $1, if configured.
+  local cmd rc=0
+  cmd="$(_cfg postCreate)"
+  [[ -n $cmd ]] || return 0
+  _msg "postCreate: $cmd"
+  (cd "$1" && bash -c "$cmd" >&2) || rc=$?
+  ((rc == 0)) || _msg "postCreate failed (exit $rc), worktree kept."
+}
+#}}}: _postCreate
+
 _createBranch() { #{{{
   # $1 = new name, $2 = base. Prints the new worktree path in worktree setups.
-  local new="$1" from="$2" dir
+  local new="$1" from="$2" dir srcWt="" patch=""
 
   if [[ -z $barePath ]]; then
     git checkout -b "$new" "$from" >&2
+    _recentAdd "$new" "$currentBranch"
     return 0
   fi
 
+  srcWt="$(_worktreePath "$currentBranch")"
+  [[ -n $srcWt && ($PWD == "$srcWt" || $PWD == "$srcWt"/*) ]] && patch="$(_offerMoveChanges "$srcWt")"
+
   dir="$(_addWorktree "$new" "$from")"
   cd "$dir"
-  _rebaseOnto "$from"
+  if ((noRebase)) || [[ "$(_cfg rebase true)" == false ]]; then
+    :
+  else
+    _rebaseOnto "$from"
+  fi
+  [[ -n $patch ]] && _applyMovedChanges "$srcWt" "$dir" "$patch"
   _afterWorktreeCreated "$dir" "$(_baseWorktree "$from")"
+  _postCreate "$dir"
+  _recentAdd "$new" "$currentBranch"
   echo "$dir"
 }
 #}}}: _createBranch
@@ -418,7 +554,7 @@ _create() { #{{{
 
 _delete() { #{{{
   local -a targets=("$@")
-  local t p path dirty summary="" leaving=0 rc=0
+  local t p path dirty unpushed summary="" leaving=0 rc=0
 
   ((${#targets[@]})) || _die "No branch selected!"
 
@@ -433,6 +569,11 @@ _delete() { #{{{
       ((dirty > 0)) && summary+=", ${C_YELLOW}${dirty} uncommitted change(s)${C_RESET}"
       summary+=")"
       [[ $PWD == "$path" || $PWD == "$path"/* ]] && leaving=1
+    fi
+    # Commits reachable from the branch but from no remote-tracking ref are lost with it
+    unpushed="$(git rev-list --count "$t" --not --remotes 2>/dev/null || echo 0)"
+    ((unpushed > 0)) && summary+="  ${C_RED}${unpushed} commit(s) not on any remote${C_RESET}"
+    if [[ -n $path ]]; then
       while IFS= read -r p; do
         summary+=$'\n'"      ${C_YELLOW}local copy of '$p' differs from the store and will be lost${C_RESET}"
       done < <(_carryDivergent "$path")
@@ -453,6 +594,7 @@ _delete() { #{{{
       git worktree remove -f "$path" || { rc=1; continue; }
     fi
     git branch -D "$t" >/dev/null || rc=1
+    _recentDrop "$t"
   done
   ((rc == 0)) || _die "Some branches could not be deleted."
 
@@ -467,6 +609,7 @@ _switch() { #{{{
 
   if [[ -z $barePath ]]; then
     git switch "$name" >&2
+    _recentAdd "$name" "$currentBranch"
     return 0
   fi
 
@@ -475,9 +618,12 @@ _switch() { #{{{
     _branchExists "$name" || _die "No such branch: '$name'."
     path="$(_addWorktree "$name")"
     _afterWorktreeCreated "$path" "$(_baseWorktree "")"
+    _postCreate "$path"
+    _recentAdd "$name" "$currentBranch"
     echo "$path"
     return 0
   fi
+  _recentAdd "$name" "$currentBranch"
 
   # Preserve the nested directory when it also exists in the target worktree
   current="$(_worktreePath "$currentBranch")"
@@ -500,6 +646,48 @@ _offerCreate() { #{{{
   _createBranch "$new" "$defaultBranch"
 }
 #}}}: _offerCreate
+
+_plain() { #{{{
+  # Strip ANSI colors unless a terminal is attached (stdout is captured by the
+  # .zshrc wrapper, so stderr is the tty check that works)
+  if [[ -t 2 ]]; then cat; else sed $'s/\e\\[[0-9;]*m//g'; fi
+}
+#}}}: _plain
+
+_status() { #{{{
+  # One line per worktree: branch, dirty count, ahead/behind, carry, path
+  local wt br dirty upstream track sha remoteSha mark width=0 i
+  local -a wts=() brs=()
+  while IFS=$'\t' read -r wt br; do
+    wts+=("$wt"); brs+=("$br")
+    ((${#br} > width)) && width=${#br}
+  done < <(_worktrees)
+  ((${#wts[@]})) || _die "No worktrees."
+
+  for ((i = 0; i < ${#wts[@]}; i++)); do
+    wt="${wts[i]}" br="${brs[i]}"
+    mark=" "
+    [[ $br == "$currentBranch" ]] && mark="*"
+    dirty="$(_dirtyCount "$wt")"
+    IFS=$'\x1f' read -r upstream track sha < <(git for-each-ref \
+      --format='%(upstream:short)%1f%(upstream:track,nobracket)%1f%(objectname)' "refs/heads/$br")
+    remoteSha="$(git rev-parse -q --verify "refs/remotes/$remote/$br" 2>/dev/null || true)"
+    _track "$br" "$track" "$upstream" "$sha" "$remoteSha"
+    track="$REPLY"
+    [[ $track == gone ]] && track="${C_RED}gone${C_RESET}"
+    track="${track//↑/${C_GREEN}↑}"
+    track="${track//↓/${C_RED}↓}"
+    _pad "$br" "$width"
+    printf '%s%s%s%s  ' "$C_BOLD" "$mark" "$REPLY" "$C_RESET"
+    if ((dirty > 0)); then printf '%s%3s uncommitted%s' "$C_YELLOW" "$dirty" "$C_RESET"
+    else printf '%s%15s%s' "$C_GREEN" clean "$C_RESET"; fi
+    printf '  %s%s' "$track" "$C_RESET"
+    _carryCounts "$wt"
+    [[ -n $REPLY ]] && printf '  carry: %s' "$REPLY"
+    printf '  %s%s%s\n' "$C_DIM" "$wt" "$C_RESET"
+  done
+}
+#}}}: _status
 
 # ---------------------------------------------------------------- carry
 # Gitignored local files (tfvars, .env, ...) carried into every worktree.
@@ -685,6 +873,7 @@ _carryCounts() { #{{{
   REPLY="$ok ok"
   ((missing)) && REPLY+=", ${C_RED}$missing missing${C_RESET}"
   ((detached)) && REPLY+=", ${C_YELLOW}$detached detached${C_RESET}"
+  return 0
 }
 #}}}: _carryCounts
 
@@ -815,11 +1004,22 @@ _carryTable() { #{{{
   done < <(_scanIgnored)
   for p in "${!mode[@]}"; do
     [[ -n ${seen[$p]-} ]] || rows+=("$p"$'\x1f'""$'\x1f'"0"$'\x1f'"")
+    seen[$p]=1
   done
+  # Store files nobody carries any more (left behind by forget)
+  local store
+  store="$(_carryStore)"
+  if [[ -d $store ]]; then
+    while IFS= read -r p; do
+      p="${p#"$store"/}"
+      [[ -n ${seen[$p]-} ]] || rows+=("$p"$'\x1f'""$'\x1f'"0"$'\x1f'"$store/$p")
+    done < <(find "$store" -type f ! -name .DS_Store)
+  fi
   ((${#rows[@]})) || return 0
 
   while IFS=$'\x1f' read -r p br diff src; do
     _carryStatus "$here" "$p" "${mode[$p]-}"; st="$REPLY"
+    [[ -z ${mode[$p]-} && -e "$store/$p" ]] && st="orphan"
     if [[ -e "$here/$p" || -L "$here/$p" ]]; then
       _humanSize "$here/$p"; size="$REPLY"; src="$here/$p"
     elif [[ -n $src ]]; then
@@ -841,7 +1041,7 @@ _carryTable() { #{{{
     case $st in
     link) padSt="${C_GREEN}${padSt}${C_RESET}" ;;
     copy) padSt="${C_BLUE}${padSt}${C_RESET}" ;;
-    detached) padSt="${C_YELLOW}${padSt}${C_RESET}" ;;
+    detached | orphan) padSt="${C_YELLOW}${padSt}${C_RESET}" ;;
     missing) padSt="${C_RED}${padSt}${C_RESET}" ;;
     *) padSt="${C_DIM}${padSt}${C_RESET}" ;;
     esac
@@ -855,15 +1055,37 @@ _carryTable() { #{{{
 _carryPick() { #{{{
   # Multi-select picker over _carryTable of worktree $1; $2 = header hint.
   # The query starts as the current subdirectory so nearby files come first.
-  # Prints the chosen paths, one per line.
-  local query=""
+  # Prints the action chosen by key (link|copy|detach|forget, empty for Enter)
+  # on the first line, then the chosen paths.
+  local query="" out key
   [[ $PWD == "$1"/* ]] && query="${PWD#"$1"/}/"
-  _carryTable "$1" |
+  out="$(_carryTable "$1" |
     _fzf --multi --query "$query" --header "$(_header "$2")" \
-      --preview "$(_previewFileCmd '{3}')" --preview-window="right:50%,wrap,<120(down:50%)" |
-    cut -f1 || true
+      --expect=ctrl-s,ctrl-o,ctrl-x,ctrl-f \
+      --preview "$(_previewFileCmd '{3}')" --preview-window="right:50%,wrap,<120(down:50%)")" || true
+  [[ -n $out ]] || return 0
+  key="${out%%$'\n'*}"
+  case $key in
+  ctrl-s) echo "link" ;;
+  ctrl-o) echo "copy" ;;
+  ctrl-x) echo "detach" ;;
+  ctrl-f) echo "forget" ;;
+  *) echo "" ;;
+  esac
+  printf '%s\n' "$out" | sed '1d' | cut -f1
 }
 #}}}: _carryPick
+
+_carryKeysHint() { #{{{
+  # Key legend for the carry picker header, limited to the allowed actions $1
+  local hint=""
+  [[ $1 == *l* ]] && hint+="  ctrl-s link"
+  [[ $1 == *c* ]] && hint+="  ctrl-o copy"
+  [[ $1 == *d* ]] && hint+="  ctrl-x detach"
+  [[ $1 == *f* ]] && hint+="  ctrl-f forget"
+  echo "TAB multi  ·${hint}  ·  Enter asks"
+}
+#}}}: _carryKeysHint
 
 _carryAction() { #{{{
   # $1 = allowed letters (subset of lcdf), $2 = file count. Sets REPLY.
@@ -898,13 +1120,20 @@ _carryFirstTime() { #{{{
   # $1 = new worktree, $2 = worktree to pick files from
   local -a sel=()
   local mode p
-  mapfile -t sel < <(_carryPick "$1" "pick local files to carry into every worktree (TAB, Enter; Esc = none)")
+  # Nothing ignored anywhere yet: stay quiet and ask again when there is
+  [[ -n "$(_carryTable "$1")" ]] || return 0
+  mapfile -t sel < <(_carryPick "$1" "pick local files to carry into every worktree  ·  $(_carryKeysHint lc)  ·  Esc = none")
+  mode="${sel[0]-}"
+  sel=("${sel[@]:1}")
   if ((${#sel[@]} == 0)); then
     _carryMarkNone
     _msg "carry: nothing chosen. Run 'sw carry' inside a worktree to change that."
     return 0
   fi
-  _carryAction lc "${#sel[@]}"; mode="$REPLY"
+  case $mode in
+  link | copy) ;;
+  *) _carryAction lc "${#sel[@]}"; mode="$REPLY" ;;
+  esac
   for p in "${sel[@]}"; do
     _carrySet "$mode" "$p"
     _carrySeedFrom "$p" "$mode" "${2:-$1}"
@@ -940,32 +1169,119 @@ _afterWorktreeCreated() { #{{{
 }
 #}}}: _afterWorktreeCreated
 
+_carryPaths() { #{{{
+  # Paths to act on: $2 when given, else a picker over worktree $1 ($3 = hint).
+  # Prints one path per line.
+  if [[ -n ${2-} ]]; then
+    echo "$2"
+  else
+    _carryPick "$1" "$3" | sed '1d'
+  fi
+}
+#}}}: _carryPaths
+
+_carryDiff() { #{{{
+  # Diff the store copy of $2 (or every configured path) against each
+  # worktree holding a differing real file.
+  local wt br p m store f shown=0
+  local -a paths=()
+  if [[ -n ${2-} ]]; then
+    paths=("$2")
+  else
+    while IFS=$'\t' read -r m p; do paths+=("$p"); done < <(_carryEntries)
+  fi
+  ((${#paths[@]})) || _die "carry: nothing configured."
+  for p in "${paths[@]}"; do
+    store="$(_carryStore)/$p"
+    [[ -e $store ]] || { _msg "carry: '$p' is not in the store."; continue; }
+    while IFS=$'\t' read -r wt br; do
+      f="$wt/$p"
+      [[ -f $f && ! -L $f ]] || continue
+      cmp -s "$store" "$f" && continue
+      printf '%s%s%s  store → %s\n' "$C_BOLD" "$p" "$C_RESET" "$br"
+      git diff --no-index --color=always -- "$store" "$f" || true
+      shown=$((shown + 1))
+    done < <(_carrySources "$p")
+  done
+  ((shown)) || _msg "carry: no local copy differs from the store."
+}
+#}}}: _carryDiff
+
+_carryReset() { #{{{
+  # Replace the local copy in worktree $1 with the store version (link or copy per config)
+  local wt="$1" p m
+  local -a paths=() todo=()
+  local -A mode
+  while IFS=$'\t' read -r m p; do mode[$p]="$m"; done < <(_carryEntries)
+  mapfile -t paths < <(_carryPaths "$wt" "${2-}" "pick files to reset from the store")
+  for p in "${paths[@]+"${paths[@]}"}"; do
+    [[ -n ${mode[$p]-} ]] || { _msg "carry: '$p' is not carried, skipped."; continue; }
+    [[ -e "$(_carryStore)/$p" ]] || { _msg "carry: '$p' is not in the store, skipped."; continue; }
+    todo+=("$p")
+  done
+  ((${#todo[@]})) || _die "Nothing to reset."
+  _prompt "Discard the local version of ${#todo[@]} file(s) in $(basename "$wt") and take the store's?"
+  for p in "${todo[@]}"; do
+    rm -f "$wt/$p"
+    if [[ ${mode[$p]} == link ]]; then _carryLinkInto "$wt" "$p" || true
+    else _carryCopyInto "$wt" "$p" || true; fi
+  done
+  _msg "carry: reset ${#todo[@]} file(s) from the store."
+}
+#}}}: _carryReset
+
+_carryEdit() { #{{{
+  # Open the store copy of $2 (or a picked file) in $EDITOR
+  local p store
+  p="$(_carryPaths "$1" "${2-}" "pick the file to edit in the store" | head -n1)"
+  [[ -n $p ]] || _die "No file selected!"
+  store="$(_carryStore)/$p"
+  [[ -e $store ]] || _die "carry: '$p' is not in the store."
+  # stdout is captured by the .zshrc wrapper, so hand the editor the terminal
+  "${EDITOR:-vi}" "$store" </dev/tty >/dev/tty
+  _msg "carry: edited the store copy of '$p'. Links see it; copies need 'sw carry reset $p'."
+}
+#}}}: _carryEdit
+
+_carryPruneStore() { #{{{
+  # Offer to delete the store copies of $@ (used after forget)
+  local p
+  local -a gone=()
+  for p in "$@"; do [[ -e "$(_carryStore)/$p" ]] && gone+=("$p"); done
+  ((${#gone[@]})) || return 0
+  _ask "Also delete ${#gone[@]} file(s) from the store ($(_carryStore))?" || return 0
+  for p in "${gone[@]}"; do rm -f "$(_carryStore)/$p"; done
+  find "$(_carryStore)" -type d -empty -delete 2>/dev/null || true
+}
+#}}}: _carryPruneStore
+
 _carryManage() { #{{{
-  # sw carry [ls|apply]
-  local wt sub="$1" mode p
+  # sw carry [ls|apply|diff|reset|edit] [path]
+  local wt sub="$1" arg="${2-}" mode p
   local -a sel=()
   [[ -n $barePath ]] || _die "carry needs a bare+worktree repo."
   wt="$(_worktreePath "$currentBranch")"
   [[ -n $wt ]] || _die "Run 'sw carry' from inside a worktree."
 
   case $sub in
-  ls)
-    if [[ -t 1 ]]; then _carryTable "$wt" | cut -f2
-    else _carryTable "$wt" | cut -f2 | sed $'s/\e\\[[0-9;]*m//g'; fi
-    return 0
-    ;;
+  ls) _carryTable "$wt" | cut -f2 | _plain; return 0 ;;
   apply)
     _carryHasEntries || _die "carry: nothing configured. Run 'sw carry' to pick files."
     _carryApply "$wt"
     return 0
     ;;
+  diff) _carryDiff "$wt" "$arg" | _plain; return 0 ;;
+  reset) _carryReset "$wt" "$arg"; return 0 ;;
+  edit) _carryEdit "$wt" "$arg"; return 0 ;;
   '') ;;
-  *) _die "sw carry: unknown subcommand '$sub' (ls, apply)" ;;
+  *) _die "sw carry: unknown subcommand '$sub' (ls, apply, diff, reset, edit)" ;;
   esac
 
-  mapfile -t sel < <(_carryPick "$wt" "TAB: multi  ·  then link / copy / detach / forget")
+  mapfile -t sel < <(_carryPick "$wt" "$(_carryKeysHint lcdf)")
+  mode="${sel[0]-}"
+  sel=("${sel[@]:1}")
   ((${#sel[@]})) || _die "No files selected!"
-  _carryAction lcdf "${#sel[@]}"; mode="$REPLY"
+  [[ -n $mode ]] || { _carryAction lcdf "${#sel[@]}"; mode="$REPLY"; }
 
   for p in "${sel[@]}"; do
     case $mode in
@@ -984,6 +1300,8 @@ _carryManage() { #{{{
     esac
   done
   _msg "carry: $mode applied to ${#sel[@]} file(s)."
+  [[ $mode == forget ]] && _carryPruneStore "${sel[@]}"
+  return 0
 }
 #}}}: _carryManage
 
@@ -997,11 +1315,18 @@ fi
 barePath="$(_worktreePath "")"
 repoRoot="${barePath%/*}"
 currentBranch="$(git branch --show-current 2>/dev/null || true)"
+remote="$(_cfg remote origin)"
 defaultBranch="$(_defaultBranch)"
-readonly barePath repoRoot currentBranch defaultBranch
+readonly barePath repoRoot currentBranch remote defaultBranch
 
 if ((previewMode)); then
   _preview "$branch"
+  exit 0
+fi
+
+if ((tableMode)); then
+  # Used by the picker's reload keys; SW_EXCLUDE hides the current branch
+  _branchTable "$branch" | awk -F'\t' -v cur="${SW_EXCLUDE-}" '$1 != cur'
   exit 0
 fi
 
@@ -1019,16 +1344,23 @@ fi
 if ((carryMode)); then
   sub="$branch"
   ((gitList)) && sub="ls"
-  _carryManage "$sub"
+  _carryManage "$sub" "$base"
+  exit 0
+fi
+
+if ((statusMode)); then
+  _status | _plain
   exit 0
 fi
 
 if ((gitList)); then
-  if [[ -t 1 ]]; then
-    _branchTable | cut -f2
-  else
-    _branchTable | cut -f2 | sed $'s/\e\\[[0-9;]*m//g'
-  fi
+  _branchTable | cut -f2 | _plain
+  exit 0
+fi
+
+if ((goBack)); then
+  prev="$(_previousBranch)" || _die "No previous branch to go back to."
+  _switch "$prev"
   exit 0
 fi
 
@@ -1061,17 +1393,36 @@ if [[ -n $branch ]]; then
 fi
 
 rc=0
+reloadCmd="SW_EXCLUDE=$(printf '%q' "$currentBranch") $(printf '%q' "$0") --table"
 out="$(_branchTable | awk -F'\t' -v cur="$currentBranch" '$1 != cur' |
-  _fzf --print-query --header "$(_header "Enter: switch  ·  new name: create from $defaultBranch")")" || rc=$?
+  _fzf --multi --print-query --expect=ctrl-x,ctrl-o \
+    --bind "ctrl-r:reload($reloadCmd)" \
+    --bind "ctrl-f:reload(git fetch --all --prune >/dev/null 2>&1; $reloadCmd)" \
+    --header "$(_header "Enter switch  ·  ctrl-x delete  ·  ctrl-o create from  ·  ctrl-f fetch  ·  new name: create from $defaultBranch")")" || rc=$?
 
-query="${out%%$'\n'*}"
-selected="$(printf '%s\n' "$out" | sed -n '2p' | cut -f1)"
+# Output: query, key pressed (empty for Enter), then the selected lines
+mapfile -t lines <<<"$out"
+query="${lines[0]-}"
+key="${lines[1]-}"
+mapfile -t picked < <(printf '%s\n' "${lines[@]:2}" | cut -f1 | sed '/^$/d')
 
 case $rc in
-0) _switch "$selected" ;;
+0)
+  ((${#picked[@]})) || _die "No branch selected!"
+  case $key in
+  ctrl-x) _delete "${picked[@]}" ;;
+  ctrl-o)
+    read -r -p ">> New branch (from ${picked[0]}): " new
+    [[ -n $new ]] || _die "Branch name cannot be empty!"
+    _hasLocal "$new" && _die "Branch '$new' already exists."
+    _createBranch "$new" "$(_localName "${picked[0]}")"
+    ;;
+  *) _switch "${picked[0]}" ;;
+  esac
+  ;;
 1)
   # fzf: no match for the query
-  [[ -n $query ]] || _die "No branch selected!"
+  [[ -n $query && -z $key ]] || _die "No branch selected!"
   _offerCreate "$query"
   ;;
 *) _die "No branch selected!" ;;

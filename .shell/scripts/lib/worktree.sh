@@ -17,12 +17,18 @@ _die() { #{{{
 }
 #}}}: _die
 
-_prompt() { #{{{
-  # Yes/no question; anything but y/Y aborts the script.
+_ask() { #{{{
+  # Yes/no question; returns 1 for anything but y/Y.
   local yn
   read -n 1 -r -p ">> $1 [y/N]: " yn
   echo >&2
-  [[ $yn == [yY] ]] || _die "Aborted."
+  [[ $yn == [yY] ]]
+}
+#}}}: _ask
+
+_prompt() { #{{{
+  # Yes/no question; anything but y/Y aborts the script.
+  _ask "$1" || _die "Aborted."
 }
 #}}}: _prompt
 
