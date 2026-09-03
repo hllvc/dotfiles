@@ -7,7 +7,7 @@ version: 2.1.0
 
 # StackGuardian GitHub Workflows Skill
 
-Canonical skill files live at `~/.repos/private/dotfiles/master/.claude/skills/sg-github-workflows/`.
+Canonical skill files live at `~/.repos/private/dotfiles/main/.claude/skills/sg-github-workflows/`.
 
 ## Mode Selection
 

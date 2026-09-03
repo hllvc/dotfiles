@@ -11,7 +11,7 @@
         <string>work</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/hllvc/.repos/private/dotfiles/master/.shell/scripts/crons/tmux-warmup</string>
+    <string>/Users/hllvc/.repos/private/dotfiles/main/.shell/scripts/crons/tmux-warmup</string>
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>

@@ -7,7 +7,7 @@ version: 2.0.0
 
 # StackGuardian Makefile Skill
 
-Canonical skill files live at `~/.repos/private/dotfiles/master/.claude/skills/sg-makefile/`.
+Canonical skill files live at `~/.repos/private/dotfiles/main/.claude/skills/sg-makefile/`.
 
 ## Mode Selection
 
