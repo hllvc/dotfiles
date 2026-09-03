@@ -430,16 +430,6 @@ return {
 		end,
 	},
 
-	-- Terraform
-	{
-		"hashivim/vim-terraform",
-		ft = { "terraform", "tf" },
-		init = function()
-			vim.g.terraform_align = 0
-			vim.g.terraform_fmt_on_save = 0
-		end,
-	},
-
 	-- Python
 	{
 		"linux-cultist/venv-selector.nvim",

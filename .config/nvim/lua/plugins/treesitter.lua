@@ -14,6 +14,10 @@ return {
 				"dockerfile",
 				"go",
 				"gotmpl",
+				-- helm is a gotmpl dialect. Its queries inherit gotmpl's and add a combined
+				-- yaml injection over the template text, so chart templates get both the
+				-- Sprig/Go directives and the surrounding YAML structure highlighted.
+				"helm",
 				"html",
 				"javascript",
 				"json",
@@ -31,13 +35,19 @@ return {
 				"yaml",
 			})
 
-			-- Indent via treesitter
+			-- Highlighting and indent via treesitter. The main branch installs parsers but
+			-- enables nothing, and Neovim only auto-starts highlighting for its own bundled
+			-- parsers (lua, markdown, help, query) -- so every parser installed above was
+			-- sitting unused behind regex syntax. Both are driven from one autocmd so the
+			-- parser is resolved once per buffer. start() is a no-op when highlighting is
+			-- already running, and throws when no parser exists, hence the pcall.
 			vim.api.nvim_create_autocmd("FileType", {
-				group = vim.api.nvim_create_augroup("ts_indent", { clear = true }),
-				callback = function()
-					if pcall(vim.treesitter.get_parser) then
-						vim.bo.indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+				group = vim.api.nvim_create_augroup("user_treesitter", { clear = true }),
+				callback = function(ev)
+					if not pcall(vim.treesitter.start, ev.buf) then
+						return
 					end
+					vim.bo[ev.buf].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
 				end,
 			})
 

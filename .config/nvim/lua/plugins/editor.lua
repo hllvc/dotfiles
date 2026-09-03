@@ -368,6 +368,7 @@ return {
 				css = { "prettierd", "prettier", stop_after_first = true },
 				xml = { "xmlformatter" },
 				terraform = { "terraform_fmt" },
+				["terraform-vars"] = { "terraform_fmt" },
 				hcl = { "terraform_fmt" },
 			},
 			format_on_save = function()

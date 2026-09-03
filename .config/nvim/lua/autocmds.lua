@@ -95,6 +95,40 @@ vim.api.nvim_create_autocmd("BufWinEnter", {
 	end,
 })
 
+-- Terraform/OpenTofu filetypes. Neovim already detects *.tf (content heuristic),
+-- *.tfvars -> terraform-vars and *.hcl; these are the extensions it has no rule for.
+-- This replaces vim-terraform, whose ftdetect also forced *.tfvars to `terraform` and
+-- so made terraform-ls treat variable files as ordinary config.
+vim.filetype.add({
+	extension = {
+		tofu = "terraform",
+		tfbackend = "hcl",
+		tfstate = "json",
+	},
+	filename = {
+		[".terraformrc"] = "hcl",
+		["terraform.rc"] = "hcl",
+	},
+	pattern = {
+		[".*%.tftest%.hcl"] = "terraform",
+		[".*%.tofutest%.hcl"] = "terraform",
+		[".*%.tfstate%.backup"] = "json",
+		-- Terraform's JSON variable syntax stays JSON. Needs to outrank the rule below,
+		-- which would otherwise claim it.
+		[".*%.tfvars%.json"] = { "json", { priority = 10 } },
+		-- Anything suffixed after .tfvars is still a variable file: terraform.tfvars.tpl,
+		-- .example, .dist and friends. Patterns outrank extensions, which is the point --
+		-- on the extension alone *.tfvars.tpl lands on `smarty`.
+		[".*%.tfvars%.[^/]*"] = "terraform-vars",
+	},
+})
+
+-- terraform-vars is the same HCL grammar, but Neovim ships no parser mapping for it.
+-- Registered here rather than in the ftplugin so it is in place before the first
+-- FileType fires: the treesitter indentexpr autocmd and the global foldexpr both
+-- need get_parser() to succeed.
+vim.treesitter.language.register("terraform", "terraform-vars")
+
 -- Helm chart filetype detection
 vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
 	group = augroup("helm_detection"),
