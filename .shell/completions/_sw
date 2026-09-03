@@ -1,0 +1,60 @@
+#compdef sw
+# Completion for the sw worktree switcher (~/.shell/scripts/functions/sw.sh)
+
+_sw_branches() {
+  local remote
+  remote="$(git config --get sw.remote 2>/dev/null)"
+  local -a branches
+  branches=(
+    ${(f)"$(git for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null)"}
+    ${(f)"$(git for-each-ref --format='%(refname:strip=3)' "refs/remotes/${remote:-origin}" 2>/dev/null)"}
+  )
+  branches=(${(u)branches:#HEAD})
+  (( $#branches )) && _describe -t branches 'branch' branches
+}
+
+_sw_carry_paths() {
+  local -a paths
+  paths=(${(f)"$(git config --get-all sw.carry 2>/dev/null | sed -e '/^none$/d' -e 's/^[a-z]*://')"})
+  (( $#paths )) && _describe -t paths 'carried file' paths
+}
+
+_sw() {
+  local -a cmds
+  if [[ $words[2] == carry ]]; then
+    if (( CURRENT == 3 )); then
+      cmds=(
+        'ls:list carried and ignored files'
+        'apply:carry configured files into this worktree'
+        'diff:diff local copies against the store'
+        'reset:take the store version again'
+        'edit:edit the store copy'
+      )
+      _describe -t commands 'carry subcommand' cmds
+    elif (( CURRENT == 4 )); then
+      _sw_carry_paths
+    fi
+    return
+  fi
+
+  if (( CURRENT == 2 )); then
+    cmds=(
+      '-:switch back to the previous branch'
+      '-a:fetch --all --prune first'
+      '-l:list branches'
+      'ls:list branches'
+      '-L:local branches only'
+      '-c:create a branch'
+      '-n:create a branch'
+      '--no-rebase:skip the rebase after -c'
+      '-d:delete branches'
+      'st:status of every worktree'
+      'carry:manage carried local files'
+      '-h:help'
+    )
+    _describe -t commands 'sw command' cmds
+  fi
+  _sw_branches
+}
+
+_sw "$@"

@@ -79,7 +79,7 @@ export ZSH_COMPDUMP="$HOME/.zcompdump"
 # what kept both of these dead. The first line is the one `brew shellenv zsh`
 # emits and the static copy below leaves out; without it none of Homebrew's
 # site-functions (brew, aws, az, sg-dr, ...) are ever loaded.
-fpath=("/opt/homebrew/share/zsh/site-functions" ~/.zsh/zsh-completions $fpath)
+fpath=("/opt/homebrew/share/zsh/site-functions" ~/.zsh/zsh-completions ~/.shell/completions $fpath)
 
 _load ".shell/zshinit"
 _load_scripts "init/"

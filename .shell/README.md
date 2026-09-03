@@ -12,6 +12,14 @@ Shell configuration files sourced by `.zshrc`.
 | `profile` | Environment variables, PATH, history settings, FZF config, and tool configurations |
 | `zshinit` | Oh-My-Zsh setup, Powerlevel10k theme, plugins, and Zsh behavior settings |
 
+## Completions
+
+Zsh completion functions in [`completions/`](completions/), added to `fpath` by `.zshrc` (run `rm -f ~/.zcompdump*` once after adding a file so compinit picks it up).
+
+| File | Description |
+|------|-------------|
+| `_sw` | Completes `sw` flags, subcommands (`st`, `carry ls|apply|diff|reset|edit`), branch names and carried file paths |
+
 ## Scripts
 
 Custom scripts located in [`scripts/`](scripts/).
