@@ -1,7 +1,7 @@
 return {
 	-- Mason
 	{
-		"williamboman/mason.nvim",
+		"mason-org/mason.nvim",
 		cmd = "Mason",
 		keys = { { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason" } },
 		build = ":MasonUpdate",
@@ -111,7 +111,7 @@ return {
 		event = { "BufReadPre", "BufNewFile" },
 		dependencies = {
 			"mason.nvim",
-			"williamboman/mason-lspconfig.nvim",
+			"mason-org/mason-lspconfig.nvim",
 			"hrsh7th/cmp-nvim-lsp",
 			"b0o/schemastore.nvim",
 		},
@@ -171,9 +171,18 @@ return {
 					},
 				},
 				terraformls = {
-					root_dir = function(fname)
-						local util = require("lspconfig.util")
-						return util.root_pattern("*.tf", ".terraform", ".terraform.lock.hcl", ".git")(fname)
+					-- Nearest ancestor holding terraform config/state wins, so each root module
+					-- gets its own client instead of one client at the repo root. Replaces
+					-- lspconfig.util.root_pattern (deprecated since 0.11 in favour of vim.lsp.config);
+					-- a predicate rather than `root_markers` because markers match exact base names,
+					-- never the *.tf glob.
+					root_dir = function(bufnr, on_dir)
+						on_dir(vim.fs.root(bufnr, function(name)
+							return name:match("%.tf$") ~= nil
+								or name == ".terraform"
+								or name == ".terraform.lock.hcl"
+								or name == ".git"
+						end))
 					end,
 				},
 				helm_ls = {
@@ -354,7 +363,7 @@ return {
 	-- automatic_enable=true, re-enabling servers with stock config. Install list lives in
 	-- the `servers` table above and is derived in that config function.
 	{
-		"williamboman/mason-lspconfig.nvim",
+		"mason-org/mason-lspconfig.nvim",
 		dependencies = { "mason.nvim" },
 	},
 
@@ -552,7 +561,7 @@ return {
 				changedelete = { text = "" },
 				untracked = { text = "" },
 			},
-			signs_staged_enable = false,
+			signs_staged_enable = true,
 			-- Enable line number highlighting (equivalent to gitgutter highlight_linenrs)
 			numhl = false,
 			on_attach = function(buffer)
@@ -562,12 +571,20 @@ return {
 					vim.keymap.set(mode, l, r, { buffer = buffer, desc = desc })
 				end
 
-				map("n", "]h", gs.next_hunk, "Next Hunk")
-				map("n", "[h", gs.prev_hunk, "Prev Hunk")
+				map("n", "]h", function()
+					gs.nav_hunk("next")
+				end, "Next Hunk")
+				map("n", "[h", function()
+					gs.nav_hunk("prev")
+				end, "Prev Hunk")
 				map({ "n", "v" }, "<leader>ghs", ":Gitsigns stage_hunk<CR>", "Stage Hunk")
 				map({ "n", "v" }, "<leader>ghr", ":Gitsigns reset_hunk<CR>", "Reset Hunk")
 				map("n", "<leader>ghS", gs.stage_buffer, "Stage Buffer")
-				map("n", "<leader>ghu", gs.undo_stage_hunk, "Undo Stage Hunk")
+				-- stage_hunk toggles: on an already-staged hunk it unstages. That needs
+				-- signs_staged_enable (above) to track staged hunks, and it replaces the
+				-- deprecated undo_stage_hunk. Same operation as <leader>ghs; kept as its
+				-- own binding for muscle memory.
+				map("n", "<leader>ghu", gs.stage_hunk, "Unstage Hunk")
 				map("n", "<leader>ghR", gs.reset_buffer, "Reset Buffer")
 				map("n", "<leader>ghp", gs.preview_hunk, "Preview Hunk")
 				map("n", "<leader>ghb", function()
@@ -577,7 +594,9 @@ return {
 				map("n", "<leader>ghD", function()
 					gs.diffthis("~")
 				end, "Diff This ~")
-				map("n", "<leader>gt", gs.toggle_deleted, "Toggle Deleted")
+				-- Was toggle_deleted (deprecated). Upstream's replacement is per-hunk at the
+				-- cursor rather than a buffer-wide toggle.
+				map("n", "<leader>gt", gs.preview_hunk_inline, "Preview Hunk Inline")
 				map("n", "<leader>gw", gs.toggle_word_diff, "Toggle Word Diff")
 				map({ "o", "x" }, "ih", ":<C-U>Gitsigns select_hunk<CR>", "GitSigns Select Hunk")
 			end,

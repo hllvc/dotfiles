@@ -1,18 +1,20 @@
 return {
-	-- Better vim.ui - using native input to avoid modal behavior
+	-- Better vim.ui.select / vim.ui.input. Replaces dressing.nvim, which upstream
+	-- archived in favour of snacks. Snacks needs an early setup, but that setup only
+	-- registers autocmds and defers every module until first use, so lazy=false here
+	-- does not put the pickers on the startup path.
 	{
-		"stevearc/dressing.nvim",
-		lazy = true,
-		init = function()
-			vim.ui.select = function(...)
-				require("lazy").load({ plugins = { "dressing.nvim" } })
-				return vim.ui.select(...)
-			end
-			vim.ui.input = function(...)
-				require("lazy").load({ plugins = { "dressing.nvim" } })
-				return vim.ui.input(...)
-			end
-		end,
+		"folke/snacks.nvim",
+		priority = 1000,
+		lazy = false,
+		dependencies = { "nvim-tree/nvim-web-devicons" },
+		---@type snacks.Config
+		opts = {
+			input = { enabled = true },
+			-- picker carries ui_select (default true), which is what takes over
+			-- vim.ui.select. Telescope stays the finder for files/grep/symbols.
+			picker = { enabled = true },
+		},
 	},
 
 	-- Statusline

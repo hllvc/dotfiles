@@ -2,6 +2,10 @@
 
 Lua-based Neovim configuration with lazy.nvim, the native LSP client (vim.lsp), and nvim-cmp completion.
 
+**Targets Neovim 0.12.5.** The authoritative value lives in `vim.g.nvim_target_version`
+(`init.lua`) and is realigned with the installed binary on every config change; startup
+warns when the running Neovim and the target drift apart.
+
 [Back to .config](../)
 
 ## Structure
