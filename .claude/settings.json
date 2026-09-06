@@ -39,7 +39,7 @@
     "ask": [],
     "defaultMode": "auto"
   },
-  "model": "claude-fable-5-1[1m]",
+  "model": "sonnet",
   "worktree": {
     "baseRef": "fresh"
   },
@@ -121,6 +121,7 @@
   "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "preferredNotifChannel": "ghostty",
+  "autoCompactEnabled": true,
   "teammateMode": "auto",
   "remoteControlAtStartup": false,
   "inputNeededNotifEnabled": true,
