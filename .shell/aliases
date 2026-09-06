@@ -86,3 +86,4 @@ alias nq='networkQuality'
 alias tprune='~/.shell/scripts/tmux/prune-review.sh'
 
 alias ghostty='/Applications/Ghostty.app/Contents/MacOS/ghostty'
+alias tb='terminal-browser'
