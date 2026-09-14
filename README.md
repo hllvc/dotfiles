@@ -32,7 +32,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 - `./dotctl` - Show help (running without a command is a no-op)
 - `./dotctl all` - Stow + load launch agents + install crons + apply macOS defaults
 - `./dotctl stow [--adopt]` - Symlink dotfiles into `$HOME` (adopt folds existing files into the repo)
-- `./dotctl agents <load|unload|list>` - Manage launch agents under `~/.config/launch-agents`
+- `./dotctl agents <load|unload|list> [name...]` - Manage launch agents under `~/.config/launch-agents`; names are optional (`tmux-autosave` or `com.hllvc.tmux-autosave`), all agents when omitted
 - `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
 - `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
 - `./dotctl -h` (or `./dotctl <command> -h`) - Help
