@@ -35,7 +35,10 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 - `./dotctl agents <load|unload|list> [name...]` - Manage launch agents under `~/.config/launch-agents`; names are optional (`tmux-autosave` or `com.hllvc.tmux-autosave`), all agents when omitted
 - `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
 - `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
+- `./dotctl orphans [--fix]` - Report (and with `--fix` delete) dangling symlinks left in `$HOME` by renamed or removed repo files
 - `./dotctl -h` (or `./dotctl <command> -h`) - Help
+
+Zsh tab completion for all of the above ships in `.shell/completions/_dotctl` and is picked up via `fpath` once stowed.
 
 ## Prerequisites
 

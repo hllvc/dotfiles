@@ -19,6 +19,7 @@ Zsh completion functions in [`completions/`](completions/), added to `fpath` by 
 | File | Description |
 |------|-------------|
 | `_sw` | Completes `sw` flags, subcommands (`st`, `carry ls|apply|diff|reset|edit`), branch names and carried file paths |
+| `_dotctl` | Completes `dotctl` commands, subcommands, flags, and launch-agent names (short or full label) for `agents load|unload|list` |
 
 ## Scripts
 

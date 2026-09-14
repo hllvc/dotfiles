@@ -1,0 +1,81 @@
+#compdef dotctl
+# Completion for the dotfiles control script (~/.repos/private/dotfiles/<wt>/dotctl).
+# zsh falls back to the basename for path-invoked commands, so this also
+# fires for ./dotctl.
+
+_dotctl_agent_names() {
+  local dir=~/.config/launch-agents
+  local -a plists labels short
+  plists=($dir/*.plist(N:t:r))
+  (( $#plists )) || return
+  labels=($plists)
+  # Short form: strip the reverse-DNS prefix (com.hllvc.tmux-autosave → tmux-autosave).
+  short=(${plists#com.*.})
+  # Drop names already on the line, in either form.
+  local w
+  for w in ${words[4,-1]}; do
+    labels=(${labels:#(*.|)$w})
+    short=(${short:#(${w#com.*.}|$w)})
+  done
+  _alternative \
+    "short:agent:compadd -a short" \
+    "labels:label:compadd -a labels"
+}
+
+_dotctl() {
+  local -a cmds
+  if (( CURRENT == 2 )); then
+    cmds=(
+      'all:stow + agents load + crons install + macos apply'
+      'stow:symlink dotfiles into $HOME'
+      'agents:manage launch agents'
+      'crons:run per-cron install hooks'
+      'macos:apply macOS defaults'
+      'orphans:report dangling dotfile symlinks'
+      '-h:help'
+      '--help:help'
+    )
+    _describe -t commands 'dotctl command' cmds
+    return
+  fi
+
+  case $words[2] in
+  all | stow)
+    shift words; (( CURRENT-- ))
+    _arguments '--adopt[adopt existing files as stow-managed]' '(-h --help)'{-h,--help}'[help]'
+    ;;
+  agents)
+    if (( CURRENT == 3 )); then
+      cmds=(
+        'load:symlink plists and bootstrap'
+        'unload:bootout and remove symlinks'
+        'list:show plists and loaded state'
+        '-h:help'
+      )
+      _describe -t commands 'agents subcommand' cmds
+    else
+      _dotctl_agent_names
+    fi
+    ;;
+  crons)
+    (( CURRENT == 3 )) || return
+    cmds=(
+      'install:run every discovered install.sh'
+      'list:show cron dirs and whether they have install.sh'
+      '-h:help'
+    )
+    _describe -t commands 'crons subcommand' cmds
+    ;;
+  macos)
+    (( CURRENT == 3 )) || return
+    cmds=('apply:run the defaults script' '-h:help')
+    _describe -t commands 'macos subcommand' cmds
+    ;;
+  orphans)
+    shift words; (( CURRENT-- ))
+    _arguments '--fix[delete the REPO group]' '(-h --help)'{-h,--help}'[help]'
+    ;;
+  esac
+}
+
+_dotctl "$@"
