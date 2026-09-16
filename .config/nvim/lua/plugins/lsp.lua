@@ -388,9 +388,13 @@ return {
 		build = ':lua require("go.install").update_all_sync()',
 	},
 
-	-- Rust
+	-- Rust. Disabled, not removed: no Rust work at the moment, so this spec (and the
+	-- rust-analyzer it starts) stays off. Flip `enabled` back on to restore it -- but
+	-- bump the pin first: `^4` is a dead major (4.26.1, predating Neovim 0.12) and
+	-- upstream is on v9, so re-enabling as-is revives an unmaintained version.
 	{
 		"mrcjkb/rustaceanvim",
+		enabled = false,
 		version = "^4",
 		ft = { "rust" },
 		opts = {

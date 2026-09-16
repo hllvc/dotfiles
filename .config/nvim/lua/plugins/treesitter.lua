@@ -26,7 +26,7 @@ return {
 				"markdown_inline",
 				"python",
 				"query",
-				"rust",
+				-- "rust", -- off with rustaceanvim; re-add when Rust comes back
 				"terraform",
 				"typescript",
 				"tsx",
