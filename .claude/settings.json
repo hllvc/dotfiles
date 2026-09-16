@@ -10,6 +10,11 @@
     "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
     "ENABLE_LSP_TOOL": "1"
   },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
+  },
   "permissions": {
     "allow": [
       "WebSearch",
@@ -39,7 +44,7 @@
     "ask": [],
     "defaultMode": "auto"
   },
-  "model": "sonnet",
+  "model": "opus[1m]",
   "worktree": {
     "baseRef": "fresh"
   },
@@ -110,7 +115,10 @@
       "effortLevel": "medium"
     },
     "claude-fable-5-1": {
-      "effortLevel": "medium"
+      "effortLevel": "high"
+    },
+    "claude-opus-5": {
+      "effortLevel": "high"
     }
   },
   "askUserQuestionTimeout": "never",
@@ -123,7 +131,7 @@
   "preferredNotifChannel": "ghostty",
   "autoCompactEnabled": true,
   "teammateMode": "auto",
-  "remoteControlAtStartup": false,
+  "remoteControlAtStartup": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
