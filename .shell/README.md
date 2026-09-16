@@ -11,6 +11,7 @@ Shell configuration files sourced by `.zshrc`.
 | `aliases` | Shell aliases for directory navigation, git, kubectl, permissions, and editors |
 | `profile` | Environment variables, PATH, history settings, FZF config, and tool configurations |
 | `zshinit` | Oh-My-Zsh setup, Powerlevel10k theme, plugins, and Zsh behavior settings |
+| `tmux-pane-env` | Snapshots each tmux pane's exported env per prompt, and re-applies it (never overwriting) after a pane replace |
 
 ## Completions
 

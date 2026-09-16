@@ -151,3 +151,7 @@ ZVM_LAZY_KEYBINDINGS=false
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
 
+# Last on purpose: the pane-env apply only sets variables this shell left unset,
+# so it has to run once everything else has configured itself.
+_load ".shell/tmux-pane-env"
+

@@ -1,0 +1,77 @@
+# shellcheck shell=bash
+#
+# Carry a pane's exported environment across a pane replace (prefix+C-r, see
+# .shell/scripts/tmux/replace-pane.sh). Two halves:
+#
+#   save  — a precmd hook snapshots this shell's exported env, one file per pane
+#   apply — the shell of a just-replaced pane re-applies that snapshot at startup
+#
+# The apply is deliberately non-destructive: a variable is set only if this fresh
+# shell left it unset. Everything the shell configures for itself — PATH, HISTFILE,
+# SHELL, ZSH, TERM, LANG, p10k/omz internals — is therefore skipped by construction
+# rather than by a denylist that would have to be kept correct. What survives is
+# what you set by hand during the session: AWS_PROFILE, TF_VAR_*, KUBECONFIG, …
+#
+# Snapshots are keyed by socket *and* pane id, because pane ids are only unique
+# per tmux server — %3 exists on both the personal and work sockets.
+
+TMUX_PANE_ENV_DIR="${TMUX_PANE_ENV_DIR:-$HOME/.tmux/pane-env}"
+
+# Names a fresh shell legitimately does not set, but that are still wrong to
+# carry: they are only meaningful next to the PATH that was active alongside
+# them, and PATH is never carried.
+typeset -ga TMUX_PANE_ENV_SKIP=(
+  VIRTUAL_ENV VIRTUAL_ENV_PROMPT
+  CONDA_PREFIX CONDA_DEFAULT_ENV CONDA_SHLVL CONDA_EXE CONDA_PYTHON_EXE
+  OLDPWD _
+  TMUX_PANE_RESTORE_ENV
+)
+typeset -ga TMUX_PANE_ENV_SKIP_GLOB=( 'ZSH_*' 'P9K_*' '_P9K_*' 'POWERLEVEL9K_*' 'BASH_*' '__*' )
+
+# Snapshot path for the current pane, empty when not in tmux.
+_tmux_pane_env_file() {
+  [[ -n ${TMUX_PANE:-} && -n ${TMUX:-} ]] || return 1
+  print -r -- "${TMUX_PANE_ENV_DIR}/${${TMUX%%,*}:t}-${TMUX_PANE}.env"
+}
+
+# precmd: dump the exported env. `export -p` is single-line-per-var and quotes
+# its values (newlines come back as $'...\n...'), so the reader can stay
+# line-based. Builtin + one redirect, no fork.
+_tmux_pane_env_save() {
+  local file
+  file="$(_tmux_pane_env_file)" || return 0
+  if [[ ! -e $file ]]; then
+    : >| "$file" 2>/dev/null || return 0
+    chmod 600 "$file" 2>/dev/null
+  fi
+  export -p >| "$file" 2>/dev/null
+}
+
+# Startup: re-apply the previous shell's env, never overwriting our own.
+_tmux_pane_env_apply() {
+  local file="${TMUX_PANE_RESTORE_ENV:-}"
+  [[ -n $file && -r $file ]] || return 0
+
+  local line name pat
+  while IFS= read -r line; do
+    [[ $line == 'export '* ]] || continue
+    name=${${line#export }%%=*}
+    [[ $name =~ '^[A-Za-z_][A-Za-z0-9_]*$' ]] || continue
+    [[ -v $name ]] && continue
+    (( ${TMUX_PANE_ENV_SKIP[(Ie)$name]} )) && continue
+    for pat in $TMUX_PANE_ENV_SKIP_GLOB; do
+      [[ $name == ${~pat} ]] && continue 2
+    done
+    eval "$line" 2>/dev/null
+  done < "$file"
+}
+
+if [[ -n ${TMUX_PANE:-} ]]; then
+  [[ -d $TMUX_PANE_ENV_DIR ]] || { mkdir -p "$TMUX_PANE_ENV_DIR" && chmod 700 "$TMUX_PANE_ENV_DIR"; }
+
+  _tmux_pane_env_apply
+  unset TMUX_PANE_RESTORE_ENV
+
+  autoload -Uz add-zsh-hook
+  add-zsh-hook precmd _tmux_pane_env_save
+fi
