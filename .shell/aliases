@@ -84,6 +84,7 @@ alias k='kubectl'
 # other
 alias nq='networkQuality'
 alias tprune='~/.shell/scripts/tmux/prune-review.sh'
+alias treplace='~/.shell/scripts/tmux/replace-pane.sh'
 
 alias ghostty='/Applications/Ghostty.app/Contents/MacOS/ghostty'
 alias tb='terminal-browser'
