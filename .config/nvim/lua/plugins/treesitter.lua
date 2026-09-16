@@ -121,6 +121,12 @@ return {
 		"nvim-treesitter/nvim-treesitter-textobjects",
 		branch = "main",
 		dependencies = { "nvim-treesitter/nvim-treesitter" },
+		-- Needs a trigger of its own. Without one it inherits lazy=true from
+		-- config.lua's defaults, nothing requires it, and lazy never loads it -- so
+		-- neither these keymaps nor the queries/*/textobjects.scm this plugin ships
+		-- ever existed. This replaces mini.ai, which was doing the same job through
+		-- those same queries (and silently shadowing `al`/`il` in mappings.lua).
+		event = { "BufReadPost", "BufNewFile" },
 		config = function()
 			local ts_textobjects = require("nvim-treesitter-textobjects")
 			ts_textobjects.setup({
@@ -131,7 +137,9 @@ return {
 			local select = require("nvim-treesitter-textobjects.select")
 			local move = require("nvim-treesitter-textobjects.move")
 
-			-- Select textobjects
+			-- Select textobjects. Deliberately no `al`/`il`: those are the line
+			-- textobjects in mappings.lua. `r` is left alone too -- flash owns it in
+			-- operator-pending mode.
 			for lhs, query in pairs({
 				["af"] = "@function.outer",
 				["if"] = "@function.inner",
@@ -139,6 +147,14 @@ return {
 				["ic"] = "@class.inner",
 				["aa"] = "@parameter.outer",
 				["ia"] = "@parameter.inner",
+				["ao"] = "@block.outer",
+				["io"] = "@block.inner",
+				["am"] = "@call.outer",
+				["im"] = "@call.inner",
+				["ag"] = "@comment.outer",
+				["ig"] = "@comment.inner",
+				["an"] = "@conditional.outer",
+				["in"] = "@conditional.inner",
 			}) do
 				vim.keymap.set({ "x", "o" }, lhs, function()
 					select.select_textobject(query)

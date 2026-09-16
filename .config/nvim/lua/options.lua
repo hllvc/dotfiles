@@ -76,6 +76,10 @@ opt.timeoutlen = 300
 opt.backup = true
 opt.writebackup = true
 opt.backupdir = vim.env.HOME .. "/.nvim-backups/"
+-- Persistent undo, so the tree survives closing the file (undotree is only as
+-- useful as the history it can see). Default undodir is stdpath("state")/undo,
+-- which Neovim creates on demand -- no mkdir needed, unlike backupdir above.
+opt.undofile = true
 opt.signcolumn = "yes"
 opt.shortmess:append("c")
 

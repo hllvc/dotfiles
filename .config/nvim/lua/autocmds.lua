@@ -184,6 +184,9 @@ local function clean_buffer_on_save()
 	end
 
 	local save_cursor = vim.fn.getpos(".")
+	-- :s sets the last search pattern, so without this every save left `n`/`N`
+	-- chasing trailing whitespace instead of whatever was last searched for.
+	local save_search = vim.fn.getreg("/")
 
 	-- Strip trailing whitespace
 	vim.cmd([[%s/\s\+$//e]])
@@ -191,6 +194,7 @@ local function clean_buffer_on_save()
 	-- Strip trailing newlines
 	vim.cmd([[%s/\n\+\%$//e]])
 
+	vim.fn.setreg("/", save_search)
 	vim.fn.setpos(".", save_cursor)
 end
 
@@ -205,7 +209,14 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 	group = augroup("c_newline"),
 	pattern = "*.[ch]",
 	callback = function()
+		-- Same skip as clean_buffer_on_save: the FocusLost write-all stays off the
+		-- heavy path. Restores the search pattern for the same reason as above.
+		if vim.g.skip_heavy_on_save then
+			return
+		end
+		local save_search = vim.fn.getreg("/")
 		vim.cmd([[%s/\%$/\r/e]])
+		vim.fn.setreg("/", save_search)
 	end,
 })
 
@@ -246,7 +257,7 @@ vim.api.nvim_create_autocmd("BufReadPost", {
 	end,
 })
 
--- Show diagnostics popup on hover (enabled by default)
+-- Show diagnostics popup on hover. Off by default; <leader>uh toggles it.
 vim.g.diagnostics_hover = false
 vim.api.nvim_create_autocmd("CursorHold", {
 	group = augroup("diagnostics_hover"),

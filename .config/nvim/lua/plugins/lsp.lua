@@ -10,8 +10,6 @@ return {
 				"stylua",
 				"prettier",
 				"prettierd",
-				"black",
-				"isort",
 				"yamllint",
 				"jq",
 				"xmlformatter",
@@ -63,11 +61,15 @@ return {
 				-- GitHub Actions handled by gh_actions_ls (LSP) + yamlls schema. The old
 				-- ["yaml.ghaction"]=actionlint leg never ran: that filetype is never assigned.
 				python = { "ruff" },
-				terraform = { "terraform_validate", "tflint", "tfsec" },
-				tf = { "terraform_validate", "tflint", "tfsec" },
+				-- terraformls (below) already reports validation diagnostics, and
+				-- terraform_validate shells out to `terraform validate` on every read and
+				-- write -- which errors outright in any directory that was never init'd.
+				-- tfsec is EOL upstream (folded into Trivy). tflint is the one that earns
+				-- its spawn. Note `tf` is not a filetype: Neovim detects *.tf as terraform.
+				terraform = { "tflint" },
 			}
-			-- No InsertLeave: it fired on every <Esc> and spawned the linters (for terraform
-			-- that's terraform_validate + tflint + tfsec) on the interactive path.
+			-- No InsertLeave: it fired on every <Esc> and spawned the linters on the
+			-- interactive path (terraform used to run three of them per <Esc>).
 			vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost" }, {
 				group = vim.api.nvim_create_augroup("nvim-lint", { clear = true }),
 				callback = function()
@@ -434,14 +436,10 @@ return {
 	{
 		"linux-cultist/venv-selector.nvim",
 		dependencies = { "neovim/nvim-lspconfig", "nvim-telescope/telescope.nvim", "mfussenegger/nvim-dap-python" },
-		opts = {
-			name = {
-				"venv",
-				".venv",
-				"env",
-				".env",
-			},
-		},
+		-- No opts on purpose. The old `name = { "venv", ".venv", ... }` was a v1 option
+		-- that v2 silently ignores; its default searches already walk cwd/workspace for
+		-- bin/python (covering those four) plus poetry, pipenv, conda and pipx. Requires
+		-- `fd` on PATH.
 		ft = "python",
 		keys = {
 			{ "<leader>vs", "<cmd>VenvSelect<cr>", ft = "python", desc = "Select Venv" },
@@ -526,9 +524,21 @@ return {
 			{ "<leader>gb", "<cmd>Git blame<cr>", desc = "Git Blame" },
 			{ "<leader>gds", "<cmd>Gvdiffsplit<cr>", desc = "Git Diff Split" },
 			{ "<leader>gB", "<cmd>silent GBrowse<cr>", desc = "Browse on GitHub", silent = true },
-			{ "<leader>gB", ":<C-u>silent '<,'>GBrowse<cr>", mode = "v", desc = "Browse selection on GitHub", silent = true },
+			{
+				"<leader>gB",
+				":<C-u>silent '<,'>GBrowse<cr>",
+				mode = "v",
+				desc = "Browse selection on GitHub",
+				silent = true,
+			},
 			{ "<leader>gY", "<cmd>silent GBrowse!<cr>", desc = "Copy GitHub URL", silent = true },
-			{ "<leader>gY", ":<C-u>silent '<,'>GBrowse!<cr>", mode = "v", desc = "Copy GitHub URL (selection)", silent = true },
+			{
+				"<leader>gY",
+				":<C-u>silent '<,'>GBrowse!<cr>",
+				mode = "v",
+				desc = "Copy GitHub URL (selection)",
+				silent = true,
+			},
 		},
 	},
 	{
@@ -630,8 +640,10 @@ return {
 	-- Zoom windows
 	{
 		"dhruvasagar/vim-zoom",
+		-- <Plug>(zoom-toggle), not :ZoomToggle -- the plugin defines no command. Mapping
+		-- it here also replaces vim-zoom's own default <C-W>m, which lazy would shadow.
 		keys = {
-			{ "<C-w>m", "<cmd>ZoomToggle<cr>", desc = "Zoom toggle" },
+			{ "<C-w>m", "<Plug>(zoom-toggle)", desc = "Zoom toggle" },
 		},
 	},
 }
