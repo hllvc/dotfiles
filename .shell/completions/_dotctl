@@ -31,6 +31,7 @@ _dotctl() {
       'agents:manage launch agents'
       'crons:run per-cron install hooks'
       'macos:apply macOS defaults'
+      'doctor:audit plists/scripts for worktree-pinned or missing paths'
       'orphans:report dangling dotfile symlinks'
       '-h:help'
       '--help:help'
@@ -74,6 +75,10 @@ _dotctl() {
   orphans)
     shift words; (( CURRENT-- ))
     _arguments '--fix[delete the REPO group]' '(-h --help)'{-h,--help}'[help]'
+    ;;
+  doctor)
+    shift words; (( CURRENT-- ))
+    _arguments '(-h --help)'{-h,--help}'[help]'
     ;;
   esac
 }

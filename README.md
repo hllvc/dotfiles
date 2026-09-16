@@ -35,6 +35,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 - `./dotctl agents <load|unload|list> [name...]` - Manage launch agents under `~/.config/launch-agents`; names are optional (`tmux-autosave` or `com.hllvc.tmux-autosave`), all agents when omitted
 - `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
 - `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
+- `./dotctl doctor` - Audit launch-agent plists and scripts for worktree-pinned or missing absolute paths
 - `./dotctl orphans [--fix]` - Report (and with `--fix` delete) dangling symlinks left in `$HOME` by renamed or removed repo files
 - `./dotctl -h` (or `./dotctl <command> -h`) - Help
 
@@ -109,6 +110,12 @@ Session state is preserved across reboots via `tmux-resurrect` (forks: `hllvc/tm
 ### Background Crons
 
 Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are installed via `dotctl crons install`. Each cron is free to define its own `install.sh` (e.g. for system-level hooks like `newsyslog.d` configs) — `dotctl` auto-discovers and runs them.
+
+> **Path convention:** launchd does no variable expansion, so plists must carry an
+> absolute path — always the stowed `~/.shell/...` location, never
+> `.repos/private/dotfiles/<worktree>/...`. A plist pinned to a worktree dies
+> silently (launchd exit 78) the moment that worktree is renamed. Scripts use
+> `$HOME/.shell/...`. `dotctl doctor` enforces both.
 
 - **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `upgrade`, `autoremove`, `cleanup`; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).

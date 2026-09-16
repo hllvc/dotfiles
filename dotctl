@@ -42,6 +42,8 @@ Commands:
                              .shell/scripts/crons/*/install.sh
   macos       <apply>        Apply macOS \`defaults write\` tweaks
                              (.shell/scripts/macos/defaults.sh)
+  doctor                     Audit plists/scripts for worktree-pinned or
+                             missing absolute paths
   orphans     [--fix]        Report symlinks in \$HOME left behind by renamed
                              or removed repo files
 
@@ -57,6 +59,7 @@ Examples:
   ./dotctl agents unload    # unload all launch agents
   ./dotctl crons list       # list discovered cron install hooks
   ./dotctl macos apply      # apply macOS defaults tweaks
+  ./dotctl doctor           # audit absolute paths in plists + scripts
   ./dotctl orphans          # report dangling dotfile symlinks
   ./dotctl orphans --fix    # ...and delete the ones pointing at this repo
 EOF
@@ -616,6 +619,115 @@ cmd_orphans() {
 
 # }}}
 
+# ─── doctor ────────────────────────────────────────────────────────────── {{{
+
+usage_doctor() {
+  cat <<EOF
+Usage: ./dotctl doctor
+
+Audits config that points into this repo by absolute path.
+
+launchd does no variable expansion, so a plist *must* carry an absolute path —
+but it should point at the stable stowed location (\$HOME/.shell/...), not at
+.repos/private/dotfiles/<worktree>/.shell/... A plist pinned to a worktree dies
+the moment that worktree is renamed, and launchd reports it only as exit 78 in
+a log nobody reads.
+
+Checks:
+  WORKTREE-PINNED  a plist or script naming a worktree path instead of the
+                   stowed one — works today, breaks on rename
+  MISSING PATH     a plist referencing a path that does not exist — the
+                   breakage itself, whatever caused it
+
+Exits non-zero if anything is flagged.
+EOF
+}
+
+# Absolute <string> values in a plist, minus log paths (created on first run)
+# and PATH-style lists (colon-joined, not a single path).
+_doctor_plist_paths() {
+  sed -n 's|.*<string>\(/[^<]*\)</string>.*|\1|p' "$1" |
+    grep -v ':' | grep -v '/Library/Logs/' || true
+}
+
+cmd_doctor() {
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    -h | --help)
+      usage_doctor
+      return 0
+      ;;
+    *)
+      echo "doctor: unknown option: $1" >&2
+      usage_doctor >&2
+      return 1
+      ;;
+    esac
+  done
+
+  local -i issues=0 n_plists=0 n_files=0 sec=0
+  local plist name p
+
+  echo "── launch agents ──"
+  if [[ ! -d "$LAUNCH_AGENTS_SOURCE" ]]; then
+    echo "  $LAUNCH_AGENTS_SOURCE does not exist — nothing checked"
+  else
+    for plist in "$LAUNCH_AGENTS_SOURCE"/*.plist; do
+      n_plists+=1
+      name="$(basename "$plist")"
+
+      while IFS= read -r p; do
+        [[ -n "$p" ]] || continue
+        echo "  WORKTREE-PINNED  $name"
+        echo "    $p"
+        echo "    -> point at \$HOME/.shell/... instead (stow keeps that stable)"
+        sec+=1
+      done < <(_doctor_plist_paths "$plist" | grep -F "/.repos/" || true)
+
+      while IFS= read -r p; do
+        [[ -n "$p" ]] || continue
+        [[ -e "$p" ]] && continue
+        echo "  MISSING PATH     $name"
+        echo "    $p"
+        sec+=1
+      done < <(_doctor_plist_paths "$plist")
+    done
+    printf '  %d plist(s) checked, %d issue(s)\n' "$n_plists" "$sec"
+  fi
+  issues+=$sec
+
+  echo
+  echo "── scripts ──"
+  sec=0
+  local f hit
+  while IFS= read -r -d '' f; do
+    n_files+=1
+    while IFS= read -r hit; do
+      [[ -n "$hit" ]] || continue
+      echo "  WORKTREE-PINNED  ${f#"$REPO_ROOT"/}"
+      echo "    $hit"
+      sec+=1
+    done < <(grep -n "/\.repos/private/dotfiles/" "$f" || true)
+  done < <(/usr/bin/find "$REPO_ROOT/.shell" "$REPO_ROOT/.sleep" \
+    -type f \( -name '*.sh' -o -name '.sleep' \) -print0 2>/dev/null)
+  printf '  %d file(s) checked, %d issue(s)\n' "$n_files" "$sec"
+  issues+=$sec
+
+  echo
+  if ((issues)); then
+    echo "$issues issue(s) found."
+    return 1
+  fi
+  # A doctor that inspected nothing must not report success.
+  if ((n_plists == 0 && n_files == 0)); then
+    echo "Nothing was checked — setup looks incomplete."
+    return 1
+  fi
+  printf 'All clear (%d plists, %d scripts).\n' "$n_plists" "$n_files"
+}
+
+# }}}
+
 # ─── all ───────────────────────────────────────────────────────────────── {{{
 
 cmd_all() {
@@ -648,6 +760,7 @@ main() {
   crons) cmd_crons "$@" ;;
   macos) cmd_macos "$@" ;;
   orphans) cmd_orphans "$@" ;;
+  doctor) cmd_doctor "$@" ;;
   -h | --help) usage ;;
   *)
     echo "Unknown command: $cmd" >&2
