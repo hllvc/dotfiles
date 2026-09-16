@@ -10,7 +10,7 @@
       <string>entrypoint.sh</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/hllvc/.repos/private/dotfiles/main/.shell/scripts/crons/homebrew-update</string>
+    <string>/Users/hllvc/.shell/scripts/crons/homebrew-update</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>PATH</key>

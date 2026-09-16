@@ -10,7 +10,7 @@
       <string>daemon.sh</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/hllvc/.repos/private/dotfiles/main/.shell/scripts/crons/tmux-autosave</string>
+    <string>/Users/hllvc/.shell/scripts/crons/tmux-autosave</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>PATH</key>

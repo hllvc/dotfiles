@@ -40,7 +40,7 @@ readonly socket
 if [[ -z "$socket" ]]; then
   exit 0
 elif [[ "$socket" == "no_tmux" ]]; then
-  /Users/hllvc/.shell/scripts/gt.sh "no_tmux"
+  "$HOME/.shell/scripts/gt.sh" "no_tmux"
   exit 0
 fi
 

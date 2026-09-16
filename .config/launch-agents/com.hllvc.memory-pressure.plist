@@ -10,7 +10,7 @@
       <string>entrypoint.sh</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Users/hllvc/.repos/private/dotfiles/main/.shell/scripts/crons/memory-pressure</string>
+    <string>/Users/hllvc/.shell/scripts/crons/memory-pressure</string>
     <key>EnvironmentVariables</key>
     <dict>
       <key>PATH</key>

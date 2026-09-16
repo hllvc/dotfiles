@@ -119,7 +119,7 @@ zsh-defer -c '[ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && \. "/o
 #}}}: load completions
 
 # 1password plugins
-source /Users/hllvc/.config/op/plugins.sh
+source "$HOME/.config/op/plugins.sh"
 
 # Aliases, functions and shell env load eagerly — each measured at ~0ms, so
 # deferring them only delayed when commands/aliases became usable (the shell felt

@@ -36,7 +36,7 @@ fi
 
 # open -na Ghostty.app --args \
 #   --title="${socket^}" \
-#   -e "/Users/hllvc/.shell/scripts/init/tt.sh ${socket,,}"
+#   -e "$HOME/.shell/scripts/init/tt.sh ${socket,,}"
 
 if [[ "$socket" == "no_tmux" ]]; then
   open -na Ghostty.app --args \
@@ -48,5 +48,5 @@ else
     --config-file="$HOME"/.config/ghostty/on-new-window.conf \
     --title="${socket^}" \
     --shell-integration=detect \
-    -e /Users/hllvc/.shell/scripts/init/tt.sh "${socket,,}"
+    -e "$HOME"/.shell/scripts/init/tt.sh "${socket,,}"
 fi
