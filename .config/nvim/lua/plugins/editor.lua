@@ -267,6 +267,13 @@ return {
 				desc = "Conform Info",
 			},
 			{
+				"<leader>uf",
+				function()
+					require("format").toggle()
+				end,
+				desc = "Toggle format on save: changed lines / whole buffer",
+			},
+			{
 				"<leader>cf",
 				function()
 					vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<Esc>", true, false, true), "x", false)
@@ -356,7 +363,11 @@ return {
 				lua = { "stylua" },
 				sh = { "shfmt" },
 				bash = { "shfmt" },
-				python = { "isort", "black" },
+				-- ruff replaces isort + black with one Rust binary: ~9ms a save
+				-- against ~147ms for the pair. Output is black-compatible. Swap the
+				-- two lines below if ruff's formatting ever regresses.
+				python = { "ruff_organize_imports", "ruff_format" },
+				-- python = { "isort", "black" },
 				javascript = { "prettierd", "prettier", stop_after_first = true },
 				typescript = { "prettierd", "prettier", stop_after_first = true },
 				javascriptreact = { "prettierd", "prettier", stop_after_first = true },
@@ -371,7 +382,7 @@ return {
 				["terraform-vars"] = { "terraform_fmt" },
 				hcl = { "terraform_fmt" },
 			},
-			format_on_save = function()
+			format_on_save = function(bufnr)
 				-- Skip autoformat when globally disabled, or during the FocusLost
 				-- write-all (autocmds.lua sets this flag): tmux fires FocusLost on
 				-- every pane switch, and formatting all modified buffers there
@@ -379,10 +390,23 @@ return {
 				if vim.g.disable_autoformat or vim.g.skip_format_on_save then
 					return
 				end
+				-- Default mode: touch only the lines this buffer actually changed,
+				-- so a one-line edit to a never-formatted file does not produce a
+				-- whole-file diff. Returns false when git can't tell us what
+				-- changed, in which case fall through and format everything.
+				if require("format").changed_only() and require("format").format_changed(bufnr) then
+					return
+				end
 				return { timeout_ms = 1000, lsp_format = "fallback" }
 			end,
 			formatters = {
-				-- 79-char black (the width the old, ignored, pyright formatting block intended)
+				-- 79 columns, the width the old, ignored, pyright formatting block
+				-- intended. Appended rather than prepended: ruff's args start with the
+				-- `format` subcommand and prepend_args would put the flag ahead of it.
+				-- append_args also reaches range_args, which is the arg list conform
+				-- uses when formatting only the changed lines.
+				ruff_format = { append_args = { "--line-length", "79" } },
+				-- Kept for the commented-out isort + black fallback above.
 				black = { prepend_args = { "--line-length", "79" } },
 				injected = { options = { ignore_errors = true } },
 			},
