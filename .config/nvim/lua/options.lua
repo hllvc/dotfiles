@@ -47,7 +47,10 @@ opt.wrap = true
 opt.linebreak = true
 opt.showbreak = "↪"
 opt.autoindent = true
-opt.laststatus = 0
+-- 3, matching lualine's globalstatus (plugins/ui.lua). This used to say 0, which
+-- only ever governed the sliver of startup before lualine loaded on VeryLazy and
+-- then got overwritten anyway.
+opt.laststatus = 3
 opt.scrolloff = 10
 opt.hidden = true
 opt.showmode = false

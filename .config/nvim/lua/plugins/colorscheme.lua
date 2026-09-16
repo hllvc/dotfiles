@@ -23,8 +23,9 @@ return {
 			vim.api.nvim_set_hl(0, "SignColumn", { bg = "#1b1b1b" })
 			vim.api.nvim_set_hl(0, "EndOfBuffer", { bg = "#1b1b1b" })
 
-			-- Ensure terminal background matches
-			if vim.fn.has("termguicolors") then
+			-- Ensure terminal background matches. `== 1` matters: has() returns 0 or 1
+			-- and 0 is truthy in Lua, so the bare call was always taken.
+			if vim.fn.has("termguicolors") == 1 then
 				vim.opt.termguicolors = true
 			end
 		end,
