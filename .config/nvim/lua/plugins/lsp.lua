@@ -439,11 +439,19 @@ return {
 	-- Python
 	{
 		"linux-cultist/venv-selector.nvim",
-		dependencies = { "neovim/nvim-lspconfig", "nvim-telescope/telescope.nvim", "mfussenegger/nvim-dap-python" },
-		-- No opts on purpose. The old `name = { "venv", ".venv", ... }` was a v1 option
-		-- that v2 silently ignores; its default searches already walk cwd/workspace for
-		-- bin/python (covering those four) plus poetry, pipenv, conda and pipx. Requires
-		-- `fd` on PATH.
+		-- nvim-dap-python dropped from the deps: it, and nvim-dap behind it, had no
+		-- trigger of their own, nothing ever called dap_python.setup(), and no debug
+		-- adapter was ever installed -- so they sat on disk doing nothing. The dap
+		-- integration here is pcall-guarded (venv-selector's path.update_python_dap),
+		-- so it degrades cleanly. Re-add this entry if a debugger ever comes back.
+		dependencies = { "neovim/nvim-lspconfig", "nvim-telescope/telescope.nvim" },
+		-- `opts = {}` must stay even though it is empty: lazy only calls setup() when a
+		-- spec has opts or config, and :VenvSelect is created inside setup()
+		-- (user_commands.lua) -- the plugin ships no plugin/ dir. The old
+		-- `name = { "venv", ".venv", ... }` in here was a v1 option that v2 ignores; its
+		-- default searches already walk cwd/workspace for bin/python (covering those
+		-- four) plus poetry, pipenv, conda and pipx. Requires `fd` on PATH.
+		opts = {},
 		ft = "python",
 		keys = {
 			{ "<leader>vs", "<cmd>VenvSelect<cr>", ft = "python", desc = "Select Venv" },

@@ -294,7 +294,6 @@ return {
 				{ "<leader>b", group = "buffer" },
 				{ "<leader>B", group = "box" },
 				{ "<leader>c", group = "code" },
-				{ "<leader>d", group = "debug" },
 				{ "<leader>f", group = "file/find" },
 				{ "<leader>g", group = "git" },
 				{ "<leader>o", group = "open (tmux)" },
