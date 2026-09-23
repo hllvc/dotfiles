@@ -40,8 +40,8 @@ sudo chmod 440 "${SUDOERS_DEST}"
 # `sudo -n <cmd>` succeeds on a warm timestamp from the sudo calls just above,
 # which is precisely how this rule stayed dead from May to September.
 echo "Verifying passwordless escalation:"
-if sudo -n -l 2>/dev/null | grep -q 'NOPASSWD.*/usr/sbin/installer'; then
-  echo "  rule live → sudo -n installer"
+if sudo -n -l 2>/dev/null | grep '/usr/sbin/installer' | grep 'NOPASSWD:' | grep -q 'SETENV:'; then
+  echo "  rule live → sudo -n -E installer"
 else
   echo "  WARNING: rule not in effect — cask upgrades needing root will fail" >&2
 fi

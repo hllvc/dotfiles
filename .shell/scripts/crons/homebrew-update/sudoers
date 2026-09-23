@@ -1,10 +1,14 @@
 # Allow hllvc to run Homebrew Cask install/upgrade non-interactively.
 # Scoped to the binaries Homebrew Cask actually invokes via sudo.
-hllvc ALL=(root) NOPASSWD: /usr/sbin/installer
-hllvc ALL=(root) NOPASSWD: /bin/rm
-hllvc ALL=(root) NOPASSWD: /bin/cp
-hllvc ALL=(root) NOPASSWD: /bin/mv
-hllvc ALL=(root) NOPASSWD: /bin/chmod
-hllvc ALL=(root) NOPASSWD: /usr/sbin/chown
-hllvc ALL=(root) NOPASSWD: /usr/bin/touch
-hllvc ALL=(root) NOPASSWD: /usr/bin/pkill
+# SETENV is required: brew always calls `sudo -E VAR=... -- <cmd>`. The admin
+# `(ALL) ALL` rule gets SETENV implicitly, but these rules match later and win,
+# so without the tag every cask needing root fails with:
+#   sudo: sorry, you are not allowed to preserve the environment
+hllvc ALL=(root) NOPASSWD:SETENV: /usr/sbin/installer
+hllvc ALL=(root) NOPASSWD:SETENV: /bin/rm
+hllvc ALL=(root) NOPASSWD:SETENV: /bin/cp
+hllvc ALL=(root) NOPASSWD:SETENV: /bin/mv
+hllvc ALL=(root) NOPASSWD:SETENV: /bin/chmod
+hllvc ALL=(root) NOPASSWD:SETENV: /usr/sbin/chown
+hllvc ALL=(root) NOPASSWD:SETENV: /usr/bin/touch
+hllvc ALL=(root) NOPASSWD:SETENV: /usr/bin/pkill
