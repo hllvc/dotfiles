@@ -2,7 +2,16 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUDOERS_DEST="/etc/sudoers.d/com.hllvc.homebrew-update"
+# NOT com.hllvc.homebrew-update: sudo silently skips any file in an include
+# directory whose name contains a "." or ends in "~". A dotted rule installs
+# cleanly, passes visudo -cf, and shows up in ls — and is then never read, so
+# every cask needing root fell back to prompting for a password. Under launchd
+# there is no tty, so those upgrades failed outright:
+#   sudo: a terminal is required to read the password
+#   Error: Problems with multiple casks
+# Verify with `sudo -n`, never with ls.
+SUDOERS_DEST="/etc/sudoers.d/com-hllvc-homebrew-update"
+SUDOERS_LEGACY="/etc/sudoers.d/com.hllvc.homebrew-update"
 NEWSYSLOG_DEST="/etc/newsyslog.d/com.hllvc.homebrew-update.conf"
 
 mkdir -p "${HOME}/Library/Logs/com.hllvc.homebrew-update"
@@ -14,6 +23,11 @@ else
   echo "alerter already installed"
 fi
 
+if [[ -e "$SUDOERS_LEGACY" ]]; then
+  echo "Removing ignored dotted rule → ${SUDOERS_LEGACY}"
+  sudo rm -f "$SUDOERS_LEGACY"
+fi
+
 echo "Validating sudoers file syntax..."
 sudo visudo -cf "${SCRIPT_DIR}/sudoers"
 
@@ -21,6 +35,16 @@ echo "Installing sudoers rule → ${SUDOERS_DEST}"
 sudo cp "${SCRIPT_DIR}/sudoers" "${SUDOERS_DEST}"
 sudo chown root:wheel "${SUDOERS_DEST}"
 sudo chmod 440 "${SUDOERS_DEST}"
+
+# Ask sudo what it would permit, rather than running the command: a plain
+# `sudo -n <cmd>` succeeds on a warm timestamp from the sudo calls just above,
+# which is precisely how this rule stayed dead from May to September.
+echo "Verifying passwordless escalation:"
+if sudo -n -l 2>/dev/null | grep -q 'NOPASSWD.*/usr/sbin/installer'; then
+  echo "  rule live → sudo -n installer"
+else
+  echo "  WARNING: rule not in effect — cask upgrades needing root will fail" >&2
+fi
 
 echo "Installing newsyslog config → ${NEWSYSLOG_DEST}"
 sudo cp "${SCRIPT_DIR}/newsyslog.conf" "${NEWSYSLOG_DEST}"
