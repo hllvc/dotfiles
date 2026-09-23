@@ -84,10 +84,7 @@ horizontal split · `<C-Up>`/`<C-Down>` cycle prompt history · `<Esc>` close ·
 `s` labels matches both above and below the cursor, in the current window only.
 `<CR>` jumps to the first match without a label.
 
-**`f` `F` `t` `T` `;` `,` are enhanced too.** After `fx`, press `f` again (or
-`;`) for the next `x`, `F` (or `,`) for the previous one. The repeat only works
-while the matches are still highlighted — any other cursor movement clears them
-and the next `f` starts a fresh search.
+`f` `F` `t` `T` `;` `,` are stock Vim — flash's `f`/`t` integration is off.
 
 **Operating on a flash target.** `d`, `c` and `y` + `s` do **not** reach flash:
 `ds`, `cs` and `ys` are nvim-surround's (delete / change / add surrounding). Use
