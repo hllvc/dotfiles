@@ -142,6 +142,7 @@ Buffer-local, attached per language server.
 | `<leader>cD` | Type definition |
 | `<leader>cd` | Diagnostic float |
 | `<leader>cq` | Buffer diagnostics in Trouble |
+| `<leader>cu` | GitHub workflows: bump every `uses:` pin to the version its note names |
 | `[d` / `]d` | Previous / next diagnostic |
 | `<leader>wa` / `wr` / `wl` | Add / remove / list workspace folder |
 
@@ -158,6 +159,12 @@ One result jumps straight there; several open Trouble.
 | `<C-u>` / `<C-d>` | Scroll the docs popup |
 | `<Tab>` | Accept the Copilot suggestion |
 | `<M-]>` / `<M-[>` | Cycle Copilot suggestions |
+
+In GitHub workflows (`lua/gha.lua`) the menu also offers the action's tags after
+`uses: owner/repo@` (major tags first), the repo's branches and tags under
+`branches:` / `tags:` / `ref:`, and repo-relative paths under `paths:` and
+`working-directory:`. `uses:` lines pinned behind the latest release get a
+`← vN available` note at the end of the line; `<leader>cu` bumps them all (one undo).
 
 ## Diagnostics, quickfix, TODOs
 

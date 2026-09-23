@@ -148,6 +148,28 @@ vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
 	end,
 })
 
+-- GitHub workflows: mark `uses:` pins that have a newer release (lua/gha.lua).
+-- InsertLeave/TextChanged keep the marks on the right lines while editing; tags are
+-- cached, so only the first pass per action touches the network.
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost", "InsertLeave", "TextChanged" }, {
+	group = augroup("gha_versions"),
+	pattern = { "*/workflows/*.yml", "*/workflows/*.yaml" },
+	callback = function(ev)
+		require("gha").annotate(ev.buf)
+	end,
+})
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+	group = augroup("gha_bump"),
+	pattern = { "*/workflows/*.yml", "*/workflows/*.yaml" },
+	callback = function(ev)
+		if require("gha").is_workflow(ev.buf) then
+			vim.keymap.set("n", "<leader>cu", function()
+				require("gha").bump(ev.buf)
+			end, { buffer = ev.buf, desc = "Bump action pins to latest" })
+		end
+	end,
+})
+
 -- Preserve folds across save (formatters and substitutions trigger treesitter
 -- fold recalculation; mkview/loadview restores the exact fold state)
 vim.api.nvim_create_autocmd("BufWritePre", {

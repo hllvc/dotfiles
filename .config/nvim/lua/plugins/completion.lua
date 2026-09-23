@@ -102,6 +102,8 @@ return {
 				},
 				sources = cmp.config.sources({
 					{ name = "lazydev", group_index = 0 },
+					-- GitHub workflows only: action versions, branches, tags, repo paths (lua/gha.lua).
+					{ name = "gha", priority = 1100 },
 					{ name = "nvim_lsp", priority = 1000 },
 					{ name = "nvim_lsp_signature_help", priority = 900 },
 					{
@@ -181,7 +183,9 @@ return {
 			for _, source in ipairs(opts.sources) do
 				source.group_index = source.group_index or 1
 			end
-			require("cmp").setup(opts)
+			local cmp = require("cmp")
+			cmp.register_source("gha", require("gha").cmp_source())
+			cmp.setup(opts)
 		end,
 	},
 
