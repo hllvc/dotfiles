@@ -6,3 +6,4 @@ README.md
 .codex
 AGENTS.md
 nvim.log
+^/\.claude/skills/terminal-browser

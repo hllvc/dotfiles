@@ -65,6 +65,9 @@ _run_cmd "brew autoremove"  brew autoremove
 _block_line "$LOG_FILE" ""
 _run_cmd "brew cleanup -s"  brew cleanup -s
 _block_line "$LOG_FILE" ""
+# cleanup just deleted the old Caskroom versions skill links point into.
+_run_cmd "link skills"  bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/link-skills.sh"
+_block_line "$LOG_FILE" ""
 
 if ((${#failed_cmds[@]} == 0)); then
   _block_line "$LOG_FILE" "$(_color green "All commands succeeded.")"

@@ -31,7 +31,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 
 - `./dotctl` - Show help (running without a command is a no-op)
 - `./dotctl all` - Stow + load launch agents + install crons + apply macOS defaults
-- `./dotctl stow [--adopt]` - Symlink dotfiles into `$HOME` (adopt folds existing files into the repo)
+- `./dotctl stow [--adopt]` - Symlink dotfiles into `$HOME` (adopt folds existing files into the repo), then link Homebrew-shipped Claude skills (see [Cask-shipped skills](#cask-shipped-skills))
 - `./dotctl agents <load|unload|list> [name...]` - Manage launch agents under `~/.config/launch-agents`; names are optional (`tmux-autosave` or `com.hllvc.tmux-autosave`), all agents when omitted
 - `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
 - `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
@@ -115,7 +115,7 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 > silently (launchd exit 78) the moment that worktree is renamed. Scripts use
 > `$HOME/.shell/...`. `dotctl doctor` enforces both.
 
-- **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `upgrade`, `autoremove`, `cleanup`; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
+- **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version (`link-skills.sh`); notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
 - **tmux-autosave** — idle-gated tmux session saver; fires every 30 min, saves when idle ≥ 30 s or 90 min has elapsed; also triggered on sleep (`~/.sleep` via `sleepwatcher`) and shutdown (`SIGTERM` trap via `com.hllvc.tmux-shutdown-save`). Replaces `@continuum-save-interval` (LaunchAgents: `com.hllvc.tmux-autosave`, `com.hllvc.tmux-shutdown-save`, `com.hllvc.sleepwatcher`).
 - **tmux-warmup** — pre-starts the `work` and `personal` tmux servers at login so `tmux-continuum` auto-restore runs before first attach (LaunchAgents: `com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
@@ -144,6 +144,23 @@ Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by defau
 ```bash
 ~/.shell/scripts/unloaded/mason-link.sh
 ```
+
+#### Cask-shipped skills
+
+Some casks ship their own Claude skill (currently `terminal-browser`). Its path
+is version-pinned (`/opt/homebrew/Caskroom/<cask>/<version>/...`) and `brew
+cleanup` deletes the old version, so the link is **not** tracked here. Stow
+also refuses absolute symlinks and aborts the whole run if it finds one.
+Instead, `.shell/scripts/crons/homebrew-update/link-skills.sh` resolves the
+current version through the cask's stable `/opt/homebrew/bin/<bin>` link and
+(re)creates `~/.claude/skills/<skill>`. It runs after `dotctl stow` and after
+every homebrew-update run. To add another cask, add an entry to its `SKILLS` array.
+
+`terminal-browser` also links its skill on its own (on the first command after
+a version change), including into `~/.agents/skills`. That path points at this
+repo's `.claude/skills`, so the link lands in the working tree. It's listed in
+both `.gitignore` and `.stow-local-ignore`: keep both entries, or the next
+`dotctl stow` aborts again.
 
 #### MCP servers — off by default, on per session
 

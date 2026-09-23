@@ -6,6 +6,7 @@ shopt -s nullglob
 readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly LAUNCH_AGENTS_SOURCE="$HOME/.config/launch-agents"
 readonly CRONS_DIR="$REPO_ROOT/.shell/scripts/crons"
+readonly LINK_SKILLS="$CRONS_DIR/homebrew-update/link-skills.sh"
 readonly MACOS_SCRIPT="$REPO_ROOT/.shell/scripts/macos/defaults.sh"
 readonly TF_PLUGIN_CACHE="$HOME/.terraform.d/plugin-cache"
 readonly REQUIRED_TOOLS=("brew" "stow")
@@ -70,7 +71,10 @@ usage_stow() {
 Usage: ./dotctl stow [--adopt]
 
 Symlinks this repo into \$HOME via GNU stow. Cleans stale symlinks first so
-renamed/removed files don't linger.
+renamed/removed files don't linger. Afterwards links Homebrew-shipped Claude
+skills (e.g. terminal-browser) into ~/.claude/skills via
+.shell/scripts/crons/homebrew-update/link-skills.sh — those point at
+version-pinned Caskroom paths, so they're kept out of the repo and out of stow.
 
 Options:
   --adopt    Run \`stow --adopt\`: files already in \$HOME that shadow repo files
@@ -295,6 +299,9 @@ cmd_stow() {
   else
     stow -v -t "$HOME" -d "$REPO_ROOT" .
   fi
+
+  echo "── brew skills ──"
+  bash "$LINK_SKILLS" || echo "  (some skill links failed — see above)"
 }
 
 # }}}
