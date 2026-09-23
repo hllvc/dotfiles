@@ -24,8 +24,8 @@
       "Grep(~/.repos/**)",
       "Bash(tree:*)",
       "Bash(tmux:*)",
-      "Bash(aws:*)",
-      "Bash(op plugin run -- aws:*)"
+      "Bash(aws --profile sg-prod-ro:*)",
+      "Bash(op plugin run -- aws --profile sg-prod-ro:*)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -39,12 +39,40 @@
       "Grep(~/.config/gh/hosts.yml)",
       "Read(~/.netrc)",
       "Edit(~/.netrc)",
-      "Grep(~/.netrc)"
+      "Grep(~/.netrc)",
+      "Read(~/.config/op/**)",
+      "Edit(~/.config/op/**)",
+      "Grep(~/.config/op/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Edit(~/.claude/.credentials.json)",
+      "Grep(~/.claude/.credentials.json)",
+      "Bash(*/.ssh/*)",
+      "Bash(*/.ssh)",
+      "Bash(*/.aws/*)",
+      "Bash(*/.aws)",
+      "Bash(*/.netrc*)",
+      "Bash(*/.config/gh/*)",
+      "Bash(*/.config/op/*)",
+      "Bash(*/.credentials.json*)",
+      "Bash(*id_rsa*)",
+      "Bash(*id_ed25519*)"
     ],
-    "ask": [],
+    "ask": [
+      "Bash(*--profile sg-prod *)",
+      "Bash(*--profile sg-prod)",
+      "Bash(*--profile sg-prod-us *)",
+      "Bash(*--profile sg-prod-us)",
+      "Bash(*AWS_PROFILE=sg-prod *)",
+      "Bash(*AWS_PROFILE=sg-prod)",
+      "Bash(*AWS_PROFILE=sg-prod-us *)",
+      "Bash(*AWS_PROFILE=sg-prod-us)"
+    ],
     "defaultMode": "auto"
   },
   "model": "opus[1m]",
+  "enableAllProjectMcpServers": false,
+  "disableClaudeAiConnectors": true,
+  "allowedMcpServers": [],
   "worktree": {
     "baseRef": "fresh"
   },
@@ -53,11 +81,9 @@
     "command": "bash /Users/hllvc/.claude/statusline-command.sh"
   },
   "enabledPlugins": {
-    "codex@openai-codex": true,
     "frontend-design@claude-plugins-official": true,
     "lua-lsp@claude-plugins-official": true,
     "pyright-lsp@claude-plugins-official": true,
-    "shortcuts-playground@shortcuts-playground": true,
     "swift-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true
@@ -67,18 +93,6 @@
       "source": {
         "source": "git",
         "url": "https://github.com/anthropics/claude-plugins-official.git"
-      }
-    },
-    "openai-codex": {
-      "source": {
-        "source": "github",
-        "repo": "openai/codex-plugin-cc"
-      }
-    },
-    "shortcuts-playground": {
-      "source": {
-        "source": "git",
-        "url": "https://github.com/viticci/shortcuts-playground-plugin.git"
       }
     }
   },
@@ -119,6 +133,9 @@
     },
     "claude-opus-5": {
       "effortLevel": "high"
+    },
+    "claude-opus-5-5": {
+      "effortLevel": "high"
     }
   },
   "askUserQuestionTimeout": "never",
@@ -141,7 +158,8 @@
       "Bash(aws s3 sync:*) in this repo's CI-driving scripts — mass artifact sync to orchestrator-resources-qa should be reviewed, not auto-approved",
       "Bash(make build-prod) — pushes to PROD ECR account 476299211833, no :latest tag safety net",
       "Bash(make build-prod) and Bash(make build-deploy-prod-*) in this repo — pushes to PROD AWS deploy targets, review rather than auto-approve",
-      "Bash(aws s3 sync:*) targeting non-dev namespaces — mass artifact sync should be reviewed, not auto-approved"
+      "Bash(aws s3 sync:*) targeting non-dev namespaces — mass artifact sync should be reviewed, not auto-approved",
+      "Any aws command against profile sg-prod or sg-prod-us — production accounts, require explicit approval before the action, never auto-approve"
     ]
   },
   "voiceEnabled": true
