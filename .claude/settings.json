@@ -1,14 +1,9 @@
 {
   "env": {
     "BASH_ENV": "/Users/hllvc/.local/bin/claude-shims-init.sh",
-    "CLAUDE_CODE_DISABLE_ANALYTICS": "1",
     "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
-    "CLAUDE_CODE_ENABLE_TASKS": "1",
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
-    "CLAUDE_CODE_NO_FLICKER": "1",
-    "CLAUDE_HOOK_DEBUG": "0",
-    "DISABLE_NON_ESSENTIAL_MODEL_CALLS": "1",
-    "ENABLE_LSP_TOOL": "1"
+    "DISABLE_ERROR_REPORTING": "1"
   },
   "attribution": {
     "commit": "",
@@ -67,9 +62,11 @@
       "Bash(*AWS_PROFILE=sg-prod-us *)",
       "Bash(*AWS_PROFILE=sg-prod-us)"
     ],
-    "defaultMode": "auto"
+    "defaultMode": "auto",
+    "disableBypassPermissionsMode": "disable"
   },
   "model": "opus[1m]",
+  "fallbackModel": ["opus[1m]", "sonnet[1m]"],
   "enableAllProjectMcpServers": false,
   "disableClaudeAiConnectors": true,
   "allowedMcpServers": [],
@@ -125,24 +122,18 @@
   "alwaysThinkingEnabled": true,
   "effortLevel": "high",
   "modelSettings": {
-    "claude-fable-5": {
-      "effortLevel": "medium"
-    },
     "claude-fable-5-1": {
-      "effortLevel": "high"
-    },
-    "claude-opus-5": {
-      "effortLevel": "high"
-    },
-    "claude-opus-5-5": {
       "effortLevel": "high"
     }
   },
   "askUserQuestionTimeout": "never",
   "autoUpdatesChannel": "latest",
-  "tui": "default",
+  "tui": "fullscreen",
+  "voice": {
+    "enabled": true
+  },
   "timeFormat": "auto",
-  "skipDangerousModePermissionPrompt": true,
+  "showThinkingSummaries": true,
   "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "preferredNotifChannel": "ghostty",
@@ -155,12 +146,13 @@
   "autoMode": {
     "soft_deny": [
       "$defaults",
-      "Bash(aws s3 sync:*) in this repo's CI-driving scripts — mass artifact sync to orchestrator-resources-qa should be reviewed, not auto-approved",
-      "Bash(make build-prod) — pushes to PROD ECR account 476299211833, no :latest tag safety net",
-      "Bash(make build-prod) and Bash(make build-deploy-prod-*) in this repo — pushes to PROD AWS deploy targets, review rather than auto-approve",
-      "Bash(aws s3 sync:*) targeting non-dev namespaces — mass artifact sync should be reviewed, not auto-approved",
+      "Bash(make build-prod) and Bash(make build-deploy-prod-*) — push to PROD AWS targets (ECR account 476299211833, no :latest tag safety net); review, never auto-approve",
+      "Bash(aws s3 sync:*) targeting orchestrator-resources-qa or any non-dev namespace — mass artifact sync; review, never auto-approve",
       "Any aws command against profile sg-prod or sg-prod-us — production accounts, require explicit approval before the action, never auto-approve"
+    ],
+    "hard_deny": [
+      "$defaults",
+      "Never read, copy, print, encode or transmit private keys, cloud credentials, tokens or auth files (~/.ssh, ~/.aws, ~/.netrc, ~/.config/gh/hosts.yml, ~/.config/op, ~/.claude/.credentials.json), by any command or path spelling"
     ]
-  },
-  "voiceEnabled": true
+  }
 }
