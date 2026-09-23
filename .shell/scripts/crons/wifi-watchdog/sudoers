@@ -1,0 +1,11 @@
+# Allow hllvc to read Wi-Fi link stats non-interactively.
+#
+# `wdutil info` is the only source that reports NSS, and NSS is what separates
+# the fault this watchdog fixes (one spatial stream at strong signal) from a
+# link that is merely slow. Every unprivileged alternative is either gone
+# (`airport -I`, removed in macOS 14.4) or redacted by the Location Services
+# gate on SSID/BSSID (`networksetup`, `scutil`, `ipconfig`).
+#
+# Scoped to the read-only `info` subcommand. wdutil's mutating subcommands
+# (clean, dump, log, privateMAC=) are NOT covered and still require a password.
+hllvc ALL=(root) NOPASSWD: /usr/bin/wdutil info

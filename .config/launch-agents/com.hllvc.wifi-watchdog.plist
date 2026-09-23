@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.hllvc.wifi-watchdog</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>entrypoint.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/hllvc/.shell/scripts/crons/wifi-watchdog</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <key>PATH</key>
+      <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <!-- Single-shot per fire, not a resident loop: strike count and cooldown
+         live in the state file, so launchd owns the schedule and nothing
+         survives to leak a shell across sleep/wake. -->
+    <key>StartInterval</key>
+    <integer>30</integer>
+    <!-- The degradation is silent — the link stays associated, so no file
+         changes when it happens and polling is the only thing that catches it.
+         These paths churn on join/leave/DHCP, which makes a *fresh* link get
+         checked at once instead of up to StartInterval later. resolv.conf is
+         watched at its real path; /etc/resolv.conf is only a symlink to it. -->
+    <key>WatchPaths</key>
+    <array>
+      <string>/var/run/resolv.conf</string>
+      <string>/Library/Preferences/SystemConfiguration/com.apple.airport.preferences.plist</string>
+    </array>
+    <!-- Network changes arrive in bursts; without this a single join could fire
+         the 5 s sampler several times over. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/hllvc/Library/Logs/com.hllvc.wifi-watchdog/out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/hllvc/Library/Logs/com.hllvc.wifi-watchdog/err.log</string>
+  </dict>
+</plist>
