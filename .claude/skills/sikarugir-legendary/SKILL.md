@@ -1,10 +1,10 @@
-# Sikarugir Legendary Integration Skill
-
 ---
 name: sikarugir-legendary
-description: integrate legendary with sikarugir, setup epic drm for sikarugir, add legendary authentication, sikarugir epic game, configure sikarugir for epic, epic drm wrapper
+description: Integrate the legendary CLI with Sikarugir-wrapped Epic games (Epic DRM auth, Info.plist program flags, cloud-save sync), and maintain the existing Hogwarts Legacy install (token refresh, save sync, logs). Use for "integrate legendary with sikarugir", "setup epic drm for sikarugir", "sikarugir epic game", "hogwarts legacy cloud saves", "refresh epic token".
 version: 1.0.0
 ---
+
+# Sikarugir Legendary Integration
 
 ## Purpose
 
@@ -109,6 +109,7 @@ ln -sf "/path/to/legendary/installed/GameName" "<APP_PATH>/Contents/Resources/dr
 
 - See `references/epic-drm-parameters.md` for detailed parameter documentation
 - See `examples/StartupScript.sh` for the script template
+- See `references/hogwarts-legacy.md` for the existing Hogwarts Legacy install: game IDs, save path, Startup/Shutdown cloud-save scripts, logs, manual token refresh
 
 ## Common Issues
 

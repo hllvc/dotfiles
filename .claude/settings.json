@@ -13,7 +13,6 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "WebFetch",
       "Bash(find:*)",
       "Read(~/.repos/**)",
       "Grep(~/.repos/**)",
@@ -66,9 +65,11 @@
     "disableBypassPermissionsMode": "disable"
   },
   "model": "opus[1m]",
-  "fallbackModel": ["opus[1m]", "sonnet[1m]"],
+  "fallbackModel": [
+    "opus[1m]",
+    "sonnet[1m]"
+  ],
   "enableAllProjectMcpServers": false,
-  "disableClaudeAiConnectors": true,
   "allowedMcpServers": [],
   "worktree": {
     "baseRef": "fresh"
@@ -148,11 +149,24 @@
       "$defaults",
       "Bash(make build-prod) and Bash(make build-deploy-prod-*) — push to PROD AWS targets (ECR account 476299211833, no :latest tag safety net); review, never auto-approve",
       "Bash(aws s3 sync:*) targeting orchestrator-resources-qa or any non-dev namespace — mass artifact sync; review, never auto-approve",
-      "Any aws command against profile sg-prod or sg-prod-us — production accounts, require explicit approval before the action, never auto-approve"
+      "Any aws command against profile sg-prod or sg-prod-us — production accounts, require explicit approval before the action, never auto-approve",
+      "tofu/terraform apply, destroy, import, state rm/mv or taint against production (sg-prod or sg-prod-us profile, or a prod workspace, var-file, backend or directory) — review, never auto-approve"
     ],
     "hard_deny": [
       "$defaults",
       "Never read, copy, print, encode or transmit private keys, cloud credentials, tokens or auth files (~/.ssh, ~/.aws, ~/.netrc, ~/.config/gh/hosts.yml, ~/.config/op, ~/.claude/.credentials.json), by any command or path spelling"
+    ],
+    "environment": [
+      "$defaults",
+      "AWS profile sg-prod-ro is IAM read-only access to StackGuardian production; safe for inspection",
+      "AWS profiles sg-prod and sg-prod-us are StackGuardian production (EU and US) with write access",
+      "AWS profile dash is StackGuardian non-production",
+      "AWS profile personal is the user's private AWS account, unrelated to StackGuardian"
     ]
+  },
+  "isolatePeerMachines": true,
+  "skillOverrides": {
+    "anthropic-skills:tirith-outbound": "off",
+    "anthropic-skills:import-memory": "off"
   }
 }

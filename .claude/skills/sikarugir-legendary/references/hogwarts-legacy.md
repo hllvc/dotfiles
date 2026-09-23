@@ -1,10 +1,6 @@
-# Sikarugir Legendary Integration
+# Hogwarts Legacy — existing Sikarugir install
 
-Manage Epic Games integration for Sikarugir-wrapped games (Wine wrappers with Epic DRM).
-
-## Context
-
-This skill handles setup and maintenance of Epic Games authentication and cloud saves for games running via Sikarugir (a Wine wrapper for macOS).
+Maintenance runbook for the already-configured Hogwarts Legacy wrapper: IDs, paths, cloud-save scripts, logs.
 
 ## App Location
 `~/Applications/Sikarugir/HogwartsLegacy.app`

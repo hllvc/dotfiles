@@ -19,6 +19,7 @@ Custom shell scripts added to PATH or sourced as functions.
 
 | Script | Description |
 |--------|-------------|
+| `cmcp.sh` | Starts Claude Code with chosen MCP servers opted in for one session (MCP is off by default): `cmcp notion slack`, `-c` checks via `claude mcp list`, `-l` lists connector aliases, args after `--` go to `claude` |
 | `com.sh` | Git commit helper with conventional commit prefixes and branch ticket references |
 | `gsw.sh` | Google Cloud configuration switcher |
 | `gt.sh` | Opens Ghostty terminal windows with specified tmux socket configurations |

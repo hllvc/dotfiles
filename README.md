@@ -72,10 +72,8 @@ Zsh tab completion for all of the above ships in `.shell/completions/_dotctl` an
 │       └── unloaded/   # Inactive scripts
 ├── .claude/            # Claude Code CLI
 │   ├── CLAUDE.md       # Global instructions
-│   ├── settings.json   # Settings, plugins, hooks
-│   ├── skills/         # Custom skills
-│   ├── commands/       # Slash commands
-│   └── hooks/          # Lifecycle hooks
+│   ├── settings.json   # Settings, permissions, plugins
+│   └── skills/         # Custom skills
 ├── .zshrc              # Main Zsh config
 ├── .tmux.conf          # Tmux config
 ├── .gitconfig          # Git config
@@ -146,6 +144,37 @@ Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by defau
 ```bash
 ~/.shell/scripts/unloaded/mason-link.sh
 ```
+
+#### MCP servers — off by default, on per session
+
+`allowedMcpServers: []` blocks every MCP server (user-added, plugin, and
+claude.ai connectors). Allowlist entries merge across settings sources, so a
+single session can opt servers back in without touching `settings.json`:
+
+```bash
+# claude.ai connectors match by URL (their names contain spaces/dots,
+# which serverName entries don't accept)
+claude --settings '{"allowedMcpServers":[{"serverUrl":"https://mcp.notion.com/*"}]}'
+
+# user-added servers match by name
+claude --settings '{"allowedMcpServers":[{"serverName":"testapi"}]}'
+```
+
+`cmcp` (`.shell/scripts/cmcp.sh`) wraps this: `cmcp notion slack` opens a session
+with just those, `cmcp -c figma` checks what would load, `cmcp -l` lists aliases.
+`claude mcp list` accepts the same `--settings` flag to check what would load.
+Connector URLs: Notion `mcp.notion.com`, Slack `mcp.slack.com`, Fathom
+`api.fathom.ai`, PostHog `mcp.posthog.com`, Figma `mcp.figma.com`, Excalidraw
+`mcp.excalidraw.com`, Claude Docs `api.anthropic.com/v1/pages`.
+
+Don't re-add `disableClaudeAiConnectors: true` — any source setting it to
+`true` wins, so no per-session flag can turn connectors back on.
+
+#### Potential features
+
+- **Ticket links in the footer** — `footerLinksRegexes` can turn `SG-####` IDs
+  in output into clickable badges. Tickets live in Notion; needs the Notion
+  database/page URL shape for a ticket ID before it can be wired up.
 
 ## Git Config
 
