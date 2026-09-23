@@ -70,6 +70,10 @@
     "sonnet[1m]"
   ],
   "enableAllProjectMcpServers": false,
+  "skillOverrides": {
+    "anthropic-skills:tirith-outbound": "off",
+    "anthropic-skills:import-memory": "off"
+  },
   "allowedMcpServers": [],
   "worktree": {
     "baseRef": "fresh"
@@ -141,6 +145,7 @@
   "autoCompactEnabled": true,
   "teammateMode": "auto",
   "remoteControlAtStartup": true,
+  "isolatePeerMachines": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
   "skipAutoPermissionPrompt": true,
@@ -163,10 +168,5 @@
       "AWS profile dash is StackGuardian non-production",
       "AWS profile personal is the user's private AWS account, unrelated to StackGuardian"
     ]
-  },
-  "isolatePeerMachines": true,
-  "skillOverrides": {
-    "anthropic-skills:tirith-outbound": "off",
-    "anthropic-skills:import-memory": "off"
   }
 }
