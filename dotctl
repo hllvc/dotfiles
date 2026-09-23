@@ -161,6 +161,10 @@ Subcommands:
 
 Notes:
   - No-op on non-Darwin systems.
+  - Safari and Mail prefs are sandboxed: they need Full Disk Access for the
+    terminal app, and don't work inside tmux started by launchd (the
+    tmux server, not the terminal, is what macOS checks). Skipped sections
+    are reported and make the command exit non-zero.
   - Edit the script directly to add/remove tweaks; it IS the documentation.
 EOF
 }

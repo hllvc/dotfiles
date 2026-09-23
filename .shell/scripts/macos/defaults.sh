@@ -16,6 +16,19 @@ set -euo pipefail
 
 echo "── applying macOS defaults ──"
 
+# Sandboxed apps (Safari, Mail) keep prefs under ~/Library/Containers, which
+# macOS privacy protection guards: writing needs Full Disk Access for the
+# *responsible* process. Inside a tmux server started by launchd (tmux-warmup)
+# that's tmux, not the terminal app — so run from a plain terminal window whose
+# app has Full Disk Access. Skip such sections instead of aborting the rest.
+skipped=()
+_container_ok() {
+  ls "$HOME/Library/Containers/$1/Data/Library/Preferences" &>/dev/null && return 0
+  skipped+=("$1")
+  echo "  skipping $1: container not accessible (needs Full Disk Access, run outside tmux)" >&2
+  return 1
+}
+
 # ─── NSGlobalDomain — UI / input ───────────────────────────────────────── {{{
 
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
@@ -68,15 +81,19 @@ defaults write com.apple.AppleMultitouchTrackpad TrackpadThreeFingerDrag -bool t
 
 # ─── Safari ────────────────────────────────────────────────────────────── {{{
 
-defaults write com.apple.Safari ShowFullURLInSmartSearchField -bool true
-defaults write com.apple.Safari IncludeDevelopMenu -bool true
-defaults write com.apple.Safari ShowOverlayStatusBar -bool true
+if _container_ok com.apple.Safari; then
+  defaults write com.apple.Safari ShowFullURLInSmartSearchField -bool true
+  defaults write com.apple.Safari IncludeDevelopMenu -bool true
+  defaults write com.apple.Safari ShowOverlayStatusBar -bool true
+fi
 
 # }}}
 
 # ─── Mail ──────────────────────────────────────────────────────────────── {{{
 
-defaults write com.apple.mail DisableInlineAttachmentViewing -bool true # show attachments as icons, not inline previews
+if _container_ok com.apple.mail; then
+  defaults write com.apple.mail DisableInlineAttachmentViewing -bool true # show attachments as icons, not inline previews
+fi
 
 # }}}
 
@@ -86,6 +103,10 @@ defaults write com.apple.mail DisableInlineAttachmentViewing -bool true # show a
 # cfprefsd avoids stale-cache reads from other processes.
 killall Dock Finder SystemUIServer cfprefsd 2>/dev/null || true
 
+if ((${#skipped[@]})); then
+  echo "── done, skipped: ${skipped[*]} ──" >&2
+  exit 1
+fi
 echo "── done ──"
 
 # }}}
