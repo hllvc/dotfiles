@@ -81,8 +81,23 @@ horizontal split · `<C-Up>`/`<C-Down>` cycle prompt history · `<Esc>` close ·
 | `R`     | o, x    | Treesitter search                                                              |
 | `<C-s>` | cmdline | Toggle flash labels during a `/` search                                        |
 
-`f` `F` `t` `T` `;` `,` are also enhanced: press the same motion key again to
-repeat forward, the uppercase one to go back.
+`s` labels matches both above and below the cursor, in the current window only.
+`<CR>` jumps to the first match without a label.
+
+**`f` `F` `t` `T` `;` `,` are enhanced too.** After `fx`, press `f` again (or
+`;`) for the next `x`, `F` (or `,`) for the previous one. The repeat only works
+while the matches are still highlighted — any other cursor movement clears them
+and the next `f` starts a fresh search.
+
+**Operating on a flash target.** `d`, `c` and `y` + `s` do **not** reach flash:
+`ds`, `cs` and `ys` are nvim-surround's (delete / change / add surrounding). Use
+one of these instead:
+
+| Want                                  | Keys                                                                |
+| ------------------------------------- | ------------------------------------------------------------------- |
+| Delete / yank / change up to a spot   | `v` `s` _chars_ _label_, then `d` / `y` / `c`                       |
+| Act on a distant textobject, stay put | `dr` / `yr` / `cr`, jump, then a textobject — e.g. `yr` _jump_ `iw` |
+| Other operators work directly         | `>s` · `<s` · `=s` · `gus` · `gUs` … _chars_ _label_                |
 
 Note `s`/`S` replace Vim's built-in substitute — use `cl`/`cc` for those.
 
@@ -345,6 +360,8 @@ Merge conflicts: `]x` / `[x` to move between them, then `<leader>gdo` ours ·
 ## Gotchas
 
 - `s` and `S` belong to flash, not Vim's substitute. Use `cl` and `cc`.
+- `ds` / `cs` / `ys` are nvim-surround, so `d`/`c`/`y` + flash `s` never fire.
+  Select first (`vs…d`) or use flash remote (`dr`, `yr`).
 - `an` / `in` are mapped to the conditional textobject, which shadows Neovim
   0.12's built-in `an` / `in` node selection. `]n` / `[n` / `]N` / `[N` still
   work, and `<C-Space>` / `<BS>` cover the same ground.
