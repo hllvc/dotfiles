@@ -277,7 +277,7 @@ Merge conflicts: `]x` / `[x` to move between them, then `<leader>gdo` ours ·
 | Plugin | Purpose |
 | --- | --- |
 | conform.nvim | Format on save, restricted to changed hunks |
-| nvim-lint | shellcheck, yamllint, ruff, tflint |
+| nvim-lint | shellcheck, yamllint, ruff, tflint; actionlint + zizmor on `.github/workflows/` |
 
 ### Git
 

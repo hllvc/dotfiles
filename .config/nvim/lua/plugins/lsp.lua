@@ -1,3 +1,96 @@
+-- gh_actions_ls only talks to GitHub when it is handed a token and the repo a
+-- workflow belongs to. Without them it skips everything remote: `with:` inputs of the
+-- action a step uses, `secrets.`/`vars.` names, environments, self-hosted runner
+-- labels. The token is the `gh` CLI's own; the repo comes from `gh api` against the
+-- checkout's remote. Both are looked up once per session (per repo), and a failed
+-- lookup just leaves the server offline.
+--
+-- The lookup runs in the background, from root_dir: on_dir() is only called once it
+-- is done, so the server starts with the answers in hand while the buffer draws and
+-- highlights straight away. Doing it with :wait() in before_init froze the UI on
+-- first open for the length of a keychain read plus a round trip to api.github.com.
+local gh = { token = nil, repos = {}, pending = {} }
+
+local function gh_run(cmd, opts, cb)
+	opts = vim.tbl_extend("force", { text = true, timeout = 5000 }, opts or {})
+	vim.system(cmd, opts, function(res)
+		vim.schedule(function()
+			cb(res)
+		end)
+	end)
+end
+
+---Fill gh.token and gh.repos for the repo holding `root`, then call `done`.
+---@param root string
+---@param done fun()
+local function gh_actions_prefetch(root, done)
+	if vim.fn.executable("gh") == 0 then
+		gh.token = false
+	end
+	local top = vim.fs.root(root, ".git")
+	if gh.token == false or (gh.token and (not top or gh.repos[top] ~= nil)) then
+		return done()
+	end
+
+	-- Several workflows opened at once share one lookup.
+	local key = top or root
+	if gh.pending[key] then
+		table.insert(gh.pending[key], done)
+		return
+	end
+	gh.pending[key] = { done }
+	local function flush()
+		local waiting = gh.pending[key]
+		gh.pending[key] = nil
+		for _, cb in ipairs(waiting) do
+			cb()
+		end
+	end
+
+	local function fetch_repo()
+		if not gh.token or not top or gh.repos[top] ~= nil then
+			return flush()
+		end
+		gh_run({
+			"gh",
+			"api",
+			"repos/{owner}/{repo}",
+			"--jq",
+			'{id: .id, owner: .owner.login, name: .name, organizationOwned: (.owner.type == "Organization")}',
+		}, { cwd = top }, function(res)
+			local ok, repo = pcall(vim.json.decode, res.stdout or "")
+			if res.code == 0 and ok and type(repo) == "table" then
+				repo.workspaceUri = vim.uri_from_fname(top)
+				gh.repos[top] = repo
+			else
+				gh.repos[top] = false
+			end
+			flush()
+		end)
+	end
+
+	if gh.token == nil then
+		gh_run({ "gh", "auth", "token" }, {}, function(res)
+			gh.token = res.code == 0 and vim.trim(res.stdout) or false
+			fetch_repo()
+		end)
+	else
+		fetch_repo()
+	end
+end
+
+---Init options from whatever gh_actions_prefetch found. Never blocks.
+---@param root string|nil
+---@return table
+local function gh_actions_context(root)
+	if not gh.token then
+		return {}
+	end
+	local top = root and vim.fs.root(root, ".git")
+	local repo = top and gh.repos[top]
+	return { sessionToken = gh.token, repos = repo and { repo } or nil }
+end
+
 return {
 	-- Mason
 	{
@@ -11,6 +104,8 @@ return {
 				"prettier",
 				"prettierd",
 				"yamllint",
+				"actionlint",
+				"zizmor",
 				"jq",
 				"xmlformatter",
 				"shfmt",
@@ -58,8 +153,6 @@ return {
 				sh = { "shellcheck" },
 				bash = { "shellcheck" },
 				yaml = { "yamllint" },
-				-- GitHub Actions handled by gh_actions_ls (LSP) + yamlls schema. The old
-				-- ["yaml.ghaction"]=actionlint leg never ran: that filetype is never assigned.
 				python = { "ruff" },
 				-- terraformls (below) already reports validation diagnostics, and
 				-- terraform_validate shells out to `terraform validate` on every read and
@@ -68,12 +161,115 @@ return {
 				-- its spawn. Note `tf` is not a filetype: Neovim detects *.tf as terraform.
 				terraform = { "tflint" },
 			}
+
+			-- GitHub Actions workflows are plain `yaml` (no filetype of their own), so they
+			-- are picked out by path, the same way gh_actions_ls decides where to attach.
+			-- actionlint adds what neither LSP does: shellcheck over `run:` blocks,
+			-- runner labels, `needs:` graphs, action inputs.
+			--
+			-- yamllint's defaults are noise on workflows: `on:` trips truthy on every file,
+			-- and long `run:`/`${{ }}` lines trip line-length. A project's own .yamllint
+			-- still wins; the relaxed config only stands in when there is none.
+			lint.linters.yamllint_gha = vim.tbl_extend("force", lint.linters.yamllint, {
+				args = {
+					"--format",
+					"parsable",
+					"-d",
+					"{extends: default, rules: {truthy: {check-keys: false}, document-start: disable, line-length: disable}}",
+					"-",
+				},
+			})
+			-- zizmor audits workflow security (template injection, dangerous triggers,
+			-- credential persistence, permissions). It reads the file from disk rather than
+			-- stdin: on stdin zizmor 1.30 ignores --config and its own zizmor.yml discovery.
+			-- Its default wants every `uses:` hash-pinned; linters/zizmor.yml relaxes that to
+			-- tags so `@v4` passes, again only when the repo has no zizmor.yml of its own.
+			-- With the `gh` token (the same background lookup gh_actions_ls uses) it also
+			-- runs the online audits: known-vulnerable actions, impostor commits, stale
+			-- refs. Without one those skip themselves and the offline audits still run.
+			--
+			-- The stock parser reads a file location's path from `Local.given_path`, which
+			-- zizmor 1.30 renamed to `verbatim_path`; every file-based run dies indexing nil.
+			-- Map the new name onto the old one before handing the output over.
+			local zizmor_parser = lint.linters.zizmor.parser
+			local zizmor = vim.tbl_extend("force", lint.linters.zizmor, {
+				stdin = false,
+				parser = function(output, bufnr, ...)
+					local ok, decoded = pcall(vim.json.decode, output)
+					if ok and type(decoded) == "table" then
+						for _, diag in ipairs(decoded) do
+							for _, loc in ipairs(diag.locations or {}) do
+								local key = loc.symbolic and loc.symbolic.key
+								if key and key.Local and not key.Local.given_path then
+									key.Local.given_path = key.Local.verbatim_path
+								end
+							end
+						end
+						output = vim.json.encode(decoded)
+					end
+					return zizmor_parser(output, bufnr, ...)
+				end,
+			})
+			lint.linters.zizmor = vim.tbl_extend("force", zizmor, { args = { "--format", "json-v1" } })
+			lint.linters.zizmor_gha = vim.tbl_extend("force", zizmor, {
+				args = {
+					"--format",
+					"json-v1",
+					"--config",
+					vim.fs.joinpath(vim.fn.stdpath("config"), "linters", "zizmor.yml"),
+				},
+			})
+
+			local function is_gha_workflow(bufnr)
+				return vim.endswith(vim.fs.dirname(vim.api.nvim_buf_get_name(bufnr)), "/.github/workflows")
+			end
+			local function has_config(bufnr, names)
+				return vim.fs.root(bufnr, names) ~= nil
+			end
+
 			-- No InsertLeave: it fired on every <Esc> and spawned the linters on the
 			-- interactive path (terraform used to run three of them per <Esc>).
 			vim.api.nvim_create_autocmd({ "BufWritePost", "BufReadPost" }, {
 				group = vim.api.nvim_create_augroup("nvim-lint", { clear = true }),
-				callback = function()
-					lint.try_lint()
+				callback = function(ev)
+					if vim.bo[ev.buf].filetype == "yaml" and is_gha_workflow(ev.buf) then
+						local yamllint = has_config(ev.buf, { ".yamllint", ".yamllint.yaml", ".yamllint.yml" })
+								and "yamllint"
+							or "yamllint_gha"
+						local zizmor = has_config(ev.buf, { "zizmor.yml", "zizmor.yaml" }) and "zizmor" or "zizmor_gha"
+						-- Skip whatever Mason has not installed yet (fresh machine, install still
+						-- running): try_lint raises ENOENT on every read otherwise.
+						local function installed(name)
+							return vim.fn.executable(lint.linters[name].cmd) == 1
+						end
+						lint.try_lint(vim.tbl_filter(installed, { "actionlint", yamllint }))
+
+						-- zizmor waits for the token so even the first run gets the online
+						-- audits; the lookup is cached, so after the first file this is
+						-- immediate. nvim-lint's `env` replaces the environment rather than
+						-- extending it, hence environ() underneath GH_TOKEN.
+						if installed(zizmor) then
+							local buf = ev.buf
+							gh_actions_prefetch(vim.fs.dirname(vim.api.nvim_buf_get_name(buf)), function()
+								if not vim.api.nvim_buf_is_valid(buf) then
+									return
+								end
+								vim.api.nvim_buf_call(buf, function()
+									lint.try_lint(zizmor, {
+										wrap_linter = function(linter)
+											if gh.token then
+												linter.env =
+													vim.tbl_extend("force", vim.fn.environ(), { GH_TOKEN = gh.token })
+											end
+											return linter
+										end,
+									})
+								end)
+							end)
+						end
+					else
+						lint.try_lint()
+					end
 				end,
 			})
 		end,
@@ -199,19 +395,81 @@ return {
 				yamlls = {
 					settings = {
 						yaml = {
-							schemas = {
-								["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*",
-								["https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json"] = "/*.k8s.yaml",
-							},
+							-- Schemas come from schemastore.nvim (setup.yamlls below).
 							format = {
 								enable = true,
+								-- yamlls's bundled prettier defaults to double quotes and rewrites
+								-- every '...' in the file on save. Single quotes are literal (no
+								-- escape processing) and what most workflows already use; prettier
+								-- still picks double when the text itself holds a '.
+								singleQuote = true,
 							},
 							validate = true,
 							completion = true,
 						},
 					},
 				},
-				gh_actions_ls = {},
+				gh_actions_ls = {
+					init_options = {
+						-- Code action that fills in an action's required `with:` inputs.
+						experimentalFeatures = { missingInputsQuickfix = true },
+					},
+					-- Multi-line completions (`with:` + newline + one indent level) come
+					-- indented relative to the cursor line, leaning on the client's
+					-- adjustIndentation. nvim-cmp only honours that for snippets and inserts
+					-- plain text as-is, so the new line landed at column 2 instead of under the
+					-- step. Re-indent every continuation line by the cursor line's indentation
+					-- before cmp sees the items.
+					on_init = function(client)
+						local request = client.request
+						client.request = function(self, method, params, handler, ...)
+							if method ~= "textDocument/completion" or type(handler) ~= "function" then
+								return request(self, method, params, handler, ...)
+							end
+							local bufnr = vim.uri_to_bufnr(params.textDocument.uri)
+							local line = vim.api.nvim_buf_get_lines(
+								bufnr,
+								params.position.line,
+								params.position.line + 1,
+								false
+							)[1] or ""
+							local indent = "\n" .. line:match("^%s*")
+							return request(self, method, params, function(err, result, ...)
+								local items = result and (result.items or result) or {}
+								for _, item in ipairs(items) do
+									if item.textEdit and item.textEdit.newText then
+										item.textEdit.newText = item.textEdit.newText:gsub("\n", indent)
+									end
+									if item.insertText then
+										item.insertText = item.insertText:gsub("\n", indent)
+									end
+								end
+								return handler(err, result, ...)
+							end, ...)
+						end
+					end,
+					-- lspconfig's own root_dir (workflow directories only), plus the GitHub
+					-- lookup: the server starts once gh_actions_prefetch is done.
+					root_dir = function(bufnr, on_dir)
+						local parent = vim.fs.dirname(vim.api.nvim_buf_get_name(bufnr))
+						for _, dir in ipairs({ "/.github/workflows", "/.forgejo/workflows", "/.gitea/workflows" }) do
+							if vim.endswith(parent, dir) then
+								return gh_actions_prefetch(parent, function()
+									if vim.api.nvim_buf_is_valid(bufnr) then
+										on_dir(parent)
+									end
+								end)
+							end
+						end
+					end,
+					before_init = function(params, config)
+						params.initializationOptions = vim.tbl_extend(
+							"force",
+							params.initializationOptions or {},
+							gh_actions_context(config.root_dir)
+						)
+					end,
+				},
 				jsonls = {},
 				marksman = {},
 			},
@@ -228,6 +486,31 @@ return {
 					end
 					vim.lsp.config("jsonls", opts)
 					vim.lsp.enable("jsonls")
+					return true
+				end,
+				-- yamlls pulls the whole SchemaStore catalog by default, workflow schema
+				-- included, which repeats every error gh_actions_ls and actionlint already
+				-- report on workflows. Swap its built-in store for schemastore.nvim's catalog
+				-- minus that one entry; everything else (action.yml, compose, dependabot, ...)
+				-- keeps its schema.
+				yamlls = function(_, opts)
+					local has_schemastore, schemastore = pcall(require, "schemastore")
+					if has_schemastore then
+						opts.settings.yaml.schemaStore = { enable = false, url = "" }
+						opts.settings.yaml.schemas = schemastore.yaml.schemas({
+							ignore = { "GitHub Workflow" },
+							extra = {
+								{
+									name = "Kubernetes",
+									description = "Kubernetes v1.18 manifests",
+									fileMatch = { "*.k8s.yaml" },
+									url = "https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json",
+								},
+							},
+						})
+					end
+					vim.lsp.config("yamlls", opts)
+					vim.lsp.enable("yamlls")
 					return true
 				end,
 			},
@@ -294,6 +577,17 @@ return {
 			vim.api.nvim_create_autocmd("LspAttach", {
 				group = vim.api.nvim_create_augroup("UserLspConfig", {}),
 				callback = function(ev)
+					-- Inlay hints stay off in general (opts.inlay_hints), but on workflows
+					-- gh_actions_ls uses them to spell out `cron:` schedules in plain English.
+					local client = vim.lsp.get_client_by_id(ev.data.client_id)
+					if
+						client
+						and client.name == "gh_actions_ls"
+						and client:supports_method("textDocument/inlayHint")
+					then
+						vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
+					end
+
 					local function map(mode, lhs, rhs, desc)
 						vim.keymap.set(mode, lhs, rhs, { buffer = ev.buf, desc = desc })
 					end

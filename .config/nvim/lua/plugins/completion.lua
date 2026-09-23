@@ -104,7 +104,22 @@ return {
 					{ name = "lazydev", group_index = 0 },
 					{ name = "nvim_lsp", priority = 1000 },
 					{ name = "nvim_lsp_signature_help", priority = 900 },
-					{ name = "path", priority = 700 },
+					{
+						name = "path",
+						priority = 700,
+						option = {
+							-- Relative paths resolve from the buffer's directory, except in GitHub
+							-- workflows: Actions resolves `./...` (local actions, reusable workflows,
+							-- working-directory) from the repo root, not from .github/workflows/.
+							get_cwd = function(params)
+								local dir = vim.fn.expand(("#%d:p:h"):format(params.context.bufnr))
+								if vim.endswith(dir, "/.github/workflows") then
+									return vim.fs.root(dir, ".git") or dir
+								end
+								return dir
+							end,
+						},
+					},
 					{ name = "calc", priority = 600 },
 					{ name = "luasnip", priority = 500 },
 				}, {

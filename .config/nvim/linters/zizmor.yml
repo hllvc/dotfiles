@@ -1,0 +1,8 @@
+# Fallback zizmor config for workflows in repos without their own zizmor.yml
+# (see nvim-lint in lua/plugins/lsp.lua). Actions are pinned by major version
+# tag (@v4), not by commit hash, so a tag is enough for every action.
+rules:
+  unpinned-uses:
+    config:
+      policies:
+        "*": ref-pin
