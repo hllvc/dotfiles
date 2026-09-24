@@ -18,3 +18,6 @@
     - type only: `feat: message`
     - neither: `message`
   - Keep messages short and in the user's voice (no AI-assistant trailers — see rule above).
+- Long runs: when a step doesn't need my input, keep going, and put status notes in the same message as your next action. Stop and ask only when you can't continue without me, or before anything destructive or outward-facing: deleting data, force-pushing, pushing/opening PRs, touching production (see the sg-prod rules in settings), or changing files outside the repo/worktree the task is about. When you finish, lead with anything you need from me.
+- For multi-step work (migrations, audits, many files), keep a checklist in `TASKS.md` at the worktree root: tick items as they're done and add anything new you find. Split independent components across subagents and verify their results before accepting them.
+- For research or investigation, mark anything you couldn't confirm and say where you looked.
