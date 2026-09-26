@@ -30,6 +30,7 @@ Custom shell scripts added to PATH or sourced as functions.
 | `ks.sh` | Interactive Kubernetes secret viewer with decoding and clipboard export |
 | `mksh.sh` | Creates a new shell script with shebang, makes it executable, and opens in nvim |
 | `nq_res.sh` | Tests network downlink speed against a target threshold |
+| `sgc.sh` | Drives the `~/.repos/stackguardian/sgcode/` two-repo workspace (landfast-backend + sgcode-agent) as one: `init`, `status`, `switch <branch> [-c]`, `commit`, `push`, `each <git args>`; `--only backend\|agent` scopes to one repo |
 | `ss.sh` | Interactive SSH host selector using fzf |
 | `tmsg.sh` | Sends messages to a Telegram channel via bot API |
 | `check-events.scpt` | AppleScript that checks for upcoming Calendar events |
