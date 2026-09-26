@@ -10,7 +10,6 @@ alias sg="cd $MY_GIT_DIR/stackguardian"
 
 # zsh aliases
 alias zshrc='nvim ~/.zshrc'
-alias pp='nvim ~/.config/nvim/plugins'
 alias shell='cd ~/.shell'
 alias scripts='cd ~/.shell/scripts'
 
