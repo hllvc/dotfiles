@@ -1,0 +1,117 @@
+#compdef sgc.sh
+# sgc (~/.shell/scripts/sgc.sh): commands, --only anywhere, branches for switch,
+# and git completion for the pass-through commands, run inside the repo sgc
+# would target so refs and paths are that repo's.
+
+_sgc_branches() {
+  local root=$1 name
+  local -a branches
+  shift
+  for name; do
+    branches+=(
+      ${(f)"$(git -C $root/$name for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null)"}
+      ${(f)"$(git -C $root/$name for-each-ref --format='%(refname:strip=3)' refs/remotes/origin 2>/dev/null)"}
+    )
+  done
+  branches=(${(u)branches:#HEAD})
+  (( $#branches )) && _describe -t branches 'branch' branches
+}
+
+_sgc() {
+  local root=${SGCODE_ROOT:-${SG_REPOS:-$HOME/.repos/stackguardian}/sgcode}
+  local -a repos=(backend agent)
+
+  if [[ $words[CURRENT-1] == --only ]]; then
+    _describe -t repos 'repo' repos
+    return
+  fi
+
+  # Find the command word, stepping over `--only <repo>`.
+  local i only cmd pos
+  for (( i = 2; i < CURRENT; i++ )); do
+    if [[ $words[i] == --only ]]; then
+      only=$words[i+1]
+      (( i++ ))
+    elif [[ -z $cmd ]]; then
+      cmd=$words[i]
+      pos=$i
+    fi
+  done
+  [[ -n $only ]] && repos=($only)
+
+  local -a opts=('--only:limit the command to one repo')
+
+  if [[ -z $cmd ]]; then
+    local -a cmds=(
+      'init:create missing worktrees'
+      'status:branch, ahead/behind and changes per repo'
+      'fetch:fetch --prune'
+      'pull:pull --ff-only'
+      'switch:switch both repos to a branch'
+      'commit:commit via com.sh where changes are staged'
+      'push:push -u origin HEAD where ahead'
+      'diff:git diff in each repo'
+      'log:git log in each repo'
+      'each:run a git command in every selected repo'
+      'backend:run a git command in backend'
+      'agent:run a git command in agent'
+      'help:show usage'
+    )
+    _describe -t commands 'sgc command' cmds -- opts
+    return
+  fi
+
+  case $cmd in
+    switch|sw)
+      if [[ $words[CURRENT-1] == --from ]]; then
+        _sgc_branches $root $repos
+      elif [[ $PREFIX == -* ]]; then
+        opts+=(
+          '-c:create the branch where missing'
+          '--from:base for -c'
+          '--no-fetch:skip the fetch'
+        )
+        _describe -t options 'switch option' opts
+      else
+        _sgc_branches $root $repos
+      fi
+      ;;
+    commit|ci)
+      if [[ $PREFIX == -* ]]; then
+        opts+=(
+          '-feat:feat type prefix'
+          '-fix:fix type prefix'
+          '-docs:docs type prefix'
+          '-a:stage everything first'
+        )
+        _describe -t options 'commit option' opts
+      else
+        _message 'commit message'
+      fi
+      ;;
+    diff|log|each|backend|agent)
+      # Rewrite the line as the git command sgc runs, then let _git finish it.
+      local repo=${only:-backend}
+      [[ $cmd == (backend|agent) ]] && repo=$cmd
+      if [[ $cmd == (diff|log) ]]; then
+        words=(git ${words[pos,-1]})
+        (( CURRENT -= pos - 2 ))
+      else
+        words=(git ${words[pos+1,-1]})
+        (( CURRENT -= pos - 1 ))
+      fi
+      local service=git here=$PWD
+      builtin cd -q $root/$repo 2>/dev/null || return 1
+      {
+        _git
+      } always {
+        builtin cd -q $here
+      }
+      ;;
+    *)
+      [[ $PREFIX == -* ]] && _describe -t options 'option' opts
+      ;;
+  esac
+}
+
+_sgc "$@"

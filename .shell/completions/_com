@@ -1,0 +1,24 @@
+#compdef com.sh
+# com (~/.shell/scripts/com.sh): an optional type flag first, then the message.
+# The descriptions preview the prefix com will write on the current branch.
+
+_com() {
+  if (( CURRENT > 2 )) || [[ $PREFIX != (|-*) ]]; then
+    _message 'commit message'
+    return
+  fi
+
+  local branch ticket
+  branch=$(git branch --show-current 2>/dev/null)
+  [[ ${branch%%-*} == [[:alpha:]]## && ${${branch#*-}%%-*} == [[:digit:]]## ]] \
+    && ticket="${branch%%-*}-${${branch#*-}%%-*}"
+
+  local -a types
+  local t
+  for t in feat fix docs; do
+    types+=("-$t:$t${ticket:+(${ticket})}\: message")
+  done
+  _describe -t types 'commit type' types
+}
+
+_com "$@"

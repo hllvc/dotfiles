@@ -1,0 +1,30 @@
+#compdef hop.sh
+# hop (~/.shell/scripts/hop.sh) picks the host itself with fzf and passes every
+# argument to ssh ahead of it. A host typed here would become the remote
+# command, so only ssh options are completed.
+
+_arguments -s -S \
+  '-4[IPv4 only]' \
+  '-6[IPv6 only]' \
+  '-A[forward the auth agent]' \
+  '-a[do not forward the auth agent]' \
+  '-C[compress traffic]' \
+  '-D+[dynamic SOCKS forward]:[bind_address\:]port' \
+  '-F+[config file]:config file:_files' \
+  '-f[go to background before the command]' \
+  '-G[print the resolved config and exit]' \
+  '-i+[identity file]:identity file:_files' \
+  '-J+[jump host]:jump host:_hosts' \
+  '-L+[local port forward]:[bind_address\:]port\:host\:hostport' \
+  '-l+[login name]:login name:_users' \
+  '-N[no remote command]' \
+  '-n[stdin from /dev/null]' \
+  '*-o+[ssh_config option]:option (Key=Value)' \
+  '-p+[port]:port' \
+  '-q[quiet]' \
+  '-R+[remote port forward]:[bind_address\:]port\:host\:hostport' \
+  '-T[no pseudo-terminal]' \
+  '*-t[force a pseudo-terminal]' \
+  '*-v[verbose]' \
+  '-X[X11 forwarding]' \
+  '-Y[trusted X11 forwarding]'

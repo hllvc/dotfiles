@@ -1,0 +1,49 @@
+#compdef cmcp.sh
+# cmcp (~/.shell/scripts/cmcp.sh): flags, the connector aliases defined in the
+# script itself, and MCP servers configured for Claude Code (user scope, this
+# project in ~/.claude.json, and the project's .mcp.json). After `--` the words
+# belong to claude, which has no completion, so only files are offered.
+
+_cmcp() {
+  local script=$HOME/.shell/scripts/cmcp.sh i
+  for (( i = 2; i < CURRENT; i++ )); do
+    [[ $words[i] == -- ]] && { _files; return }
+  done
+
+  if [[ $PREFIX == -* ]]; then
+    local -a opts=(
+      '-c:check only, via claude mcp list'
+      '-l:list connector aliases'
+      '-h:help'
+      '--:pass the rest to claude'
+    )
+    _describe -t options 'cmcp option' opts
+    return
+  fi
+
+  local -a connectors servers
+  local line
+  for line in ${(f)"$(sed -n 's/^ *\[\([A-Za-z0-9_-]*\)\]="\(.*\)"$/\1 \2/p' $script 2>/dev/null)"}; do
+    connectors+=("${line%% *}:${${line#* }//:/\\:}")
+  done
+
+  local top
+  top=$(git rev-parse --show-toplevel 2>/dev/null)
+  servers=(${(f)"$(jq -r --arg pwd $PWD --arg top "$top" '
+    (.mcpServers // {} | keys[]),
+    (.projects[$pwd].mcpServers // {} | keys[]),
+    (.projects[$top].mcpServers // {} | keys[])' ~/.claude.json 2>/dev/null)"})
+  [[ -n $top && -f $top/.mcp.json ]] \
+    && servers+=(${(f)"$(jq -r '.mcpServers // {} | keys[]' $top/.mcp.json 2>/dev/null)"})
+  servers=(${(u)servers})
+
+  # Skip anything already on the line.
+  local -a used=(${words[2,CURRENT-1]})
+  connectors=(${connectors:#(${(~j:|:)used}):*})
+  servers=(${servers:|used})
+
+  _describe -t connectors 'claude.ai connector' connectors
+  (( $#servers )) && _describe -t servers 'configured MCP server' servers
+}
+
+_cmcp "$@"

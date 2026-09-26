@@ -1,0 +1,36 @@
+#compdef gbare
+# gbare (~/.shell/scripts/functions/gbare.sh) takes one clone URL, or none to
+# pick org and repo with fzf. This completes git@github.com:<owner>/<repo>:
+# owners are the logged-in gh accounts plus the active account's orgs, and
+# each owner's repos are fetched once per shell (the first Tab waits on gh).
+# Typing `owner/repo` without the git@github.com: part works too.
+
+(( $+_gbare_owners )) || typeset -ga _gbare_owners
+(( $+_gbare_repos )) || typeset -gA _gbare_repos
+
+_gbare() {
+  (( CURRENT == 2 )) || return 1
+  local base=git@github.com: typed=${PREFIX#git@github.com:}
+
+  if [[ $typed == */* ]]; then
+    local owner=${typed%%/*}
+    if (( ! $+_gbare_repos[$owner] )); then
+      _gbare_repos[$owner]=$(gh repo list $owner -L 1000 --json name --jq '.[].name' 2>/dev/null)
+    fi
+    local -a repos=(${(M)${(f)_gbare_repos[$owner]}:#${typed#*/}*})
+    (( $#repos )) && compadd -U -- $base$owner/${^repos}
+    return
+  fi
+
+  if (( ! $#_gbare_owners )); then
+    _gbare_owners=(
+      ${(f)"$(gh auth status 2>&1 | awk '/Logged in/ { for (i = 1; i < NF; i++) if ($i == "account") print $(i + 1) }')"}
+      ${(f)"$(gh org list 2>/dev/null)"}
+    )
+    _gbare_owners=(${(u)_gbare_owners})
+  fi
+  local -a owners=(${(M)_gbare_owners:#$typed*})
+  (( $#owners )) && compadd -U -S '' -- $base${^owners}/
+}
+
+_gbare "$@"

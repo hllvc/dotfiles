@@ -1,0 +1,72 @@
+#compdef tofu terraform
+# Completion for OpenTofu and Terraform. OpenTofu ships no zsh completion, and
+# Homebrew's _terraform only relays the binary's own answers. Both binaries
+# answer the COMP_LINE/COMP_POINT protocol, but for subcommands they only return
+# flags for `init`. So when the binary has nothing and a flag is being typed, the
+# flags come from `<binary> <subcommand> -help`, parsed once per subcommand and
+# kept for the session. $service says which binary is being completed.
+
+(( $+_tofu_help_flags )) || typeset -gA _tofu_help_flags
+
+# Fill $plain (flags taking no value, or a separate one) and $valued (-flag=)
+# as _describe specs for <binary> <subcommand words...>.
+__tofu_flags_from_help() {
+  local bin=$1 key="$*" line flag desc
+  shift
+  if (( ! $+_tofu_help_flags[$key] )); then
+    local -a specs
+    for line in ${(f)"$(command $bin "$@" -help 2>/dev/null)"}; do
+      # Flag lines are indented 2-4 spaces; deeper ones are wrapped descriptions.
+      [[ $line =~ '^ {1,4}(-[A-Za-z][-A-Za-z0-9_]*)(=?)' ]] || continue
+      flag=$match[1]$match[2]
+      desc=${line##[[:space:]]#}
+      desc=${desc#*  }
+      [[ $desc == ${line##[[:space:]]#} ]] && desc=''
+      specs+=("${flag}:${${desc##[[:space:]]#}//:/\\:}")
+    done
+    _tofu_help_flags[$key]=${(pj:\n:)${(u)specs}}
+  fi
+  local -a all=(${(f)_tofu_help_flags[$key]})
+  plain=(${all:#*=:*})
+  valued=(${(M)all:#*=:*})
+}
+
+_tofu() {
+  local bin=${service:-tofu}
+  [[ $bin == (tofu|terraform) ]] || bin=tofu
+  local -a matches
+  matches=( ${(f)"$(COMP_LINE="$words" COMP_POINT=$(( 1 + ${#${(j. .)words[1,CURRENT-1]}} + $#PREFIX )) command $bin)"} )
+  if (( $#matches )); then
+    compadd -Q -S '' -a matches
+    return
+  fi
+
+  [[ $PREFIX == -* ]] || return 1
+
+  # A value after -flag=: paths for the flags that take one, nothing otherwise.
+  if [[ $PREFIX == -*=* ]]; then
+    case ${PREFIX%%=*} in
+      *-file|-out|-state|-state-out|-backup|-chdir|-plugin-dir|-from-module) compset -P '*='; _files ;;
+    esac
+    return
+  fi
+
+  # Subcommand words: skip global flags (-chdir=...), then take the leading
+  # non-flag words, e.g. `plan` or `state rm`.
+  local -a sub
+  local w
+  for w in ${words[2,CURRENT-1]}; do
+    if [[ $w == -* ]]; then
+      (( $#sub )) && break
+    else
+      sub+=$w
+    fi
+  done
+  (( $#sub )) || return 1
+
+  local -a plain valued
+  __tofu_flags_from_help $bin $sub
+  _describe -t flags "$bin $sub flag" plain -- valued -S ''
+}
+
+_tofu "$@"
