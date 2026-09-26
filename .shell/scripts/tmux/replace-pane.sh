@@ -95,7 +95,7 @@ respawn_env=()
 
 # --- act ---------------------------------------------------------------------
 # The shell is named explicitly: with no shell-command, respawn-pane re-runs the
-# command the pane was *created* with, which for e.g. `prefix+o` (ss.sh) would
+# command the pane was *created* with, which for e.g. `prefix+o` (hop.sh) would
 # relaunch that script instead of giving us a plain shell.
 if ! tmux respawn-pane -k -c "$pane_path" \
   ${respawn_env[@]+"${respawn_env[@]}"} \
