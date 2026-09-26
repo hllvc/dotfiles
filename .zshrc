@@ -79,7 +79,10 @@ export ZSH_COMPDUMP="$HOME/.zcompdump"
 # what kept both of these dead. The first line is the one `brew shellenv zsh`
 # emits and the static copy below leaves out; without it none of Homebrew's
 # site-functions (brew, aws, az, sg-dr, ...) are ever loaded.
-fpath=("/opt/homebrew/share/zsh/site-functions" ~/.zsh/zsh-completions ~/.shell/completions $fpath)
+# ~/.shell/completions goes first: compinit registers with `compdef -n`, so the
+# first directory claiming a command wins, and these are meant to override
+# (e.g. _tofu also takes over terraform from Homebrew's _terraform).
+fpath=(~/.shell/completions "/opt/homebrew/share/zsh/site-functions" ~/.zsh/zsh-completions $fpath)
 
 _load ".shell/zshinit"
 _load_scripts "init/"
@@ -94,23 +97,38 @@ path=("/opt/homebrew/bin" "/opt/homebrew/sbin" $path)
 export MANPATH="/opt/homebrew/share/man${MANPATH+:$MANPATH}:"
 export INFOPATH="/opt/homebrew/share/info:${INFOPATH:-}"
 
-# 1password completion (cached — forking `op` is slow)
-_op_cache="${XDG_CACHE_HOME:-$HOME/.cache}/op-completion.zsh"
-if [[ ! -s "$_op_cache" || "$(command -v op)" -nt "$_op_cache" ]]; then
-  op completion zsh > "$_op_cache"
-fi
-source "$_op_cache"
-compdef _op op
-unset _op_cache
+# Generated completions, cached: forking each tool on every shell start is slow.
+# A cache is rebuilt when the watched binary is newer than it, i.e. after an
+# upgrade. The generated scripts only define functions and call compdef, so
+# sourcing them from inside a function is fine.
+#   _cached_completion <name> <binary to watch> <generator command...>
+_cached_completion() {
+  local name=$1 bin=$2
+  shift 2
+  [[ -x $bin ]] || return 0
+  local cache="${XDG_CACHE_HOME:-$HOME/.cache}/${name}-completion.zsh"
+  if [[ ! -s $cache || $bin -nt $cache ]]; then
+    "$@" > "$cache" 2>/dev/null || { rm -f "$cache"; return 1; }
+  fi
+  source "$cache"
+}
+_cached_completion op "$commands[op]" op completion zsh
+# kubectl lives outside Homebrew, so nothing drops a _kubectl into
+# site-functions. `k` completes through the alias.
+_cached_completion kubectl "$commands[kubectl]" kubectl completion zsh
+# /usr/local/bin/tailscale is a two-line wrapper that never changes, so watch
+# the app's binary instead.
+_cached_completion tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale tailscale completion zsh
+unfunction _cached_completion
 
 # zsh completion directories are set above, before zshinit runs compinit.
 # After installing something that ships completions, `rm -f ~/.zcompdump*` once:
 # oh-my-zsh reuses a fresh dump with `compinit -C`, which skips the scan for new
 # completion functions entirely.
 
-# kubectl completions
-# compdef __start_kubectl k
-# source <(kubectl completion zsh)
+# gcloud completion. Homebrew's site-functions copy has no #compdef header, so
+# compinit never registers it; the SDK's own script wires it up via bashcompinit.
+zsh-defer -c '[ -s "/opt/homebrew/share/google-cloud-sdk/completion.zsh.inc" ] && \. "/opt/homebrew/share/google-cloud-sdk/completion.zsh.inc"'
 
 # nvm completions (deferred — nvm is ~4700 lines)
 zsh-defer -c '[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"'
@@ -147,6 +165,13 @@ ZVM_VI_INSERT_ESCAPE_BINDKEY=jk
 ZVM_READKEY_ENGINE=nex
 ZVM_VI_HIGHLIGHT_BACKGROUND=#3c3836
 ZVM_LAZY_KEYBINDINGS=false
+# fzf: `**<Tab>` completion plus Ctrl-T (files), Ctrl-R (history), Alt-C (cd).
+# Hooked into zvm's init because zvm rebuilds the keymaps when it starts, which
+# would wipe any bindings made before it.
+zvm_after_init_commands+=(
+  'source /opt/homebrew/opt/fzf/shell/completion.zsh'
+  'source /opt/homebrew/opt/fzf/shell/key-bindings.zsh'
+)
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
