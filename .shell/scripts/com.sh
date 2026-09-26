@@ -14,6 +14,7 @@ elif [[ "$1" == "-fix" ]]; then
   shift
 elif [[ "$1" == "-docs" ]]; then
   commit_prefix="docs"
+  shift
 fi
 readonly commit_prefix
 
