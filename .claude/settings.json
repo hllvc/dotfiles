@@ -88,13 +88,28 @@
     "pyright-lsp@claude-plugins-official": true,
     "swift-lsp@claude-plugins-official": true,
     "typescript-lsp@claude-plugins-official": true,
-    "gopls-lsp@claude-plugins-official": true
+    "gopls-lsp@claude-plugins-official": true,
+    "cc-plugin-you-should-know@builtin": true,
+    "cache-tax@claude-code-mods": true,
+    "terminal-browser@terminal-browser": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
       "source": {
         "source": "git",
         "url": "https://github.com/anthropics/claude-plugins-official.git"
+      }
+    },
+    "claude-code-mods": {
+      "source": {
+        "source": "github",
+        "repo": "karanb192/claude-code-mods"
+      }
+    },
+    "terminal-browser": {
+      "source": {
+        "source": "github",
+        "repo": "zenbu-labs/terminal-browser"
       }
     }
   },
@@ -135,6 +150,20 @@
     }
   },
   "askUserQuestionTimeout": "never",
+  "pluginConfigs": {
+    "terminal-browser@terminal-browser": {
+      "options": {
+        "agentTool": true
+      }
+    },
+    "tirith@inline": {
+      "options": {
+        "mode": "both",
+        "platformOnTurnEnd": false,
+        "banner": "always"
+      }
+    }
+  },
   "autoUpdatesChannel": "latest",
   "tui": "fullscreen",
   "voice": {

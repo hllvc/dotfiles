@@ -8,3 +8,4 @@ nvim.log
 # Written by terminal-browser itself (via ~/.agents/skills -> this dir) as an
 # absolute, version-pinned link; managed by homebrew-update/link-skills.sh
 .claude/skills/terminal-browser
+__pycache__/
