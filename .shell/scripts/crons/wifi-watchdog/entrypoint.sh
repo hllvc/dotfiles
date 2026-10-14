@@ -100,6 +100,11 @@ _has_address() {
   [[ -n "$(ipconfig getifaddr "$IFACE" 2>/dev/null)" ]]
 }
 
+# Whether IFACE holds the default route, i.e. is the link carrying traffic.
+_is_primary() {
+  [[ "$(route -n get default 2>/dev/null | awk '$1 == "interface:" { print $2 }')" == "$IFACE" ]]
+}
+
 # Emits shell-assignable KEY=VALUE for the current link.
 #
 # `wdutil info` is the source because it is the only one that reports NSS, and
@@ -296,14 +301,26 @@ fi
 # 1400-byte traffic sampled mid-flight. A link only reports NSS while it is the
 # interface actually carrying traffic (NSS 2, MCS 4-7, 80 MHz when it was).
 #
-# So the fault cannot be diagnosed while Wi-Fi is parked — and it does no harm
-# there either. It is caught once Wi-Fi carries traffic again, within STRIKES
-# samples, or sooner off the WatchPaths trigger.
+# The reverse does not hold: NSS 0 also shows up while en0 IS the default route.
+# The driver's rate stats freeze — Tx Rate pinned at one value (300.0 observed),
+# MCS 0, NSS 0 — through a sustained ~250 Mbps download and across sleep/wake,
+# for hours to days, then recover on their own. So NSS 0 is never a diagnosis;
+# only the route tells "parked" apart from "stats frozen".
+#
+# Either way the fault cannot be judged, so nothing is bounced. Parked is
+# harmless and is caught once Wi-Fi carries traffic again. Frozen is the
+# watchdog going blind on a live link — logged as NO READING so it is visible.
 if ((nss_i < 1)); then
   _save_state 0 "$last_bounce" "$now"
-  _report dim "IDLE" "$metrics" "$context" \
-    "$(_color dim "link parked (NSS 0) — nothing to judge until it carries traffic")"
-  _say "idle-link ssid=${ssid} rate=${rate_i} rssi=${rssi_i} nss=0"
+  if _is_primary; then
+    _report yellow "NO READING" "$metrics" "$context" \
+      "$(_color yellow "stats frozen (NSS 0) while ${IFACE} carries traffic — not judging")"
+    _say "no-reading ssid=${ssid} rate=${rate_i} rssi=${rssi_i} nss=0 primary=${IFACE}"
+  else
+    _report dim "IDLE" "$metrics" "$context" \
+      "$(_color dim "link parked (NSS 0) — nothing to judge until it carries traffic")"
+    _say "idle-link ssid=${ssid} rate=${rate_i} rssi=${rssi_i} nss=0"
+  fi
   exit 0
 fi
 
