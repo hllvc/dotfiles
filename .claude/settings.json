@@ -146,7 +146,8 @@
       "effortLevel": "high"
     },
     "claude-opus-5-5": {
-      "effortLevel": "medium"
+      "effortLevel": "medium",
+      "autoCompactWindow": "auto"
     }
   },
   "askUserQuestionTimeout": "never",
@@ -170,11 +171,11 @@
     "enabled": true
   },
   "timeFormat": "auto",
-  "showThinkingSummaries": true,
+  "showThinkingSummaries": false,
   "skipWorkflowUsageWarning": true,
   "editorMode": "normal",
   "preferredNotifChannel": "ghostty",
-  "autoCompactEnabled": true,
+  "autoCompactEnabled": false,
   "teammateMode": "auto",
   "remoteControlAtStartup": true,
   "isolatePeerMachines": true,
