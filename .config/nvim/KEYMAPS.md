@@ -245,6 +245,39 @@ Merge conflicts: `]x` / `[x` to move between them, then `<leader>gdo` ours ·
 | `<leader>af` / `ag` / `ab` / `aG` | Add files / grep / buffers / git files                  |
 | `<leader>aa` / `ad`               | Accept / deny a diff                                    |
 
+## Todos
+
+Two files, `~/.todo/work.todo.md` (StackGuardian repos) and `~/.todo/personal.todo.md`
+(everything else, and outside any repo). Items carry their meaning in tags:
+`@repo(x)`, `@priority(critical|high|medium|low)`, `@due(2026-10-01)`, `@started/@done(…)`,
+and on capture `@from(repo)`, `@captured(…)`, `@src(repo/worktree/path:l1-l2)`. Every tag
+needs its `(…)`; type `@` for completion. A child without its own `@repo`/`@priority`/`@due`
+takes its parent's. Bare `@work` / `@personal` move an item to that file on save.
+
+| Key                 | Where        | Action                                                      |
+| ------------------- | ------------ | ----------------------------------------------------------- |
+| `<leader>to`        | anywhere     | Open this context's file (inside one: the other file)       |
+| `<leader>ti`        | anywhere     | Capture to the inbox; in visual mode also records `@src`    |
+| `<leader>tI`        | anywhere     | Inbox in a float (`q` closes)                               |
+| `<CR>`              | todo, n/v    | Check / uncheck, stamping or removing `@done`               |
+| `<CR>` / `<S-CR>`   | todo, insert | New todo below / indented                                   |
+| `<S-CR>`            | todo         | Follow: `@src` opens file:line, `@repo` opens a tmux window |
+| `<leader>tt`        | todo         | Scope: this repo ↔ whole file                               |
+| `<leader>ta`        | todo         | Archive completed items under `## Archive`                  |
+| `<leader>tm`        | todo, n/v    | Triage: pick repo + priority, move under `## Todos`         |
+| `<leader>tf`        | todo         | Pick an open item (overdue → priority → file order)         |
+| `<leader>tn` / `tr` | todo         | New todo / turn back into plain text                        |
+| `<leader>td/ts/tp`  | todo         | Add / remove `@done` / `@started` / `@priority`             |
+| `<leader>tv`        | todo         | Change the value of the tag under the cursor                |
+| `]t` / `[t`         | todo         | Next / previous open item                                   |
+
+Quick look: tmux `prefix C-t` opens the todo file of the pane's repo in a popup; `q` or `<M-t>`
+closes it, and `<S-CR>` on `@src` closes it and opens the file in the pane you came from. The
+start page has `t  Todos`.
+
+Status line: `todo 4 · inbox 2 · due 1`. Inbox turns yellow, and a notification shows once a
+day, when the oldest inbox item is more than 5 days old.
+
 ## Tools
 
 | Key                           | Action                                       |
@@ -316,6 +349,7 @@ Merge conflicts: `]x` / `[x` to move between them, then `<leader>gdo` ours ·
 | nvim-ts-autotag                             | Auto-close and rename HTML/JSX tags       |
 | vim-matchup                                 | Extends `%` beyond brackets               |
 | todo-comments.nvim                          | Highlights and finds TODO/FIX/HACK        |
+| checkmate.nvim                              | Todo files (see Todos); lua/todo/ on top  |
 | tabular                                     | Column alignment                          |
 | undotree                                    | Visual undo history                       |
 

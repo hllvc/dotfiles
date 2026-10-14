@@ -4,7 +4,7 @@
 -- The exact Neovim release this config is written against. Realign it with the
 -- installed binary on every config change (see CLAUDE.md); the check at the
 -- bottom of this file warns when the two drift apart.
-vim.g.nvim_target_version = "0.12.5"
+vim.g.nvim_target_version = "0.12.6"
 
 -- Set leader keys BEFORE loading lazy.nvim
 vim.g.mapleader = " "

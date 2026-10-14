@@ -379,6 +379,11 @@ return {
 				if vim.g.disable_autoformat or vim.g.skip_format_on_save then
 					return
 				end
+				-- Todo files (lua/todo): checkmate fires BufWritePre itself, and prettier would
+				-- rewrite list spacing and escape the @tag(...) text.
+				if vim.b[bufnr].todo then
+					return
+				end
 				-- Default mode: touch only the lines this buffer actually changed,
 				-- so a one-line edit to a never-formatted file does not produce a
 				-- whole-file diff. Returns false when git can't tell us what

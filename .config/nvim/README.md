@@ -2,7 +2,7 @@
 
 Lua-based Neovim configuration with lazy.nvim, the native LSP client (vim.lsp), and nvim-cmp completion.
 
-**Targets Neovim 0.12.5.** The authoritative value lives in `vim.g.nvim_target_version`
+**Targets Neovim 0.12.6.** The authoritative value lives in `vim.g.nvim_target_version`
 (`init.lua`) and is realigned with the installed binary on every config change; startup
 warns when the running Neovim and the target drift apart.
 
@@ -21,6 +21,7 @@ nvim/
 │   ├── config.lua     # lazy.nvim bootstrap and plugin loading
 │   ├── mappings.lua   # Custom keymaps
 │   ├── autocmds.lua   # Autocommands
+│   ├── todo/          # Todo workflow on checkmate.nvim (views, capture, triage, status)
 │   ├── plugins/       # Plugin specs (lazy.nvim)
 │   │   ├── ai.lua
 │   │   ├── colorscheme.lua
@@ -29,6 +30,7 @@ nvim/
 │   │   ├── flash.lua
 │   │   ├── lsp.lua
 │   │   ├── telescope.lua
+│   │   ├── todo.lua
 │   │   ├── treesitter.lua
 │   │   └── ui.lua
 │   └── snippets/      # Custom snippets
@@ -46,4 +48,5 @@ nvim/
 - **Syntax** - Treesitter for highlighting and text objects
 - **AI** - Copilot integration
 - **Navigation** - Flash for quick motions
+- **Todos** - checkmate.nvim with tag-driven views, inbox capture and triage (`<leader>t`)
 - **Keymaps** - `jk` escape, `L`/`H` buffer navigation, space as leader

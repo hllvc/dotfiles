@@ -72,6 +72,12 @@ local function should_save_view()
 		return false
 	end
 
+	-- Todo files compute their folds from tags (lua/todo/view.lua); a saved view would
+	-- replay folds of an earlier scope.
+	if vim.b.todo then
+		return false
+	end
+
 	return true
 end
 

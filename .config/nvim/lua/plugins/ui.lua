@@ -77,7 +77,7 @@ return {
 						"diff",
 						"diagnostics",
 					},
-					lualine_x = {},
+					lualine_x = require("todo.status").lualine(),
 					lualine_y = {},
 					lualine_z = {},
 				},
@@ -213,7 +213,8 @@ return {
 		"nvimdev/dashboard-nvim",
 		event = "VimEnter",
 		cond = function()
-			return vim.fn.argc(-1) == 0
+			-- not in the tmux todo popup, which opens the todo file itself
+			return vim.fn.argc(-1) == 0 and not vim.env.TODO_POPUP
 		end,
 		opts = function()
 			local logo = [[
@@ -239,6 +240,7 @@ return {
 						{ action = "ene | startinsert", desc = " New file", icon = " ", key = "n" },
 						{ action = "Telescope oldfiles", desc = " Recent files", icon = " ", key = "r" },
 						{ action = "Telescope live_grep", desc = " Find text", icon = " ", key = "g" },
+						{ action = "lua require('todo').open()", desc = " Todos", icon = " ", key = "t" },
 						{ action = "Lazy", desc = " Lazy", icon = "󰒲 ", key = "l" },
 						{ action = "qa", desc = " Quit", icon = " ", key = "q" },
 					},
@@ -298,6 +300,7 @@ return {
 				{ "<leader>g", group = "git" },
 				{ "<leader>o", group = "open (tmux)" },
 				{ "<leader>s", group = "search" },
+				{ "<leader>t", group = "todo" },
 				{ "<leader>sn", group = "noice" },
 				{ "<leader>u", group = "ui" },
 				{ "<leader>v", group = "venv" },

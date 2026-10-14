@@ -104,6 +104,8 @@ return {
 					{ name = "lazydev", group_index = 0 },
 					-- GitHub workflows only: action versions, branches, tags, repo paths (lua/gha.lua).
 					{ name = "gha", priority = 1100 },
+					-- Todo files and the capture prompt only: @tag names and values (lua/todo/cmp.lua).
+					{ name = "todo_tags", priority = 1100 },
 					{ name = "nvim_lsp", priority = 1000 },
 					{ name = "nvim_lsp_signature_help", priority = 900 },
 					{
@@ -185,6 +187,7 @@ return {
 			end
 			local cmp = require("cmp")
 			cmp.register_source("gha", require("gha").cmp_source())
+			cmp.register_source("todo_tags", require("todo.cmp").new())
 			cmp.setup(opts)
 		end,
 	},
