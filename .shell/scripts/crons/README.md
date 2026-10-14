@@ -10,7 +10,7 @@ A cron directory is picked up by `./dotctl crons install` if it contains an `ins
 
 Drop a new folder with an `install.sh` and `dotctl` will run it on the next install pass — no edit to `dotctl` needed.
 
-The LaunchAgent side is orthogonal: any `*.plist` in `.config/launch-agents/` is loaded by `./dotctl agents load`.
+The LaunchAgent side is orthogonal: any `*.plist` in `.config/launch-agents/` is loaded by `./dotctl agents load`; `./dotctl agents disable <name>` turns one off persistently (launchd override, survives `load`/`all`/reboot), `enable` undoes it.
 
 `_lib/` holds bash snippets shared between crons (`log.sh` for the bordered-block logger, `notify.sh` for `alerter` wrappers). It has no `install.sh` so `dotctl crons install` skips it.
 

@@ -50,6 +50,8 @@ _dotctl() {
       cmds=(
         'load:symlink plists and bootstrap'
         'unload:bootout and remove symlinks'
+        'disable:unload and keep off across load/all/reboot'
+        'enable:clear disabled mark and load'
         'list:show plists and loaded state'
         '-h:help'
       )

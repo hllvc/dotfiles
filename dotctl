@@ -35,7 +35,7 @@ Commands:
   all                        Run stow, load launch agents, install crons,
                              apply macOS defaults
   stow        [--adopt]      Symlink dotfiles into \$HOME via stow
-  agents      <load|unload|list> [name...]
+  agents      <load|unload|disable|enable|list> [name...]
                              Manage launch agents under ~/.config/launch-agents
                              (all of them, or just the named ones)
   crons       <install|list>
@@ -58,6 +58,7 @@ Examples:
   ./dotctl all              # stow + agents load + crons install + macos apply
   ./dotctl stow --adopt     # adopt existing files as stow-managed
   ./dotctl agents unload    # unload all launch agents
+  ./dotctl agents disable homebrew-update  # unload + keep it off for good
   ./dotctl crons list       # list discovered cron install hooks
   ./dotctl macos apply      # apply macOS defaults tweaks
   ./dotctl doctor           # audit absolute paths in plists + scripts
@@ -85,15 +86,19 @@ EOF
 
 usage_agents() {
   cat <<EOF
-Usage: ./dotctl agents <load|unload|list> [name...]
+Usage: ./dotctl agents <load|unload|disable|enable|list> [name...]
 
 Manages user LaunchAgents. Each *.plist in ~/.config/launch-agents/ is
 symlinked into ~/Library/LaunchAgents/ and bootstrapped via launchctl.
 
 Subcommands:
-  load       Symlink plists and bootstrap (no-op if already loaded)
-  unload     Bootout and remove the symlinks
-  list       Show each plist + whether it's currently loaded
+  load       Symlink plists and bootstrap (no-op if already loaded; skips
+             disabled agents)
+  unload     Bootout and remove the symlinks — until the next \`load\`/\`all\`
+  disable    Unload, then mark the label disabled in launchd so \`load\`,
+             \`all\` and reboots leave it off. The plist stays in the repo.
+  enable     Clear the disabled mark and load
+  list       Show each plist + whether it's loaded, unloaded or disabled
 
 Names:
   With no names every plist is acted on. Otherwise each name may be the full
@@ -105,6 +110,7 @@ Examples:
   ./dotctl agents unload tmux-autosave
   ./dotctl agents load com.hllvc.work.tmux com.hllvc.personal.tmux
   ./dotctl agents list memory-pressure
+  ./dotctl agents disable homebrew-update
 EOF
 }
 
@@ -213,6 +219,15 @@ _agent_is_loaded() {
   local label="$1" uid
   uid=$(id -u)
   launchctl print "gui/$uid/$label" &>/dev/null
+}
+
+# launchd keeps a per-domain override list; a disabled label refuses
+# bootstrap. Older macOS prints "=> true" instead of "=> disabled".
+_agent_is_disabled() {
+  local label="$1" uid
+  uid=$(id -u)
+  launchctl print-disabled "gui/$uid" 2>/dev/null |
+    grep -Eq "\"${label//./\\.}\" => (disabled|true)"
 }
 
 # Resolve agent names to plist paths, one per line. No names → every plist.
@@ -327,6 +342,10 @@ _agents_load() {
   for file in "${files[@]}"; do
     filename=$(basename "$file")
     label="${filename%.plist}"
+    if _agent_is_disabled "$label"; then
+      echo "  $label: disabled — skipped (./dotctl agents enable ${label#com.*.})"
+      continue
+    fi
     ln -sfv "$file" "$HOME/Library/LaunchAgents/$filename"
     if _agent_is_loaded "$label"; then
       echo "  $label: already loaded"
@@ -363,6 +382,48 @@ _agents_unload() {
   done
 }
 
+_agents_disable() {
+  [[ -d "$LAUNCH_AGENTS_SOURCE" ]] || {
+    echo "No launch-agents dir; skipping."
+    return 0
+  }
+
+  local -a files
+  _agents_select "$@" || return 1
+
+  local uid label file
+  uid=$(id -u)
+
+  _agents_unload "$@"
+  for file in "${files[@]}"; do
+    label="$(basename "$file" .plist)"
+    launchctl disable "gui/$uid/$label" &&
+      echo "  $label: disabled" ||
+      echo "  $label: disable failed"
+  done
+}
+
+_agents_enable() {
+  [[ -d "$LAUNCH_AGENTS_SOURCE" ]] || {
+    echo "No launch-agents dir; skipping."
+    return 0
+  }
+
+  local -a files
+  _agents_select "$@" || return 1
+
+  local uid label file
+  uid=$(id -u)
+
+  for file in "${files[@]}"; do
+    label="$(basename "$file" .plist)"
+    launchctl enable "gui/$uid/$label" &&
+      echo "  $label: enabled" ||
+      echo "  $label: enable failed"
+  done
+  _agents_load "$@"
+}
+
 _agents_list() {
   [[ -d "$LAUNCH_AGENTS_SOURCE" ]] || {
     echo "No launch-agents dir."
@@ -380,6 +441,8 @@ _agents_list() {
     label="${filename%.plist}"
     if _agent_is_loaded "$label"; then
       status="loaded"
+    elif _agent_is_disabled "$label"; then
+      status="disabled"
     else
       status="unloaded"
     fi
@@ -397,6 +460,8 @@ cmd_agents() {
   case "$sub" in
   load) _agents_load "$@" ;;
   unload) _agents_unload "$@" ;;
+  disable) _agents_disable "$@" ;;
+  enable) _agents_enable "$@" ;;
   list) _agents_list "$@" ;;
   -h | --help) usage_agents ;;
   *)
