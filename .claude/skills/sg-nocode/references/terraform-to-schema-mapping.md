@@ -497,7 +497,7 @@ When `create_storage_backend` is `false`, shows and requires `existing_s3_bucket
 
 ## AWS Regions Enum
 
-Standard AWS regions list for region selection fields:
+Standard AWS regions list for region selection fields. This is the canonical list — `examples/*/input_schema.json` copy it, so update them together:
 ```json
 "aws_region": {
   "title": "AWS Region",
@@ -617,8 +617,8 @@ variable "os" {
 ## Best Practices
 
 1. Do NOT include `"$schema"` key - StackGuardian forms don't require it
-2. Use `"additionalProperties": false` for object types to prevent typos
-   - **Exception**: Do NOT use on objects with `allOf`/`if-then` conditional logic
+2. Use `"additionalProperties": false` on nested object types to prevent typos
+   - **Exception**: never at the schema root (the SG no-code renderer fails with `NO_CODE_ERROR`), and not on objects with `allOf`/`if-then` conditional logic
 3. Use `"integer"` for whole numbers, `"number"` for decimals
 4. Extract regex patterns from Terraform validation conditions
 5. Convert `contains()` validations to `"enum"`

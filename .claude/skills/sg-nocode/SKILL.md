@@ -1,6 +1,6 @@
 ---
-name: sg-template-schema
-description: This skill should be used when the user asks to "create template schema", "create nocode form", "nocode form", "sg nocode", "generate schema from variables.tf", "convert terraform to schema", or needs help creating input_schema.json and ui_schema.json for StackGuardian templates.
+name: sg-nocode
+description: Create input_schema.json and ui_schema.json (the no-code form) for StackGuardian templates from Terraform/OpenTofu variables. Use for "nocode form", "template schema", "schema from variables.tf", "sg-nocode".
 version: 0.1.0
 ---
 
@@ -57,6 +57,7 @@ Add `"title"` directly in properties for cleaner display:
   "enum": ["us-east-1", "eu-central-1"]
 }
 ```
+For a real AWS region field, use the full list in `references/terraform-to-schema-mapping.md` (AWS Regions Enum) — that list is canonical; the examples copy it.
 
 ### Enum with Display Names
 Use `enumNames` for user-friendly labels while keeping real values:
