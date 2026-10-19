@@ -7,3 +7,9 @@ README.md
 AGENTS.md
 nvim.log
 ^/\.claude/skills/terminal-browser
+^/\.claude/skills/sg-create-policy
+^/\.claude/skills/sg-create-stack
+^/\.claude/skills/sg-create-workflow
+^/\.claude/skills/sg-manage-secrets
+^/\.claude/skills/sg-update-workflow
+^/\.claude/skills/sg-upgrade-workflow

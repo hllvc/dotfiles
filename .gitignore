@@ -8,4 +8,13 @@ nvim.log
 # Written by terminal-browser itself (via ~/.agents/skills -> this dir) as an
 # absolute, version-pinned link; managed by homebrew-update/link-skills.sh
 .claude/skills/terminal-browser
+
+# Org-synced StackGuardian skills, written by the org sync (via ~/.agents/skills
+# -> this dir); owned by the org, not this repo
+.claude/skills/sg-create-policy
+.claude/skills/sg-create-stack
+.claude/skills/sg-create-workflow
+.claude/skills/sg-manage-secrets
+.claude/skills/sg-update-workflow
+.claude/skills/sg-upgrade-workflow
 __pycache__/
