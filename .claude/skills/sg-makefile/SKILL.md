@@ -91,7 +91,7 @@ Archetype: container | lambda/ecs/custom
 ## Mode: update
 
 **Steps:**
-1. Run the review pipeline silently (including archetype detection).
+1. Run the review pipeline (including archetype detection) to collect all findings.
 2. **Auto-apply all CRITICAL fixes** via `Edit` immediately. List each change in the summary.
 3. Surface IMPORTANT and MINOR findings via `AskUserQuestion` multi-select. Apply chosen items.
 4. Preserve project-specific values:
@@ -124,10 +124,12 @@ whether to add `git_token` build secret (default: **no**).
 
 - **Container archetype:** use `references/canonical-container-template.md`, substituting
   `{{SERVICE_NAME}}` and `{{IMAGE_NAME}}`. If `git_token` is yes, add
-  `--secret id=git_token,env=GIT_TOKEN \` to the `build:` recipe.
+  `--secret id=git_token,env=GIT_TOKEN \` to the `build:` recipe and the `GIT_TOKEN` guard as
+  its first line (DRIFT-8; snippet in the template's Notes).
 - **Lambda/ECS/custom archetype:** use `references/canonical-template.md`, substituting
   `{{SERVICE_NAME}}`, `{{DASH_IMAGE}}`, `{{DASH_LAMBDA}}`, `{{PROD_IMAGE}}`, `{{PROD_LAMBDA}}`,
-  `{{DEPLOY_BODY}}` from `references/archetypes.md`. If `git_token` is no, omit the secret line.
+  `{{DEPLOY_BODY}}` from `references/archetypes.md`. If `git_token` is no, omit the secret
+  line and the `GIT_TOKEN` guard.
 
 **Important:** All recipe lines MUST use tabs (not spaces). The `Write` tool preserves tabs — do not use spaces.
 

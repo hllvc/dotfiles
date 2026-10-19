@@ -33,9 +33,8 @@
 
 ## MINOR — Nice to have
 
-- [ ] `login` target: the private ECR login hardcodes `eu-central-1` instead of `$(BUILD_REGION)`.
-      Both canonical repos have this; it means `BUILD_REGION` overrides don't affect login.
-      Flag for awareness — not a bug in standard usage since `eu-central-1` is the only build region.
+- [ ] `login` target: the private ECR login uses `$(BUILD_REGION)`, not a hardcoded `eu-central-1`
+      (DRIFT-2). Only breaks when `BUILD_REGION` is overridden.
 - [ ] `login:` → the first `docker login` authenticates ECR public (`public.ecr.aws`)
       using `--region us-east-1` (ECR public is always us-east-1 — this is correct)
 - [ ] `build-deploy-dash` uses a single `$(MAKE) build deploy $(DASH_VARS)` call (two goals in one sub-make)

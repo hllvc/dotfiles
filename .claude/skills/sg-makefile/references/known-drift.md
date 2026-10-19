@@ -191,24 +191,24 @@ Applies to all archetype bodies (Lambda, ECS, custom).
 
 **Severity:** MINOR
 
-Both canonical reference Makefiles have this pattern. The private ECR login step
-hardcodes the region rather than using `$(BUILD_REGION)`:
+The private ECR login step hardcodes the region instead of using `$(BUILD_REGION)`.
 
-**Current (in both real repos — consistent but imprecise):**
+**Before (drift):**
 ```makefile
 @aws --profile $(PROFILE) ecr get-login-password --region eu-central-1 \
-    | docker login --username AWS --password-stdin $(REGISTRY)
+    | docker login --username AWS --password-stdin $(BUILD_REGISTRY)
 ```
 
-**More correct (uses the variable):**
+**After (canonical):**
 ```makefile
 @aws --profile $(PROFILE) ecr get-login-password --region $(BUILD_REGION) \
-    | docker login --username AWS --password-stdin $(REGISTRY)
+    | docker login --username AWS --password-stdin $(BUILD_REGISTRY)
 ```
 
-**Why flagged:** If `BUILD_REGION` is ever overridden (e.g. `make build-dash BUILD_REGION=us-east-1`),
-the `login` target would authenticate the wrong region, causing a push failure. In practice
-`eu-central-1` is the only build region used, so this is MINOR.
+**Why it matters:** `BUILD_REGION` defaults to `eu-central-1` (nonprod and EU prod; the US
+prod deploy uses `DEPLOY_REGION=us-east-2` with the replicated image), so in normal use the
+two agree. If `BUILD_REGION` is overridden, a hardcoded login authenticates the wrong
+registry and the push fails.
 
 ---
 
@@ -277,8 +277,7 @@ that account.
 		-t $(BUILD_IMAGE):latest .
 ```
 
-Container archetype: use `$(FULL_IMAGE)` instead of `$(BUILD_IMAGE)`. This
-supersedes the earlier container rule that omitted `latest` deliberately.
+Container archetype: use `$(FULL_IMAGE)` instead of `$(BUILD_IMAGE)`.
 
 Deploys still reference `$(DEPLOY_IMAGE):$(VERSION)` — `latest` is a
 convenience pointer, never the thing a `deploy:` target ships.

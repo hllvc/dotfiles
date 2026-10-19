@@ -73,7 +73,7 @@ login:
 	@echo "Logging into ECR using profile: $(PROFILE)..."
 	@aws --profile $(PROFILE) ecr-public get-login-password --region us-east-1 \
 		| docker login --username AWS --password-stdin public.ecr.aws
-	@aws --profile $(PROFILE) ecr get-login-password --region eu-central-1 \
+	@aws --profile $(PROFILE) ecr get-login-password --region $(BUILD_REGION) \
 		| docker login --username AWS --password-stdin $(BUILD_REGISTRY)
 
 build: login
