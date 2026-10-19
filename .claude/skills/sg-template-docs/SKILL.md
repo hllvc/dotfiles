@@ -94,7 +94,7 @@ Create a technical README with these sections:
 
 ## Usage
 
-{Deployment commands: terraform init, validate, plan, apply}
+{Deployment commands: init, validate, plan, apply using the CLI the module targets (OpenTofu `tofu` by default)}
 
 ### Auto-scaling
 
