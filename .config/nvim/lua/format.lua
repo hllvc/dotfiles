@@ -87,7 +87,6 @@ end
 -- path instead. Measured against prettier 3.x -- recheck if that changes.
 local NO_RANGE_FILETYPES = {
 	css = true,
-	helm = true,
 	html = true,
 	json = true,
 	markdown = true,

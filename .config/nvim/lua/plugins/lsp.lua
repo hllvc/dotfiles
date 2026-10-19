@@ -91,6 +91,64 @@ local function gh_actions_context(root)
 	return { sessionToken = gh.token, repos = repo and { repo } or nil }
 end
 
+-- yamlls applies every schema matched for a file to every document in it, so a
+-- Service + ConfigMap file had each document failing the other's schema (and yannh's
+-- all.json, a oneOf over every definition, fails each document with "matches multiple
+-- schemas"). When a file needs more than one, merge them into a local schema that
+-- dispatches on each document's own kind/apiVersion.
+local K8S_VERSION = "master"
+
+---@param schemas table[] matched schemas, named "<Kind>@<apiVersion>[ [<k8s version>]]"
+---@return table|nil schema one schema covering all of them
+local function kubernetes_dispatch(schemas)
+	local branches, names = {}, {}
+	for _, schema in ipairs(schemas) do
+		local kind, api = schema.name:match("^([^@]+)@(%S+)")
+		if not kind then
+			return nil
+		end
+		table.insert(names, kind)
+		table.insert(branches, {
+			["if"] = {
+				required = { "kind", "apiVersion" },
+				properties = { kind = { const = kind }, apiVersion = { const = api } },
+			},
+			["then"] = { ["$ref"] = schema.uri },
+		})
+	end
+	local body = vim.json.encode({ allOf = branches })
+	local path = ("%s/k8s-schemas/%s.json"):format(vim.fn.stdpath("cache"), vim.fn.sha256(body):sub(1, 16))
+	if not vim.uv.fs_stat(path) then
+		vim.fn.mkdir(vim.fs.dirname(path), "p")
+		vim.fn.writefile({ body }, path)
+	end
+	return {
+		name = ("Kubernetes: %s"):format(table.concat(names, ", ")),
+		uri = vim.uri_from_fname(path),
+		source = "Kubernetes",
+	}
+end
+
+---@param matcher table schema-companion's kubernetes matcher
+---@return table source
+local function kubernetes_source(matcher)
+	return setmetatable({
+		match = function(_, ctx, bufnr)
+			local schemas, seen = {}, {}
+			for _, schema in ipairs(matcher:match(ctx, bufnr)) do
+				if not seen[schema.uri] then
+					seen[schema.uri] = true
+					table.insert(schemas, schema)
+				end
+			end
+			if #schemas <= 1 then
+				return schemas
+			end
+			return { kubernetes_dispatch(schemas) }
+		end,
+	}, { __index = matcher })
+end
+
 return {
 	-- Mason
 	{
@@ -312,6 +370,17 @@ return {
 			"mason-org/mason-lspconfig.nvim",
 			"hrsh7th/cmp-nvim-lsp",
 			"b0o/schemastore.nvim",
+			{ "cenk1cenk2/schema-companion.nvim", dependencies = { "nvim-lua/plenary.nvim" }, opts = {} },
+		},
+		keys = {
+			{
+				"<leader>cs",
+				function()
+					require("schema-companion").select_schema()
+				end,
+				ft = { "yaml", "yaml.helm-values" },
+				desc = "Select YAML schema",
+			},
 		},
 		opts = {
 			diagnostics = {
@@ -393,6 +462,12 @@ return {
 					},
 				},
 				yamlls = {
+					-- yamlls registers its formatter for languageId `yaml` only, and Neovim
+					-- sends the full filetype: chart values files (yaml.helm-values) were
+					-- validated but never formatted.
+					get_language_id = function(_, ft)
+						return (ft:gsub("%..*", ""))
+					end,
 					settings = {
 						yaml = {
 							-- Schemas come from schemastore.nvim (setup.yamlls below).
@@ -493,21 +568,35 @@ return {
 				-- report on workflows. Swap its built-in store for schemastore.nvim's catalog
 				-- minus that one entry; everything else (action.yml, compose, dependabot, ...)
 				-- keeps its schema.
+				--
+				-- Kubernetes manifests have no file name to match on, so schema-companion
+				-- reads each document's apiVersion/kind and points yamlls at that kind's
+				-- schema: yannh/kubernetes-json-schema for built-ins, the datreeio
+				-- CRDs-catalog for everything else. <leader>cs overrides it by hand.
+				-- Chart templates are not covered here: helm_ls runs its own yamlls with a
+				-- current Kubernetes schema.
 				yamlls = function(_, opts)
 					local has_schemastore, schemastore = pcall(require, "schemastore")
 					if has_schemastore then
 						opts.settings.yaml.schemaStore = { enable = false, url = "" }
 						opts.settings.yaml.schemas = schemastore.yaml.schemas({
 							ignore = { "GitHub Workflow" },
-							extra = {
-								{
-									name = "Kubernetes",
-									description = "Kubernetes v1.18 manifests",
-									fileMatch = { "*.k8s.yaml" },
-									url = "https://raw.githubusercontent.com/instrumenta/kubernetes-json-schema/master/v1.18.0-standalone-strict/all.json",
-								},
-							},
 						})
+					end
+					local has_companion, companion = pcall(require, "schema-companion")
+					if has_companion then
+						opts = companion.setup_client(
+							companion.adapters.yamlls.setup({
+								sources = {
+									kubernetes_source(
+										companion.sources.matchers.kubernetes.setup({ version = K8S_VERSION })
+									),
+									companion.sources.lsp.setup(),
+									companion.sources.none.setup(),
+								},
+							}),
+							opts
+						)
 					end
 					vim.lsp.config("yamlls", opts)
 					vim.lsp.enable("yamlls")

@@ -135,23 +135,35 @@ vim.filetype.add({
 -- need get_parser() to succeed.
 vim.treesitter.language.register("terraform", "terraform-vars")
 
--- Helm chart filetype detection
-vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
-	group = augroup("helm_detection"),
-	pattern = { "*/templates/*.yaml", "*/templates/*.tpl" },
-	callback = function()
-		vim.bo.filetype = "helm"
-	end,
-})
-
--- Helm Chart.yaml and values files detection
-vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
-	group = augroup("helm_yaml_files"),
-	pattern = { "*/Chart.yaml", "*/values.yaml", "*/values-*.yaml" },
-	callback = function()
-		-- Keep yaml filetype for better LSP support with yamlls
-		vim.bo.filetype = "yaml"
-	end,
+-- Helm charts. Only files that belong to a chart (a Chart.yaml beside the values file,
+-- or beside the templates/ dir) are claimed, so a CloudFormation or cookiecutter
+-- templates/ dir stays plain yaml. Done in filetype detection rather than a BufRead
+-- autocmd so the buffer never starts out as yaml: that attached yamlls and yamllint
+-- to the template text first. Chart.yaml stays yaml (schemastore has its schema).
+local function chart_file(dir, ft)
+	return function()
+		return vim.uv.fs_stat(dir .. "/Chart.yaml") and ft or nil
+	end
+end
+local function helm_template(path)
+	-- Greedy, so a subchart's charts/<name>/templates/ resolves to the subchart.
+	local chart = path:match("^(.*)/templates/")
+	return chart and chart_file(chart, "helm")() or nil
+end
+local function helm_values(path)
+	-- yaml.helm-values: helm_ls attaches (value hover, references), and yamlls,
+	-- yamllint and the yaml parser still apply through the yaml half.
+	return chart_file(vim.fs.dirname(path), "yaml.helm-values")()
+end
+vim.filetype.add({
+	pattern = {
+		[".*/templates/.*%.ya?ml"] = helm_template,
+		[".*/templates/.*%.tpl"] = helm_template,
+		[".*/templates/NOTES%.txt"] = helm_template,
+		[".*/values%.ya?ml"] = helm_values,
+		[".*/values[%.%-][^/]*%.ya?ml"] = helm_values,
+		[".*/[^/]*[%.%-]values%.ya?ml"] = helm_values,
+	},
 })
 
 -- GitHub workflows: mark `uses:` pins that have a newer release (lua/gha.lua).

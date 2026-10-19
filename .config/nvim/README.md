@@ -43,6 +43,9 @@ nvim/
 
 - **Plugin manager** - lazy.nvim with lockfile
 - **LSP** - TypeScript, Python, Go, Terraform, Helm, YAML, JSON, Lua, Markdown (Rust off)
+- **Kubernetes** - manifests validated against their kind's schema, CRDs included
+  (schema-companion; `<leader>cs` to pick one by hand); Helm charts detected only
+  beside a `Chart.yaml`
 - **Completion** - Autocompletion with snippet support
 - **Search** - Telescope fuzzy finder
 - **Syntax** - Treesitter for highlighting and text objects
