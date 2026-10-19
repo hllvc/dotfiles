@@ -1,6 +1,6 @@
 ---
-name: open-sg-pr
-description: Open (or update) a draft GitHub PR for the current branch with a generated StackGuardian-style title and description built from the local git diff against the target branch. Use for "open a PR", "open sg pr", "create pull request", "draft PR", "raise a PR", "/open-sg-pr".
+name: sg-pr
+description: Open (or update) a draft GitHub PR for the current branch with a generated StackGuardian-style title and description built from the local git diff against the target branch. Use for "open a PR", "create pull request", "draft PR", "raise a PR", "update the PR description", "/sg-pr".
 allowed-tools: Bash, Read, Write, Grep, Glob, AskUserQuestion
 version: 1.0.0
 ---
@@ -11,11 +11,11 @@ Create — or update, if one already exists — a **draft** GitHub PR for the cu
 Title and body are generated from the **local git diff of the current branch against its
 target branch** (not a browser tab). Follow `references/pr-style.md` for all title/body wording.
 
-Canonical skill files live at `~/.repos/private/dotfiles/main/.claude/skills/open-sg-pr/`.
+Canonical skill files live at `~/.repos/private/dotfiles/main/.claude/skills/sg-pr/`.
 
 ## Arguments
 
-Invoked as `/open-sg-pr [base] [flags] [focus text]`. All optional.
+Invoked as `/sg-pr [base] [flags] [focus text]`. All optional.
 
 | Token | Meaning |
 |---|---|

@@ -24,13 +24,13 @@ Rules:
 
 ## Body
 
-**Length budget: 150–250 words for a normal PR.** Go beyond that only when the diff is genuinely
-large (many areas or a migration), and even then stay under ~400 words. A small PR (one or two
-commits, a handful of files) should fit in Summary + Changes with a short Testing list.
+**Length follows the diff.** A small PR (one or two commits, a handful of files) fits in Summary +
+Changes with a short Testing list. Only a genuinely large diff (many areas or a migration) earns a
+longer body, and even then a reviewer reads it in one pass.
 
 Use these sections in this order. **Omit any section that would be empty** — never add a heading
 with "N/A" under it. If the repo has a `PULL_REQUEST_TEMPLATE.md`, use *its* structure instead and
-fill it with the same content, under the same budget.
+fill it with the same content at the same length.
 
 ### Summary
 One short paragraph (2–4 sentences): what this PR does and why it's needed — the problem or trigger.
@@ -40,19 +40,19 @@ Put issue links here:
 Only reference a ticket/issue that actually appears in the branch or commits. Do not invent one.
 
 ### Changes
-**5–8 bullets max**, grouped by area (e.g. "CI", "Makefile", "Template schema"), not by file.
+Bullets grouped by area (e.g. "CI", "Makefile", "Template schema"), not by file.
 Each bullet says what changed and, when not obvious, why. Mention a file only when the reviewer
 must open it — never list every touched file; the diff already does that.
 
 ### Testing
-**3–4 items max.** Only checks that are specific to this change:
+Only checks that are specific to this change:
 - `- [x]` for checks visibly done in the diff (tests added/updated, CI passing).
 - `- [ ]` for checks the reviewer or author still needs to run (manual QA, deploy smoke test).
 Omit the section entirely if there is nothing concrete to list — do not invent reviewer tasks.
 
 ### Risks *(optional)*
 Behavioral changes, backward-compat concerns, performance impact. Include only if there's
-something real to flag, and keep it to 1–3 bullets.
+something real to flag.
 
 ### Deployment Notes *(optional)*
 New/changed env vars, secrets, migrations, one-off commands, ordering constraints, feature flags.
@@ -63,7 +63,7 @@ Include only if deployment needs a human to do something.
 2. No emojis anywhere.
 3. Only include URLs with concrete technical context (a specific issue, doc, or dashboard). No generic links.
 4. Write in the user's voice; never signal machine authorship or add AI trailers.
-5. If a **focus** hint was passed to the skill, treat it as a mandatory emphasis override — lead with and expand that aspect, and cut elsewhere to stay within budget.
+5. If a **focus** hint was passed to the skill, treat it as a mandatory emphasis override — lead with and expand that aspect, and cut elsewhere to keep the body short.
 6. **Say each fact once.** A change belongs in the single most relevant section; do not repeat it across Changes, Risks, and Deployment Notes.
 
 ## StackGuardian specifics to watch for
