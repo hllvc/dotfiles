@@ -38,10 +38,12 @@ return {
 						end
 					end, { "i", "s" }),
 
-					-- Navigation: Keep your preferred Ctrl+j/k pattern
+					-- Navigation: Keep your preferred Ctrl+j/k pattern. Select, not the default
+					-- Insert: Insert writes each item into the line as you move past it, so
+					-- browsing the menu looked like it was completing. <C-l> confirms.
 					["<C-j>"] = cmp.mapping(function(fallback)
 						if cmp.visible() then
-							cmp.select_next_item()
+							cmp.select_next_item({ behavior = cmp.SelectBehavior.Select })
 						else
 							cmp.complete() -- Trigger completion when not visible
 						end
@@ -49,7 +51,7 @@ return {
 
 					["<C-k>"] = cmp.mapping(function(fallback)
 						if cmp.visible() then
-							cmp.select_prev_item()
+							cmp.select_prev_item({ behavior = cmp.SelectBehavior.Select })
 						else
 							fallback()
 						end
