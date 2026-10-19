@@ -25,7 +25,7 @@
 - [ ] `DEPLOY_REGION ?= eu-central-1` (must be `?=`)
 - [ ] `deploy-prod-us` overrides `DEPLOY_REGION=us-east-2`
 - [ ] `DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM) --provenance=false`
-- [ ] `VERSION ?= $(shell git describe --always --dirty)` (must be `?=`)
+- [ ] `VERSION ?= $(shell git describe --always --dirty --exclude '*')` (must be `?=`; unscoped `describe` is DRIFT-10)
 - [ ] `build:` guards `GIT_TOKEN` as the first recipe line — required wherever the
       `--secret id=git_token,env=GIT_TOKEN` line is present (DRIFT-8)
 - [ ] `build:` tags **both** `-t $(BUILD_IMAGE):$(VERSION)` and
@@ -61,7 +61,7 @@ secret, missing `build-deploy-*` targets, missing `LAMBDA_NAME` / `DEPLOY_REGION
 
 - [ ] `DASH_PROFILE = default`
 - [ ] `PROD_PROFILE = sg-prod`
-- [ ] `VERSION ?= $(shell git describe --always --dirty)` (flag `TAG` as drift)
+- [ ] `VERSION ?= $(shell git describe --always --dirty --exclude '*')` (flag `TAG` as drift; unscoped `describe` is DRIFT-10)
 - [ ] `BUILD_REGION ?= eu-central-1` (must be `?=`)
 - [ ] `DOCKER_BUILD_ARGS` includes `--provenance=false`
 - [ ] `.PHONY` contains exactly: `help version login build dash prod`

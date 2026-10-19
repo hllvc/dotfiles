@@ -57,7 +57,7 @@ The following variables are available:
 | `$(LAMBDA_NAME)` | Service/function name (set via DASH_VARS / PROD_VARS) |
 | `$(BUILD_IMAGE)` | Full ECR image URI in `$(BUILD_REGION)` (used by `build:`) |
 | `$(DEPLOY_IMAGE)` | Full ECR image URI in `$(DEPLOY_REGION)` (used by `deploy:`) |
-| `$(VERSION)` | Image tag (git describe output) |
+| `$(VERSION)` | Image tag (commit hash, tags ignored) |
 | `$(PROFILE)` | AWS profile (set via DASH_VARS / PROD_VARS) |
 | `$(ACCOUNT_ID)` | AWS account ID (set via DASH_VARS / PROD_VARS) |
 

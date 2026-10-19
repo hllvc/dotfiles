@@ -91,7 +91,8 @@
     "gopls-lsp@claude-plugins-official": true,
     "cc-plugin-you-should-know@builtin": true,
     "cache-tax@claude-code-mods": true,
-    "terminal-browser@terminal-browser": true
+    "terminal-browser@terminal-browser": true,
+    "tirith@skills-dir": false
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {

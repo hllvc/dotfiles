@@ -33,7 +33,7 @@ repos during the Docker build, which is a completely different credential. The r
 **Applies to:** container archetype
 
 Uses `TAG` as the version variable with `git rev-parse --short HEAD` instead of
-`VERSION` with `git describe --always --dirty`.
+`VERSION` with `git describe --always --dirty --exclude '*'`.
 
 **Before (drift):**
 ```makefile
@@ -42,13 +42,15 @@ TAG ?= $(shell git rev-parse --short HEAD)
 
 **After (canonical):**
 ```makefile
-VERSION ?= $(shell git describe --always --dirty)
+# Tags are ignored: these are branch builds, and template tags (e.g. kubernetes/v1.4.0) are not valid image tags
+VERSION ?= $(shell git describe --always --dirty --exclude '*')
 ```
 
-**Why it matters:** `git describe --always --dirty` produces meaningful version strings
-(e.g. `v1.2.3-4-gabcdef-dirty`) that make it easy to trace a running container back
-to its source tag. `git rev-parse --short HEAD` produces a bare hash with no tag
-context and no dirty indicator.
+**Why it matters:** Makefile builds are branch builds, so the version is the short
+commit hash plus a `-dirty` suffix for uncommitted changes (e.g. `abcdef1-dirty`).
+`git rev-parse --short HEAD` gives the hash but no dirty indicator, so a locally
+modified image is indistinguishable from a clean one. Tags are deliberately
+ignored — see DRIFT-10.
 
 ---
 
@@ -280,3 +282,33 @@ supersedes the earlier container rule that omitted `latest` deliberately.
 
 Deploys still reference `$(DEPLOY_IMAGE):$(VERSION)` — `latest` is a
 convenience pointer, never the thing a `deploy:` target ships.
+
+---
+
+## DRIFT-10: `VERSION` uses an unscoped `git describe`
+
+**Severity:** IMPORTANT
+**Applies to:** all archetypes
+
+`VERSION` runs `git describe` without `--exclude '*'`, so it picks up the
+nearest annotated tag anywhere in the repo.
+
+**Before (drift):**
+```makefile
+VERSION ?= $(shell git describe --always --dirty)
+```
+
+**After (canonical):**
+```makefile
+# Tags are ignored: these are branch builds, and template tags (e.g. kubernetes/v1.4.0) are not valid image tags
+VERSION ?= $(shell git describe --always --dirty --exclude '*')
+```
+
+**Why it matters:** Makefile builds are branch builds; tags must not leak into
+the version. Template release tags are path-scoped (e.g. `kubernetes/v1.4.0`),
+so once one exists every template's `make dash` produces something like
+`kubernetes/v1.4.0-6-g858e5d1-dirty` — the `/` makes it an invalid Docker image
+tag, and a repo-wide describe also labels unrelated templates with another
+template's release. `--exclude '*'` keeps the output at `<short-hash>` or
+`<short-hash>-dirty`. `make dash VERSION=...` still overrides it; prod images
+come from CI on `<template>/v*` tag pushes, not from this line.

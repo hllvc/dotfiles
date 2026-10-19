@@ -18,7 +18,8 @@ Placeholders:
 # StackGuardian Workflow Step: {{SERVICE_NAME}}
 
 # Default version - can be overridden: make dash VERSION=1.2.3
-VERSION ?= $(shell git describe --always --dirty)
+# Tags are ignored: these are branch builds, and template tags (e.g. kubernetes/v1.4.0) are not valid image tags
+VERSION ?= $(shell git describe --always --dirty --exclude '*')
 
 # Registry and image configuration
 BUILD_REGION ?= eu-central-1
