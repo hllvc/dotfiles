@@ -1,6 +1,6 @@
 ---
-name: sg-container-bash
-description: Scaffold a new StackGuardian Workflow Step container with Dockerfile, main.sh, schemas, CI/CD workflows, and Makefile. Use when user asks to "create a new workflow step", "scaffold container", "sg container bash", or needs a new SG workflow step template.
+name: sg-step-bash
+description: Scaffold a new StackGuardian Workflow Step container with Dockerfile, main.sh, schemas, CI/CD workflows, and Makefile. Use when user asks to "create a new workflow step", "scaffold a workflow step container", "new bash workflow step", "sg step bash", or needs a new SG workflow step template.
 version: 1.0.0
 ---
 
@@ -227,7 +227,48 @@ Generate a JSON Schema based on the parameters the user specified:
 }
 ```
 
-Follow the pattern from the kubernetes schema:
+Example (illustrative — the shape follows the existing step schemas in `workflow-step-templates`):
+
+```json
+{
+  "type": "object",
+  "title": "",
+  "required": ["action"],
+  "properties": {
+    "targetPath": { "type": "string", "title": "Target Path", "default": "./" },
+    "action": {
+      "type": "string",
+      "title": "Action",
+      "enum": ["plan", "apply"],
+      "enumNames": ["Plan only", "Apply"],
+      "default": "plan"
+    },
+    "dryRun": { "type": "boolean", "title": "Dry Run", "default": false },
+    "sourceType": { "type": "string", "title": "Source", "enum": ["file", "script"], "default": "file" }
+  },
+  "dependencies": {
+    "sourceType": {
+      "oneOf": [
+        {
+          "properties": {
+            "sourceType": { "enum": ["file"] },
+            "sourceFile": { "type": "string", "title": "Source File" }
+          }
+        },
+        {
+          "properties": {
+            "sourceType": { "enum": ["script"] },
+            "sourceScript": { "type": "string", "title": "Source Script" }
+          },
+          "required": ["sourceScript"]
+        }
+      ]
+    }
+  }
+}
+```
+
+Conventions:
 
 - Each property has `type`, `title`, and optionally `default`, `enum`, `enumNames`
 - Required fields are listed in the top-level `required` array
@@ -335,8 +376,9 @@ jobs:
       aws-region: "eu-central-1"
       ecr-repo: "{{ECR_REPO}}"
 
-      deploy-environment: "PROD"
+      deploy-environment: "BUILD"
       build-context: "./{{STEP_NAME}}"
+      tag-match: "{{STEP_NAME}}-v(.*)"
 ```
 
 **Template notes:**
@@ -344,99 +386,21 @@ jobs:
 - `{{DISPLAY_NAME}}` — the human-readable description (e.g., "DNS Scanner")
 - `{{STEP_NAME}}` — the directory name (e.g., `dns-scanner`)
 - `{{ECR_REPO}}` — the ECR repo path (e.g., `workflow-steps/dns-scanner`)
+- Prod builds run on the ungated `BUILD` environment: approval gates deploys (Lambda/ECS updates), and a step container has none.
+- `tag-match` extracts the version from the step-scoped tag (`dns-scanner-v1.2.0` → `1.2.0`); the default `v(.*)` would mis-read step names containing a `v`.
 
 ---
 
 ### Step 4: Generate Makefile
 
-Create `{step-name}/Makefile` with the following template. Replace `{{SERVICE_NAME}}` with the human-readable description and `{{ECR_REPO}}` with the ECR repo path.
+Create `{step-name}/Makefile` from the sg-makefile skill's container template,
+`~/.claude/skills/sg-makefile/references/canonical-container-template.md` (the single source for
+container Makefiles). Substitute `{{SERVICE_NAME}}` with the step name and `{{IMAGE_NAME}}` with the
+ECR repo path from Step 1 (e.g., `workflow-steps/dns-scanner`). Targets: `make dash`, `make prod`.
 
-#### `{step-name}/Makefile`
-
-```makefile
-# Makefile for building and pushing Docker images
-# StackGuardian Workflow Step: {{SERVICE_NAME}}
-
-# Default version - can be overridden via command line: make build-dash VERSION=1.2.3
-# Tags are ignored: these are branch builds, and template tags (e.g. kubernetes/v1.4.0) are not valid image tags
-VERSION ?= $(shell git describe --always --dirty --exclude '*')
-
-# Registry and image configuration
-BUILD_REGION ?= eu-central-1
-REGISTRY = $(ACCOUNT_ID).dkr.ecr.$(BUILD_REGION).amazonaws.com
-IMAGE_NAME ?=
-FULL_IMAGE = $(REGISTRY)/$(IMAGE_NAME)
-
-# Build settings
-PLATFORM = linux/amd64
-DOCKERFILE = Dockerfile
-DOCKER_BUILD_ARGS = --push --pull --platform $(PLATFORM) --provenance=false
-
-# ============================================================================
-# DASH Configuration
-# ============================================================================
-DASH_ACCOUNT_ID = 790543352839
-DASH_PROFILE = default
-DASH_IMAGE = {{ECR_REPO}}
-
-# ============================================================================
-# PROD Configuration
-# ============================================================================
-PROD_ACCOUNT_ID = 476299211833
-PROD_PROFILE = sg-prod
-PROD_IMAGE = {{ECR_REPO}}
-
-# Dynamic variables
-PROFILE ?=
-ACCOUNT_ID ?=
-
-.PHONY: help version login build build-dash build-prod
-
-##@ General
-help: ## Show this help message
-	@echo 'Usage: make <target>'
-	@echo ''
-	@awk 'BEGIN {FS = ":.*##"; printf ""} /^[a-zA-Z_-]+:.*?## / {printf "  %-24s %s\n", $$1, $$2} /^##@/ {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)}' $(MAKEFILE_LIST)
-
-version: ## Show current version
-	@echo $(VERSION)
-
-login:
-	@echo "Logging into ECR using profile: $(PROFILE)..."
-	@aws --profile $(PROFILE) ecr-public get-login-password --region us-east-1 \
-		| docker login --username AWS --password-stdin public.ecr.aws
-	@aws --profile $(PROFILE) ecr get-login-password --region eu-central-1 \
-		| docker login --username AWS --password-stdin $(REGISTRY)
-
-build: login
-	@echo "Building and pushing image: $(FULL_IMAGE):$(VERSION)"
-	@docker buildx build \
-		-f $(DOCKERFILE) $(DOCKER_BUILD_ARGS) \
-		-t $(FULL_IMAGE):$(VERSION) .
-	@echo "Build completed: $(FULL_IMAGE):$(VERSION)"
-
-##@ DASH
-DASH_VARS = PROFILE=$(DASH_PROFILE) ACCOUNT_ID=$(DASH_ACCOUNT_ID) IMAGE_NAME=$(DASH_IMAGE)
-
-build-dash: ## Build and push DASH image
-	$(MAKE) build $(DASH_VARS)
-
-##@ PROD
-PROD_VARS = PROFILE=$(PROD_PROFILE) ACCOUNT_ID=$(PROD_ACCOUNT_ID) IMAGE_NAME=$(PROD_IMAGE)
-
-build-prod: ## Build and push PROD image
-	$(MAKE) build $(PROD_VARS)
-```
-
-**Template notes:**
-
-- `{{SERVICE_NAME}}` — the human-readable description (e.g., "DNS Zone Scanner")
-- `{{ECR_REPO}}` — the ECR repo path provided in Step 1 (e.g., `workflow-steps/dns-scanner`)
-- Platform is `linux/amd64` — workflow steps run on amd64 infrastructure, not ARM Lambda.
-- No `git_token` secret is included. If the user needs it, add `--secret id=git_token,env=GIT_TOKEN \` before the `-t` line in the `build` target.
-- No deploy targets — workflow step containers are only built and pushed to ECR. If the user explicitly requests deploy targets, add them following the patterns in the `/sg-makefile` skill.
+- No `git_token` secret by default. If the Dockerfile clones private repos, add the secret line and the `GIT_TOKEN` guard as that template's Notes describe.
+- No deploy targets — workflow step containers are only built and pushed to ECR. If the user explicitly requests deploy targets, follow the `/sg-makefile` skill's Lambda/ECS/custom archetype.
 - All recipe lines **must** use tabs for indentation (Makefile requirement).
-- The `help` target uses `awk` to parse `##` comments for self-documentation. `##@` creates section headers.
 
 ---
 
