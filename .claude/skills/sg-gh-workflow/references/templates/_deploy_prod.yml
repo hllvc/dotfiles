@@ -1,4 +1,4 @@
-name: "🚫 _reusable_deploy_qa"
+name: "🚫 _reusable_deploy_prod"
 
 on:
   workflow_call:
@@ -6,7 +6,7 @@ on:
       aws-region:
         required: true
         type: string
-        description: "AWS Region (eu-central-1 or eu-west-1)"
+        description: "AWS Region (eu-central-1 or us-east-2)"
       image-tag:
         required: true
         type: string
@@ -17,9 +17,9 @@ jobs:
     name: "Deploy"
     uses: StackGuardian/sg-internal-github-actions/.github/workflows/_deploy_lambda.yml@main
     with:
-      aws-account-id: "790543352839"
-      aws-region: ${{ inputs.aws-region }}
-      deploy-environment: "QA"
+      aws-account-id: "476299211833"
+      aws-region: "${{ inputs.aws-region }}"
+      deploy-environment: "PROD"
       ecr-repo: "{{ECR_REPO}}"
-      function-name: "{{QA_FUNCTION_NAME}}"
-      image-tag: ${{ inputs.image-tag }}
+      function-name: "{{PROD_FUNCTION_NAME}}"
+      image-tag: "${{ inputs.image-tag }}"

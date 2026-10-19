@@ -1,13 +1,13 @@
 ---
-name: sg-github-workflows
-description: Review, update, or scaffold StackGuardian GitHub Actions workflows. Use for "review github actions", "audit workflows", "align workflows", "update workflows", "fix workflow drift", "create github actions", "scaffold workflows", "set up CI", "sg-github-workflows".
+name: sg-gh-workflow
+description: Review, update, or scaffold StackGuardian GitHub Actions workflows. Use for "review GitHub Actions workflows", "audit GitHub Actions workflows", "align GitHub Actions workflows", "fix GitHub workflow drift", "scaffold GitHub Actions", "set up CI", "sg-gh-workflow".
 allowed-tools: Read, Edit, Write, Glob, Grep, Bash, AskUserQuestion
 version: 2.1.0
 ---
 
 # StackGuardian GitHub Workflows Skill
 
-Canonical skill files live at `~/.repos/private/dotfiles/main/.claude/skills/sg-github-workflows/`.
+Canonical skill files live at `~/.repos/private/dotfiles/main/.claude/skills/sg-gh-workflow/`.
 
 ## Mode Selection
 
@@ -34,7 +34,7 @@ StackGuardian services use a **6-file workflow set** in `.github/workflows/`, al
 
 Files prefixed `_` are reusable (`workflow_call` only) — their `name:` starts with `🚫` to signal "do not run directly".
 
-Two archetypes: **Lambda** (default, 3 of 4 repos) and **ECS** (only `api`). Review mode auto-detects from the presence of `ecs-service:` in `build_deploy_qa.yml`. See `references/archetype-ecs.md` for ECS-specific review checks; setup mode only scaffolds Lambda.
+Two archetypes: **Lambda** (default) and **ECS**. Review mode auto-detects from the presence of `ecs-service:` in `build_deploy_qa.yml`. See `references/archetype-ecs.md` for ECS-specific review checks; setup mode only scaffolds Lambda.
 
 Full reusable library API and account/region constants: `references/canonical-set.md`.
 
@@ -81,7 +81,7 @@ Full reusable library API and account/region constants: `references/canonical-se
 1. Run the review pipeline (same as review mode) to collect all findings.
 2. **Auto-apply all CRITICAL fixes** immediately. List each change applied in the summary.
    - Workflow file fixes: apply via `Edit`.
-   - OIDC sub claim (DRIFT-4): run the `gh api --method PUT` command from `references/canonical-set.md`.
+   - OIDC sub claim (DRIFT-4): this changes the repo's settings on GitHub, so show the `gh api --method PUT` command from `references/canonical-set.md` and run it only after the user confirms.
 3. If any IMPORTANT or MINOR findings remain, surface them as a multi-select via `AskUserQuestion` ("Which of these should I also fix?"). Apply chosen items via `Edit`. Dockerfile clone drift (`git_user`, `x-access-token`, mount id ≠ `git_token`, missing cleanup) is a CRITICAL fix per `references/dockerfile-conventions.md` — auto-apply it in step 2.
 4. If any file from the canonical 6-file set is missing entirely, `Write` it from the corresponding `references/templates/` file — ask for project-specific placeholder values first.
 5. Print a post-update summary and suggest running `git diff .github/workflows/`.

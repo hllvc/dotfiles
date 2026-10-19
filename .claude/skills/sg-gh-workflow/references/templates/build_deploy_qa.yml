@@ -32,7 +32,7 @@ jobs:
       build-context: "{{BUILD_CONTEXT}}"
       dotenv: "{{DOTENV_QA}}"
     secrets:
-      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}  # include only if Dockerfile references GIT_TOKEN
+      GIT_TOKEN: "${{ secrets.GIT_TOKEN }}"  # include only if Dockerfile references GIT_TOKEN
 
   deploy-eu:
     name: "Deploy to EU"
@@ -40,7 +40,7 @@ jobs:
     uses: ./.github/workflows/_deploy_qa.yml
     with:
       aws-region: "eu-central-1"
-      image-tag: ${{ needs.build.outputs.image-tag }}
+      image-tag: "${{ needs.build.outputs.image-tag }}"
 
   deploy-eu-dr:
     name: "Deploy to EU/DR"
@@ -49,4 +49,4 @@ jobs:
     uses: ./.github/workflows/_deploy_qa.yml
     with:
       aws-region: "eu-west-1"
-      image-tag: ${{ needs.build.outputs.image-tag }}
+      image-tag: "${{ needs.build.outputs.image-tag }}"

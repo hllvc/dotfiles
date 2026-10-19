@@ -27,4 +27,4 @@ jobs:
       dotenv: "{{DOTENV_PROD}}"
       deploy-workflows: "deploy_prod_eu.yml,deploy_prod_us.yml"
     secrets:
-      GIT_TOKEN: ${{ secrets.GIT_TOKEN }}  # include only if Dockerfile references GIT_TOKEN
+      GIT_TOKEN: "${{ secrets.GIT_TOKEN }}"  # include only if Dockerfile references GIT_TOKEN
