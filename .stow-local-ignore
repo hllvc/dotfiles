@@ -13,3 +13,4 @@ nvim.log
 ^/\.claude/skills/sg-manage-secrets
 ^/\.claude/skills/sg-update-workflow
 ^/\.claude/skills/sg-upgrade-workflow
+^/TASKS\.md

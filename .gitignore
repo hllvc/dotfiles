@@ -18,3 +18,6 @@ nvim.log
 .claude/skills/sg-update-workflow
 .claude/skills/sg-upgrade-workflow
 __pycache__/
+
+# Per-worktree agent checklist (see .claude/CLAUDE.md), never committed
+/TASKS.md
