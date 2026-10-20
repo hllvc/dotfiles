@@ -19,6 +19,7 @@ concurrency:
 permissions:
   id-token: write # This is required for requesting the JWT
   contents: read # This is required for actions/checkout
+  actions: write # _build.yml@main requests it; a caller granting less is rejected
 
 jobs:
   build:

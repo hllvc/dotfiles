@@ -115,3 +115,10 @@ gh api --method PUT \
   -F 'include_claim_keys[]=job_workflow_ref' \
   -F 'include_claim_keys[]=environment'
 ```
+
+**Check the IAM trust before fixing.** The claim is repo-wide, and `SGGithubActionsWrite` trust
+policies match on the sub string. A repo that already deploys successfully on the default claim
+(e.g. `api-v2`: `use_default: true`, sub `repo:StackGuardian/api-v2:environment:<ENV>`) has trust
+entries in that format, and flipping the claim breaks **every** workflow in the repo until both
+accounts' trust policies are updated. In that case report DRIFT-4 but do not auto-fix; it needs a
+coordinated trust-policy + claim change.

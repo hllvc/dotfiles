@@ -44,12 +44,12 @@ Full reusable library API and account/region constants: `references/canonical-se
 
 **Steps:**
 1. `Glob` `.github/workflows/*.yml` in the target directory.
-2. Check that all 6 canonical files are present — flag missing files as CRITICAL.
+2. Check that all 6 canonical files are present — flag missing files as CRITICAL. **Exception — multi-service repo** (several services, shared `_deploy_*.yml` taking `ecr-repo`/`function-name`, one `<service>-qa.yml`/`<service>-prod.yml` pair per service): review the service's pair against the "Multi-service repos" rules in `references/canonical-set.md` instead, and don't flag the missing 6-file set.
 3. `Read` each file and compare against the corresponding template in `references/templates/`. When checking `secrets:` blocks: inspect the repo `Dockerfile` (at `build-context`/`dockerfile` path) for `GIT_TOKEN` references before flagging its presence or absence — it is only expected if the Dockerfile uses it.
 3a. **Dockerfile review** — `Read` the repo `Dockerfile` and check it against `references/dockerfile-conventions.md`. Flag: a private-git clone that uses `git_user`, an `x-access-token:` prefix, URL-encoded token, a mount id other than `git_token`, or a missing credential-rewrite cleanup. Classify per `references/review-checklist.md` (Dockerfile section).
 4. Detect archetype: check `build_deploy_qa.yml` for `ecs-service:` — if present, apply `references/archetype-ecs.md` checks.
 5. Classify all findings per `references/review-checklist.md` and match against `references/known-drift.md`.
-6. Check OIDC sub claim: resolve the repo slug via `gh repo view --json nameWithOwner -q .nameWithOwner` in the target directory. Run `gh api /repos/{slug}/actions/oidc/customization/sub` and verify `use_default: false` with keys `[repo, job_workflow_ref, environment]`. If wrong or default: add a CRITICAL finding (DRIFT-4) with the fix command from `references/canonical-set.md`.
+6. Check OIDC sub claim: resolve the repo slug via `gh repo view --json nameWithOwner -q .nameWithOwner` in the target directory. Run `gh api /repos/{slug}/actions/oidc/customization/sub` and verify `use_default: false` with keys `[repo, job_workflow_ref, environment]`. If wrong or default: add a CRITICAL finding (DRIFT-4) with the fix command from `references/canonical-set.md`. If the repo's deploys already succeed on the default claim, say so in the finding — the IAM trust is keyed to the default format and the fix needs a coordinated trust-policy change (see DRIFT-4).
 7. Emit a single structured report (format below).
 
 **Report format:**
@@ -81,7 +81,7 @@ Full reusable library API and account/region constants: `references/canonical-se
 1. Run the review pipeline (same as review mode) to collect all findings.
 2. **Auto-apply all CRITICAL fixes** immediately. List each change applied in the summary.
    - Workflow file fixes: apply via `Edit`.
-   - OIDC sub claim (DRIFT-4): this changes the repo's settings on GitHub, so show the `gh api --method PUT` command from `references/canonical-set.md` and run it only after the user confirms.
+   - OIDC sub claim (DRIFT-4): this changes the repo's settings on GitHub, so show the `gh api --method PUT` command from `references/canonical-set.md` and run it only after the user confirms. Before proposing it, check whether deploys already succeed on the default claim (recent `gh run list` on a `_build.yml` caller); if they do, don't propose flipping it — report that the IAM trust policies must be updated first (DRIFT-4).
 3. If any IMPORTANT or MINOR findings remain, surface them as a multi-select via `AskUserQuestion` ("Which of these should I also fix?"). Apply chosen items via `Edit`. Dockerfile clone drift (`git_user`, `x-access-token`, mount id ≠ `git_token`, missing cleanup) is a CRITICAL fix per `references/dockerfile-conventions.md` — auto-apply it in step 2.
 4. If any file from the canonical 6-file set is missing entirely, `Write` it from the corresponding `references/templates/` file — ask for project-specific placeholder values first.
 5. Print a post-update summary and suggest running `git diff .github/workflows/`.

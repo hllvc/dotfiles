@@ -33,6 +33,23 @@ uses: StackGuardian/sg-internal-github-actions/.github/workflows/_build.yml@feat
 
 ## 6-File Set — Structure and Triggers
 
+### Multi-service repos (e.g. `api-v2`)
+
+Repos that hold several services (one `lambdas/<service>/` dir each) don't use the 6-file set per
+service. Instead:
+
+- **Shared** `_deploy_qa.yml` / `_deploy_prod.yml` (`🚫`, `workflow_call`) that take `aws-region`,
+  `ecr-repo`, `function-name` and `image-tag` as inputs; account ID and `deploy-environment` stay hardcoded.
+- **One pair per service**, e.g. `<service>-qa.yml` / `<service>-prod.yml`:
+  - QA: `push` on the default branch with `paths:` (service dir, its own workflow file,
+    `_deploy_qa.yml`) + `workflow_dispatch` with `deploy-eu-dr`; jobs `build` → `deploy-eu` / `deploy-eu-dr`.
+  - PROD: `push: tags: ["<service>/v*"]` with `tag-match: "<service>/v(.*)"`, plus `workflow_dispatch`
+    with an `image-tag` input for redeploys; `build` has `if: github.event_name == 'push'`,
+    and **inline** `deploy-prod-eu` / `deploy-prod-us` jobs (no `deploy-workflows` dispatch) gated
+    with `if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')`.
+- Review the service's pair against these rules; do **not** flag the missing
+  `build_deploy_qa.yml` / `build_prod.yml` / `deploy_prod_*.yml` files.
+
 ### `_deploy_qa.yml` and `_deploy_prod.yml` (reusable wrappers)
 
 - Trigger: `workflow_call` only
@@ -46,7 +63,7 @@ uses: StackGuardian/sg-internal-github-actions/.github/workflows/_build.yml@feat
 - Triggers: `push: branches: [<default-branch>]` + `workflow_dispatch`
 - `workflow_dispatch` always includes a `deploy-eu-dr: boolean` input (default false)
 - Concurrency: `group: ${{ github.workflow }}-${{ github.ref }}`, `cancel-in-progress: true`
-- Permissions: `id-token: write`, `contents: read` (no `actions: write` — calls local reusable workflows, not dispatch)
+- Permissions: `id-token: write`, `contents: read`, `actions: write` (`_build.yml@main` declares `actions: write` at workflow level, and a called workflow cannot exceed its caller's permissions)
 - Jobs: `build` → `deploy-eu` (needs: build) → `deploy-eu-dr` (if: inputs.deploy-eu-dr, needs: build)
 - `build` job passes `image-tag` output to deploy jobs
 

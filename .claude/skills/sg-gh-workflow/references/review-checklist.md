@@ -32,7 +32,9 @@ Only applies when the repo Dockerfile clones private git deps. See
 
 - [ ] `build_deploy_qa.yml` has `cancel-in-progress: true` in the concurrency block
 - [ ] `build_prod.yml` has `cancel-in-progress: false`
-- [ ] `build_deploy_qa.yml` permissions: `id-token: write`, `contents: read` (no `actions: write` — uses local reusable workflows, not dispatch)
+- [ ] `build_deploy_qa.yml` permissions: `id-token: write`, `contents: read`, `actions: write`
+      (`_build.yml@main` declares `actions: write` at workflow level; a caller granting less is
+      rejected at startup — flag a *missing* `actions: write`, never its presence)
 - [ ] `build_prod.yml` permissions: `id-token: write`, `contents: read`, `actions: write` (needs dispatch for `deploy-workflows`)
 - [ ] `deploy_prod_eu.yml` and `deploy_prod_us.yml` permissions: `id-token: write` only
 - [ ] `build_prod.yml` passes `deploy-environment: "BUILD"` (not `"PROD"` or `"PROD_DEPLOY"`; missing label is also drift — repos without it should migrate to `"BUILD"`)
