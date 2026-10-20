@@ -1,0 +1,35 @@
+# <expected> :: <Bash command>    expected is "ask" or "ok"; run aws-profile-guard.test.sh
+# Production profiles ask, in every spelling
+ask :: aws s3 ls --profile sg-prod
+ask :: aws s3 ls --profile sg-prod --region eu-central-1
+ask :: aws --profile sg-prod-us sts get-caller-identity
+ask :: aws --profile sg-prod-eu sts get-caller-identity
+ask :: aws --profile=sg-prod sts get-caller-identity
+ask :: aws --profile "sg-prod" sts get-caller-identity
+ask :: aws --profile 'sg-prod-us' sts get-caller-identity
+ask :: aws sts get-caller-identity --profile sg-prod;
+ask :: aws sts get-caller-identity --profile sg-prod && echo done
+ask :: AWS_PROFILE=sg-prod aws s3 ls
+ask :: AWS_PROFILE="sg-prod-us" aws s3 ls
+ask :: export AWS_PROFILE=sg-prod-eu && aws s3 ls
+ask :: env AWS_DEFAULT_PROFILE=sg-prod aws s3 ls
+ask :: op plugin run -- aws --profile sg-prod sts get-caller-identity
+ask :: aws --profile sg-prod-rw s3 ls
+ask :: aws --profile SG-PROD s3 ls
+ask :: tofu plan && AWS_PROFILE=sg-prod tofu apply
+# A profile that can't be checked asks
+ask :: aws --profile $P s3 ls
+ask :: aws --profile "$(pick-profile)" s3 ls
+ask :: AWS_PROFILE=${PROFILE} aws s3 ls
+# Allowed profiles and unrelated commands run without asking
+ok :: aws --profile sg-prod-ro s3 ls
+ok :: aws --profile=sg-prod-ro s3 ls
+ok :: op plugin run -- aws --profile sg-prod-ro sts get-caller-identity
+ok :: AWS_PROFILE=sg-prod-ro aws s3 ls
+ok :: aws --profile dash s3 ls
+ok :: aws --profile personal s3 ls
+ok :: aws s3 ls
+ok :: AWS_PROFILE=dash tofu plan
+ok :: grep -rn sg-prod README.md
+ok :: git log --oneline
+ok :: ls ~/profile

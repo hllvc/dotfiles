@@ -15,6 +15,7 @@ Custom shell scripts. `.zshrc` wires them up at shell start:
 | [`functions/`](functions/) | Scripts sourced as shell functions (can `cd`): `sw`, `gbare` |
 | [`lib/`](lib/) | Shared helpers, not commands: `worktree.sh` is sourced by `sw`/`gbare`; `brew-upgrade.sh` is run by `brewup` and the homebrew-update cron |
 | [`init/`](init/) | Startup and initialization scripts |
+| [`claude-hooks/`](claude-hooks/) | Claude Code hooks registered in `.claude/settings.json` (not commands): `aws-profile-guard.sh` asks before any command uses a production AWS profile, with its test cases |
 | [`tmux/`](tmux/) | Tmux helper scripts (popups, session and window helpers) |
 | [`crons/`](crons/) | Scheduled jobs invoked by LaunchAgents; each has its own `install.sh` picked up by `dotctl crons install` |
 | `macos/` | `defaults.sh`: the `defaults write` tweaks applied by `dotctl macos apply` |
