@@ -1,4 +1,5 @@
 {
+  "cleanupPeriodDays": 90,
   "env": {
     "BASH_ENV": "/Users/hllvc/.local/bin/claude-shims-init.sh",
     "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
@@ -56,10 +57,14 @@
       "Bash(*--profile sg-prod)",
       "Bash(*--profile sg-prod-us *)",
       "Bash(*--profile sg-prod-us)",
+      "Bash(*--profile sg-prod-eu *)",
+      "Bash(*--profile sg-prod-eu)",
       "Bash(*AWS_PROFILE=sg-prod *)",
       "Bash(*AWS_PROFILE=sg-prod)",
       "Bash(*AWS_PROFILE=sg-prod-us *)",
-      "Bash(*AWS_PROFILE=sg-prod-us)"
+      "Bash(*AWS_PROFILE=sg-prod-us)",
+      "Bash(*AWS_PROFILE=sg-prod-eu *)",
+      "Bash(*AWS_PROFILE=sg-prod-eu)"
     ],
     "defaultMode": "auto",
     "disableBypassPermissionsMode": "disable"
@@ -75,6 +80,21 @@
     "anthropic-skills:import-memory": "off"
   },
   "allowedMcpServers": [],
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.shell/scripts/claude-hooks/aws-profile-guard.sh\"",
+            "timeout": 10,
+            "onFailure": "block"
+          }
+        ]
+      }
+    ]
+  },
   "worktree": {
     "baseRef": "fresh"
   },
@@ -149,6 +169,9 @@
     "claude-opus-5-5": {
       "effortLevel": "medium",
       "autoCompactWindow": "auto"
+    },
+    "claude-sonnet-5-5": {
+      "effortLevel": "medium"
     }
   },
   "askUserQuestionTimeout": "never",
@@ -188,8 +211,8 @@
       "$defaults",
       "Bash(make build-prod) and Bash(make build-deploy-prod-*) — push to PROD AWS targets (ECR account 476299211833, no :latest tag safety net); review, never auto-approve",
       "Bash(aws s3 sync:*) targeting orchestrator-resources-qa or any non-dev namespace — mass artifact sync; review, never auto-approve",
-      "Any aws command against profile sg-prod or sg-prod-us — production accounts, require explicit approval before the action, never auto-approve",
-      "tofu/terraform apply, destroy, import, state rm/mv or taint against production (sg-prod or sg-prod-us profile, or a prod workspace, var-file, backend or directory) — review, never auto-approve"
+      "Any aws command against a production profile (sg-prod, sg-prod-eu, sg-prod-us, or any other sg-prod* except sg-prod-ro) — production accounts, require explicit approval before the action, never auto-approve",
+      "tofu/terraform apply, destroy, import, state rm/mv or taint against production (a production profile as above, or a prod workspace, var-file, backend or directory) — review, never auto-approve"
     ],
     "hard_deny": [
       "$defaults",
@@ -198,10 +221,9 @@
     "environment": [
       "$defaults",
       "AWS profile sg-prod-ro is IAM read-only access to StackGuardian production; safe for inspection",
-      "AWS profiles sg-prod and sg-prod-us are StackGuardian production (EU and US) with write access",
-      "AWS profile dash is StackGuardian non-production",
+      "AWS profiles sg-prod, sg-prod-eu and sg-prod-us are StackGuardian production with write access; any other sg-prod* profile except sg-prod-ro is production too",
+      "AWS profile dash is StackGuardian non-production, with write access to QA",
       "AWS profile personal is the user's private AWS account, unrelated to StackGuardian"
     ]
-  },
-  "cleanupPeriodDays": 90
+  }
 }
