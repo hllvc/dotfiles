@@ -9,6 +9,7 @@ readonly CRONS_DIR="$REPO_ROOT/.shell/scripts/crons"
 readonly LINK_SKILLS="$CRONS_DIR/homebrew-update/link-skills.sh"
 readonly MACOS_SCRIPT="$REPO_ROOT/.shell/scripts/macos/defaults.sh"
 readonly TF_PLUGIN_CACHE="$HOME/.terraform.d/plugin-cache"
+readonly VERSIONS_FILE="$REPO_ROOT/.versions"
 readonly REQUIRED_TOOLS=("brew" "stow")
 
 # A broken link is "ours" if its target path passes through the dotfiles
@@ -47,6 +48,9 @@ Commands:
                              missing absolute paths
   orphans     [--fix]        Report symlinks in \$HOME left behind by renamed
                              or removed repo files
+  versions    [status|accept|upgrade|pins|auto]
+                             Compare installed tool versions with the ones
+                             recorded in .versions
 
 Global:
   -h, --help                 Show this help
@@ -64,6 +68,7 @@ Examples:
   ./dotctl doctor           # audit absolute paths in plists + scripts
   ./dotctl orphans          # report dangling dotfile symlinks
   ./dotctl orphans --fix    # ...and delete the ones pointing at this repo
+  ./dotctl versions         # what drifted since the config was last checked
 EOF
 }
 
@@ -804,6 +809,416 @@ cmd_doctor() {
 
 # }}}
 
+# ─── versions ──────────────────────────────────────────────────────────── {{{
+
+usage_versions() {
+  cat <<EOF
+Usage: ./dotctl versions [status [--brief] | accept <tool...|--all> |
+                          upgrade <tool> | pins | auto]
+
+Compares each tool's installed version with the one recorded in .versions —
+the version this repo's config was last checked against. Drift is the cue to
+read that tool's changes (the changes column) and adjust the config.
+
+Subcommands:
+  status     (default) Table of tested vs installed. Exits non-zero when
+             anything needs a look. --brief prints only one line per issue
+             (the homebrew-update cron notification uses it).
+  accept     Record the installed version as tested, dated today, and sync
+             the in-file copies (.tmux.conf @target_version, nvim init.lua
+             and README). Run it after reviewing; it does not commit.
+  upgrade    Upgrade a brew-pinned tool now: unpin, brew upgrade, pin again.
+             Review its changes, then accept.
+  pins       Make \`brew pin\` match the pin column. Idempotent; also part of
+             \`dotctl all\`.
+  auto       For the homebrew-update cron: apply upgrades of pinned tools
+             that fit their pin level (patch / minor), report the rest as
+             held.
+
+States:
+  ok         installed == tested
+  drift      installed != tested — review, then accept
+  held       a pinned formula has a newer version waiting
+  unpinned   the pin column is set but brew has the formula unpinned
+  missing    the probe printed nothing (tool not installed?)
+EOF
+}
+
+# Layout used when .versions is rewritten; matches the hand-aligned file.
+readonly VERSIONS_FORMAT='%-25s %-9s %-11s %-6s %-47s %s\n'
+
+_versions_require_file() {
+  [[ -f "$VERSIONS_FILE" ]] || {
+    echo "versions: $VERSIONS_FILE not found" >&2
+    return 1
+  }
+}
+
+# Data rows of .versions, comments and blank lines dropped.
+_versions_rows() {
+  grep -Ev '^[[:space:]]*(#|$)' "$VERSIONS_FILE" || true
+}
+
+# The row for one tool, empty when it isn't listed.
+_versions_row() {
+  _versions_rows | awk -v t="$1" '$1 == t'
+}
+
+# Installed version from a row's probe: the first X.Y[.Z…] token, else the
+# first word (a git SHA is cut to 7 chars to line up with `tested`). Empty when
+# the probe fails. ~/.local/bin is added because launchd's PATH lacks it.
+_versions_probe() {
+  local out v
+  out="$(PATH="$HOME/.local/bin:$PATH" bash -c "$1" </dev/null 2>/dev/null)" || return 0
+  v="$(awk 'match($0, /[0-9]+(\.[0-9]+)+[0-9A-Za-z]*/) { print substr($0, RSTART, RLENGTH); exit }' <<<"$out")"
+  if [[ -z "$v" ]]; then
+    v="$(awk 'NR == 1 { print $1; exit }' <<<"$out")"
+    if [[ "$v" =~ ^[0-9a-f]{7,40}$ ]]; then
+      v="${v:0:7}"
+    fi
+  fi
+  printf '%s' "$v"
+}
+
+# One line per brew-pinned tool: "<formula> <installed> <stable> <pinned 0|1>".
+# stable is what `brew upgrade` would install, as of the last `brew update`.
+# Batched into one call per brew command: brew is slow to start.
+_versions_brew_state() {
+  local -a formulae=()
+  local f pin pinned listing info installed stable
+  while read -r f _ _ pin _; do
+    if [[ "$pin" != "-" ]]; then
+      formulae+=("$f")
+    fi
+  done < <(_versions_rows)
+  ((${#formulae[@]})) || return 0
+  _command_installed brew || return 0
+
+  pinned=" $(brew list --pinned 2>/dev/null | tr '\n' ' ') "
+  listing="$(brew list --versions "${formulae[@]}" 2>/dev/null || true)"
+  info="$(brew info "${formulae[@]}" 2>/dev/null |
+    sed -n 's/^==> \([^:]*\): stable \([^ ,]*\).*/\1 \2/p' || true)"
+  for f in "${formulae[@]}"; do
+    installed="$(awk -v f="$f" '$1 == f { print $NF }' <<<"$listing")"
+    installed="${installed%_*}" # drop the brew revision: 3.8_1 → 3.8
+    stable="$(awk -v f="$f" '$1 == f { print $2 }' <<<"$info")"
+    if [[ "$pinned" == *" $f "* ]]; then
+      echo "$f ${installed:--} ${stable:--} 1"
+    else
+      echo "$f ${installed:--} ${stable:--} 0"
+    fi
+  done
+}
+
+# Size of the step between two versions: major, minor or patch. The first two
+# numeric fields are major and minor; anything after them is patch, so
+# 3.7b → 3.7c is a patch and 3.7c → 3.8 a minor.
+_versions_level() {
+  local a="$1" b="$2" amin=0 bmin=0
+  if [[ "$a" == *.* ]]; then
+    amin="${a#*.}"
+    amin="${amin%%[!0-9]*}"
+  fi
+  if [[ "$b" == *.* ]]; then
+    bmin="${b#*.}"
+    bmin="${bmin%%[!0-9]*}"
+  fi
+  if [[ "${a%%.*}" != "${b%%.*}" ]]; then
+    echo major
+  elif [[ "$amin" != "$bmin" ]]; then
+    echo minor
+  else
+    echo patch
+  fi
+}
+
+# Whether a pin level lets the cron apply a step of the given size.
+_versions_allows() {
+  case "$1:$2" in
+  patch:patch | minor:patch | minor:minor) return 0 ;;
+  esac
+  return 1
+}
+
+# Upgrade one pinned formula: unpin, upgrade, pin again — the pin is restored
+# even when the upgrade fails, so it is never left floating.
+_versions_brew_upgrade() {
+  local -i rc=0
+  brew unpin "$1" </dev/null 2>/dev/null || true
+  brew upgrade "$1" </dev/null || rc=$?
+  brew pin "$1" </dev/null || rc=$?
+  return "$rc"
+}
+
+_versions_status() {
+  local -i brief=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --brief) brief=1 ;;
+    *)
+      echo "versions status: unknown option: $1" >&2
+      return 1
+      ;;
+    esac
+    shift
+  done
+  _versions_require_file || return 1
+
+  local brew_state tool tested checked pin changes probe installed state n bi bs bp level
+  local -i issues=0
+  local -a notes review=()
+  brew_state="$(_versions_brew_state)"
+
+  if ((!brief)); then
+    printf '%-25s %-9s %-9s %s\n' TOOL TESTED INSTALLED STATE
+  fi
+  while read -r tool tested checked pin changes probe; do
+    notes=()
+    installed="$(_versions_probe "$probe")"
+    if [[ -z "$installed" ]]; then
+      notes+=(missing)
+      ((!brief)) || echo "$tool: not found ($probe)"
+    elif [[ "$installed" != "$tested" ]]; then
+      notes+=(drift)
+      ((!brief)) || echo "$tool: $tested → $installed"
+    fi
+
+    if [[ "$pin" != "-" ]]; then
+      read -r _ bi bs bp <<<"$(awk -v f="$tool" '$1 == f' <<<"$brew_state")"
+      if [[ "${bp:-0}" != 1 ]]; then
+        notes+=(unpinned)
+        ((!brief)) || echo "$tool: not brew-pinned (./dotctl versions pins)"
+      fi
+      if [[ -n "$bs" && "$bs" != "-" && "$bi" != "-" && "$bs" != "$bi" ]]; then
+        level="$(_versions_level "$bi" "$bs")"
+        notes+=("held → $bs ($level)")
+        ((!brief)) || echo "$tool: $bs available, held ($level upgrade)"
+      fi
+    fi
+
+    if ((${#notes[@]})); then
+      issues+=1
+      state="${notes[0]}"
+      for n in "${notes[@]:1}"; do
+        state+=", $n"
+      done
+      if [[ "$state" != unpinned ]]; then
+        review+=("$(printf '  %-25s %s' "$tool" "$changes")")
+      fi
+    else
+      state=ok
+    fi
+    ((brief)) || printf '%-25s %-9s %-9s %s\n' "$tool" "$tested" "${installed:--}" "$state"
+  done < <(_versions_rows)
+
+  ((issues)) || return 0
+  if ((!brief)) && ((${#review[@]})); then
+    echo
+    echo "Changes to read:"
+    printf '%s\n' "${review[@]}"
+    echo
+    echo "After reviewing (and adjusting the config): ./dotctl versions accept <tool>"
+  fi
+  if ((!brief)) && grep -q ' 0$' <<<"$brew_state"; then
+    echo
+    echo "Unpinned formulae: ./dotctl versions pins"
+  fi
+  return 1
+}
+
+_versions_accept() {
+  local -a tools=() accepted=()
+  local -i all=0
+  local t row probe v
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --all) all=1 ;;
+    -*)
+      echo "versions accept: unknown option: $1" >&2
+      return 1
+      ;;
+    *) tools+=("$1") ;;
+    esac
+    shift
+  done
+  _versions_require_file || return 1
+  if ((all)); then
+    while read -r t _; do
+      tools+=("$t")
+    done < <(_versions_rows)
+  fi
+  ((${#tools[@]})) || {
+    echo "versions accept: name a tool, or --all" >&2
+    return 1
+  }
+
+  # Resolve every tool before touching the file: an unknown name or a failed
+  # probe aborts with nothing written.
+  for t in "${tools[@]}"; do
+    row="$(_versions_row "$t")"
+    [[ -n "$row" ]] || {
+      echo "versions accept: unknown tool: $t" >&2
+      return 1
+    }
+    read -r _ _ _ _ _ probe <<<"$row"
+    v="$(_versions_probe "$probe")"
+    [[ -n "$v" ]] || {
+      echo "versions accept: $t: probe printed nothing ($probe)" >&2
+      return 1
+    }
+    accepted+=("$t $v")
+  done
+
+  local today line tool tested checked pin changes pair rewritten skip='^[[:space:]]*(#|$)'
+  today="$(date +%Y-%m-%d)"
+  rewritten="$(
+    while IFS= read -r line; do
+      if [[ "$line" =~ $skip ]]; then
+        printf '%s\n' "$line"
+        continue
+      fi
+      read -r tool tested checked pin changes probe <<<"$line"
+      for pair in "${accepted[@]}"; do
+        if [[ "${pair%% *}" == "$tool" ]]; then
+          tested="${pair#* }"
+          checked="$today"
+        fi
+      done
+      # shellcheck disable=SC2059 # the format is the fixed column layout
+      printf "$VERSIONS_FORMAT" "$tool" "$tested" "$checked" "$pin" "$changes" "$probe"
+    done <"$VERSIONS_FILE"
+  )"
+  # Overwrite in place (not mv) so the file keeps its mode.
+  printf '%s\n' "$rewritten" >"$VERSIONS_FILE"
+
+  local summary=""
+  for pair in "${accepted[@]}"; do
+    echo "  ${pair%% *}: tested = ${pair#* } ($today)"
+    _versions_sync_mirrors "${pair%% *}" "${pair#* }"
+    summary+="${summary:+, }${pair}"
+  done
+  echo
+  echo "Not committed. Suggested:"
+  echo "  git commit -am \"fix: versions — checked against $summary\""
+}
+
+# In-file copies of a tested version that `accept` keeps in step: places that
+# need the number at runtime (tmux's status-line check, nvim's startup check)
+# or repeat it in prose.
+_versions_sync_mirrors() {
+  local v="$2"
+  case "$1" in
+  tmux)
+    _versions_sync_line "$REPO_ROOT/.tmux.conf" \
+      "^set -g @target_version '[^']*'" "set -g @target_version '$v'"
+    ;;
+  neovim)
+    _versions_sync_line "$REPO_ROOT/.config/nvim/init.lua" \
+      '^vim\.g\.nvim_target_version = "[^"]*"' "vim.g.nvim_target_version = \"$v\""
+    _versions_sync_line "$REPO_ROOT/.config/nvim/README.md" \
+      '\*\*Targets Neovim [^*]*\*\*' "**Targets Neovim $v.**"
+    ;;
+  esac
+}
+
+# Replace a basic-regex match in a file, or warn when the file has no match.
+_versions_sync_line() {
+  local file="$1" pattern="$2" replacement="$3"
+  if ! grep -q "$pattern" "$file" 2>/dev/null; then
+    echo "    WARNING: ${file#"$REPO_ROOT"/} has no line matching: $pattern" >&2
+    return 0
+  fi
+  sed -i '' "s|$pattern|$replacement|" "$file"
+  echo "    synced ${file#"$REPO_ROOT"/}"
+}
+
+_versions_upgrade() {
+  local tool="${1:-}" row pin changes
+  [[ -n "$tool" ]] || {
+    echo "versions upgrade: name a tool" >&2
+    return 1
+  }
+  _versions_require_file || return 1
+  row="$(_versions_row "$tool")"
+  [[ -n "$row" ]] || {
+    echo "versions upgrade: unknown tool: $tool" >&2
+    return 1
+  }
+  read -r _ _ _ pin changes _ <<<"$row"
+  [[ "$pin" != "-" ]] || {
+    echo "versions upgrade: $tool isn't brew-pinned — it upgrades on its own" >&2
+    return 1
+  }
+  _versions_brew_upgrade "$tool" || return 1
+  echo
+  echo "Review the changes ($changes), then: ./dotctl versions accept $tool"
+}
+
+_versions_pins() {
+  _versions_require_file || return 1
+  _command_installed brew || {
+    echo "versions pins: brew not installed — skipped"
+    return 0
+  }
+  local pinned tool pin
+  pinned=" $(brew list --pinned 2>/dev/null | tr '\n' ' ') "
+  echo "── brew pins ──"
+  while read -r tool _ _ pin _; do
+    if [[ "$pin" == "-" ]]; then
+      if [[ "$pinned" == *" $tool "* ]]; then
+        brew unpin "$tool" </dev/null && echo "  unpinned  $tool"
+      fi
+    elif [[ "$pinned" == *" $tool "* ]]; then
+      echo "  pinned    $tool ($pin)"
+    elif ! brew list --versions "$tool" </dev/null >/dev/null 2>&1; then
+      echo "  skipped   $tool (not installed)"
+    else
+      brew pin "$tool" </dev/null && echo "  pinned    $tool ($pin, newly)"
+    fi
+  done < <(_versions_rows)
+}
+
+# Cron side of the pin levels: apply what a tool's pin allows, report the rest.
+_versions_auto() {
+  _versions_require_file || return 1
+  local brew_state tool pin bi bs level
+  brew_state="$(_versions_brew_state)"
+  while read -r tool _ _ pin _; do
+    [[ "$pin" != "-" ]] || continue
+    read -r _ bi bs _ <<<"$(awk -v f="$tool" '$1 == f' <<<"$brew_state")"
+    [[ -n "$bs" && "$bs" != "-" && "$bi" != "-" && "$bs" != "$bi" ]] || continue
+    level="$(_versions_level "$bi" "$bs")"
+    if _versions_allows "$pin" "$level"; then
+      echo "$tool: $bi → $bs ($level, pin=$pin allows) — upgrading"
+      _versions_brew_upgrade "$tool" || echo "$tool: upgrade failed"
+    else
+      echo "$tool: $bs available ($level) — held by pin=$pin"
+    fi
+  done < <(_versions_rows)
+  return 0
+}
+
+cmd_versions() {
+  local sub="${1:-status}"
+  [[ $# -eq 0 ]] || shift
+  case "$sub" in
+  status) _versions_status "$@" ;;
+  --brief) _versions_status --brief "$@" ;;
+  accept) _versions_accept "$@" ;;
+  upgrade) _versions_upgrade "$@" ;;
+  pins) _versions_pins ;;
+  auto) _versions_auto ;;
+  -h | --help) usage_versions ;;
+  *)
+    echo "versions: unknown subcommand: $sub" >&2
+    usage_versions >&2
+    return 1
+    ;;
+  esac
+}
+
+# }}}
+
 # ─── all ───────────────────────────────────────────────────────────────── {{{
 
 cmd_all() {
@@ -814,6 +1229,8 @@ cmd_all() {
   _crons_install || echo "  (some cron installs failed — see above)"
   echo
   _macos_apply || echo "  (macos apply failed — see above)"
+  echo
+  _versions_pins || echo "  (versions pins failed — see above)"
 }
 
 # }}}
@@ -837,6 +1254,7 @@ main() {
   macos) cmd_macos "$@" ;;
   orphans) cmd_orphans "$@" ;;
   doctor) cmd_doctor "$@" ;;
+  versions) cmd_versions "$@" ;;
   -h | --help) usage ;;
   *)
     echo "Unknown command: $cmd" >&2

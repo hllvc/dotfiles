@@ -20,6 +20,10 @@
       <key>HOMEBREW_NO_ENV_HINTS</key>
       <string>1</string>
     </dict>
+    <!-- The versions-drift alert (versions-notify.sh) waits for a click after
+         entrypoint.sh exits; without this launchd kills it with the job. -->
+    <key>AbandonProcessGroup</key>
+    <true/>
     <key>StartCalendarInterval</key>
     <dict>
       <key>Hour</key>

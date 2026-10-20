@@ -9,7 +9,8 @@ Neovim release this config is written against. `README.md` repeats it in prose.
 
 1. `nvim --version` — read the exact `NVIM vX.Y.Z`.
 2. If it differs from `vim.g.nvim_target_version`, update `init.lua` **and** `README.md`
-   in the same commit as the config change.
+   in the same commit as the config change. `./dotctl versions accept neovim` (repo
+   root) does both and also updates the repo's `.versions` file.
 3. Bumping the number alone is not enough when the minor moved (e.g. 0.12 → 0.13).
    Re-check the config against the new release first:
    - `nvim -c 'help news' -c 'only'` — new, changed, and deprecated APIs.

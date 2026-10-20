@@ -33,6 +33,7 @@ _dotctl() {
       'macos:apply macOS defaults'
       'doctor:audit plists/scripts for worktree-pinned or missing paths'
       'orphans:report dangling dotfile symlinks'
+      'versions:compare installed tool versions with .versions'
       '-h:help'
       '--help:help'
     )
@@ -81,6 +82,30 @@ _dotctl() {
   doctor)
     shift words; (( CURRENT-- ))
     _arguments '(-h --help)'{-h,--help}'[help]'
+    ;;
+  versions)
+    if (( CURRENT == 3 )); then
+      cmds=(
+        'status:tested vs installed (default)'
+        'accept:record installed as tested, sync in-file copies'
+        'upgrade:upgrade a brew-pinned tool now'
+        'pins:make brew pins match the pin column'
+        'auto:apply upgrades the pin level allows (cron)'
+        '-h:help'
+      )
+      _describe -t commands 'versions subcommand' cmds
+    else
+      case $words[3] in
+      status) _arguments '--brief[one line per issue]' ;;
+      accept | upgrade)
+        # Tool names from the .versions next to the dotctl being run.
+        local -a tools
+        tools=(${(f)"$(awk '!/^[[:space:]]*(#|$)/ { print $1 }' ${words[1]:h}/.versions 2>/dev/null)"})
+        [[ $words[3] == accept ]] && tools+=(--all)
+        compadd -a tools
+        ;;
+      esac
+    fi
     ;;
   esac
 }

@@ -7,6 +7,10 @@ set -u
 # shellcheck source=../_lib/notify.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../_lib/notify.sh"
 
+# ~/.shell links into the dotfiles repo, so the physical path leads to it —
+# dotctl and .versions are found without naming a worktree.
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+readonly REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 readonly LOG_DIR="${HOME}/Library/Logs/com.hllvc.homebrew-update"
 readonly LOG_FILE="${LOG_DIR}/main.log"
 readonly CACHE_DIR="${HOME}/Library/Caches/com.hllvc.homebrew-update"
@@ -57,6 +61,10 @@ _block_open "$LOG_FILE"
 
 _run_cmd "brew update"  brew update
 _block_line "$LOG_FILE" ""
+# `brew upgrade` skips pinned formulae (.versions pin column); this applies the
+# upgrades their pin level allows and logs the ones it holds back.
+_run_cmd "versions auto"  "$REPO_ROOT/dotctl" versions auto
+_block_line "$LOG_FILE" ""
 _run_cmd "brew upgrade"  brew upgrade
 _block_line "$LOG_FILE" ""
 _run_cmd "brew upgrade --cask"  brew upgrade --greedy --greedy-auto-updates --greedy-latest --cask
@@ -67,6 +75,29 @@ _run_cmd "brew cleanup -s"  brew cleanup -s
 _block_line "$LOG_FILE" ""
 # cleanup just deleted the old Caskroom versions skill links point into.
 _run_cmd "link skills"  bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/link-skills.sh"
+_block_line "$LOG_FILE" ""
+
+# Tools that moved away from the version the config was checked against. Not a
+# failure: logged, and notified once per distinct report (the alert offers a
+# static report or a Claude planning session). The notifier waits for a click,
+# so it runs detached — the plist sets AbandonProcessGroup to let it outlive
+# this job.
+readonly VERSIONS_REPORT="${CACHE_DIR}/versions-report.txt"
+readonly VERSIONS_NOTIFIED="${CACHE_DIR}/versions-notified.txt"
+_block_line "$LOG_FILE" "$(_color dim "→ versions status")"
+if "$REPO_ROOT/dotctl" versions status --brief >"$VERSIONS_REPORT" 2>&1; then
+  _block_line "$LOG_FILE" "$(_color dim "   every tool at its tested version")"
+  rm -f "$VERSIONS_NOTIFIED"
+else
+  while IFS= read -r line; do
+    _block_line "$LOG_FILE" "$(_color dim "   $line")"
+  done <"$VERSIONS_REPORT"
+  if ! cmp -s "$VERSIONS_REPORT" "$VERSIONS_NOTIFIED"; then
+    cp "$VERSIONS_REPORT" "$VERSIONS_NOTIFIED"
+    bash "$SCRIPT_DIR/versions-notify.sh" "$VERSIONS_REPORT" "$REPO_ROOT" >/dev/null 2>&1 &
+    disown
+  fi
+fi
 _block_line "$LOG_FILE" ""
 
 if ((${#failed_cmds[@]} == 0)); then
