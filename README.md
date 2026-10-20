@@ -51,7 +51,7 @@ macOS only: LaunchAgents, `defaults`, `pbcopy`, Ghostty and 1Password are assume
 - Zsh with [Oh-My-Zsh](https://ohmyz.sh), the [Powerlevel10k](https://github.com/romkatv/powerlevel10k) theme, and the plugins `.shell/zshinit` and `.zshrc` load from `~/.oh-my-zsh/custom` (zsh-autosuggestions, zsh-defer, zsh-vi-mode, fast-syntax-highlighting)
 - Tools the config calls: `tmux`, `fzf`, `jq`, `gh`, `nvim`, `git-lfs` (required by `.gitconfig`), Ghostty, the Claude Code CLI (`~/.local/bin/claude`), and 1Password with its `op` CLI (commit signing, secrets). `alerter` and `sleepwatcher` are installed by the cron `install.sh` hooks.
 - [tpm](https://github.com/tmux-plugins/tpm), not installed by `dotctl`: `git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm`, then `prefix + I` in tmux to fetch the plugins `.tmux.conf` lists (extrakto, tmux-fzf-url, tmux-suspend, the resurrect/continuum forks)
-- Optional: `gotop` for `prefix G`; kubectl, kubectx and k9s for the Kubernetes aliases
+- Optional: kubectl, kubectx and k9s for the Kubernetes aliases
 
 ## Structure
 
@@ -132,7 +132,7 @@ The prefix is `C-f` (`C-b` still works). Ghostty's `no-tmux/` profile mirrors th
 |--------------------|--------|
 | `t` / `C-t` | Popup: a shell / the repo's todo file (`todo-popup.sh`) |
 | `T` / `Z` / `O` | Popup: edit `.tmux.conf` / `.zshrc` / `~/.ssh/config` in nvim |
-| `G` / `C-e` | Popup: `gotop` / scratch nvim buffer (`nvim +enew -`) |
+| `C-e` | Popup: scratch nvim buffer (`nvim +enew -`) |
 | `N` / `W` | Popup: new session / move the window to another session (fzf) |
 | `K` | Popup: review stale sessions to kill; says so if there are none |
 | `o` | New window running `hop` (ssh host picker) |
