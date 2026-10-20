@@ -202,5 +202,6 @@
       "AWS profile dash is StackGuardian non-production",
       "AWS profile personal is the user's private AWS account, unrelated to StackGuardian"
     ]
-  }
+  },
+  "cleanupPeriodDays": 90
 }
