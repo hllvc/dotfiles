@@ -813,9 +813,9 @@ cmd_doctor() {
 
 usage_versions() {
   cat <<EOF
-Usage: ./dotctl versions [status [--brief] | review <tool...> |
+Usage: ./dotctl versions [status [--brief|--issues] | review <tool...> |
                           accept <tool...|--all|--triaged> | upgrade <tool> |
-                          pins | auto]
+                          pins | auto [-n]]
 
 Compares each tool's installed version with the one recorded in .versions —
 the version this repo's config was last checked against. Drift is the cue to
@@ -824,7 +824,9 @@ read that tool's changes (the changes column) and adjust the config.
 Subcommands:
   status     (default) Table of tested vs installed, plus the triage state
              from the versions-review agent. Exits non-zero when anything
-             needs a look. --brief prints only one line per issue.
+             needs a look. --brief prints only one line per issue;
+             --issues prints the table without the ok rows (nothing at all
+             when everything is ok).
   review     Triage the named tools now (the manual trigger, and the only one
              for review=manual tools like claude-code): no config impact is
              accepted and committed, anything else gets a drafted plan in a
@@ -838,9 +840,9 @@ Subcommands:
              Review its changes, then accept.
   pins       Make \`brew pin\` match the pin column. Idempotent; also part of
              \`dotctl all\`.
-  auto       For the homebrew-update cron: apply upgrades of pinned tools
-             that fit their pin level (patch / minor), report the rest as
-             held.
+  auto       For brewup and the homebrew-update cron: apply upgrades of
+             pinned tools that fit their pin level (patch / minor), report
+             the rest as held. -n only prints what it would do.
 
 Scripting (used by the versions-review agent):
   rows       Tab-separated: tool review tested installed available changes probe
@@ -996,10 +998,11 @@ _versions_triage() {
 }
 
 _versions_status() {
-  local -i brief=0
+  local -i brief=0 only_issues=0 header=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --brief) brief=1 ;;
+    --issues) only_issues=1 ;;
     *)
       echo "versions status: unknown option: $1" >&2
       return 1
@@ -1014,9 +1017,6 @@ _versions_status() {
   local -a notes review_list=()
   brew_state="$(_versions_brew_state)"
 
-  if ((!brief)); then
-    printf '%-25s %-9s %-9s %-26s %s\n' TOOL TESTED INSTALLED STATE TRIAGE
-  fi
   while read -r tool tested checked pin review changes probe; do
     notes=()
     held="-"
@@ -1061,7 +1061,14 @@ _versions_status() {
     else
       state=ok
     fi
-    ((brief)) || printf '%-25s %-9s %-9s %-26s %s\n' "$tool" "$tested" "${installed:--}" "$state" "$triage"
+    if ((!brief)) && [[ "$state" != ok || $only_issues -eq 0 ]]; then
+      # Header on the first printed row, so --issues stays silent when all ok.
+      if ((!header)); then
+        printf '%-25s %-9s %-9s %-26s %s\n' TOOL TESTED INSTALLED STATE TRIAGE
+        header=1
+      fi
+      printf '%-25s %-9s %-9s %-26s %s\n' "$tool" "$tested" "${installed:--}" "$state" "$triage"
+    fi
   done < <(_versions_rows)
 
   ((issues)) || return 0
@@ -1295,7 +1302,17 @@ _versions_pins() {
 }
 
 # Cron side of the pin levels: apply what a tool's pin allows, report the rest.
+# -n only says what it would do.
 _versions_auto() {
+  local -i dry=0
+  case "${1:-}" in
+  "") ;;
+  -n) dry=1 ;;
+  *)
+    echo "versions auto: unknown option: $1" >&2
+    return 1
+    ;;
+  esac
   _versions_require_file || return 1
   local brew_state tool pin bi held level
   brew_state="$(_versions_brew_state)"
@@ -1305,7 +1322,9 @@ _versions_auto() {
     [[ "$held" != "-" ]] || continue
     read -r _ bi _ <<<"$(awk -v f="$tool" '$1 == f' <<<"$brew_state")"
     level="$(_versions_level "$bi" "$held")"
-    if _versions_allows "$pin" "$level"; then
+    if _versions_allows "$pin" "$level" && ((dry)); then
+      echo "$tool: $bi → $held ($level, pin=$pin allows) — would upgrade"
+    elif _versions_allows "$pin" "$level"; then
       echo "$tool: $bi → $held ($level, pin=$pin allows) — upgrading"
       _versions_brew_upgrade "$tool" || echo "$tool: upgrade failed"
     else
@@ -1331,7 +1350,7 @@ cmd_versions() {
   accept) _versions_accept "$@" ;;
   upgrade) _versions_upgrade "$@" ;;
   pins) _versions_pins ;;
-  auto) _versions_auto ;;
+  auto) _versions_auto "$@" ;;
   rows) _versions_rows_tsv ;;
   mirrors) _versions_mirror_files "${1:-}" ;;
   -h | --help) usage_versions ;;

@@ -97,7 +97,8 @@ _dotctl() {
       _describe -t commands 'versions subcommand' cmds
     else
       case $words[3] in
-      status) _arguments '--brief[one line per issue]' ;;
+      status) _arguments '(--issues)--brief[one line per issue]' '(--brief)--issues[table without the ok rows]' ;;
+      auto) _arguments '-n[only print what would be upgraded or held]' ;;
       accept | upgrade | review)
         # Tool names from the .versions next to the dotctl being run.
         local -a tools

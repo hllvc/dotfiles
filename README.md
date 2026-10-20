@@ -116,7 +116,7 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 > silently (launchd exit 78) the moment that worktree is renamed. Scripts use
 > `$HOME/.shell/...`. `dotctl doctor` enforces both.
 
-- **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `dotctl versions auto`, `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version (`link-skills.sh`); notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
+- **homebrew-update** — daily at 10:00; skips on battery or offline; runs the same sequence as `brewup` (`.shell/scripts/lib/brew-upgrade.sh`: `brew update`, `dotctl versions pins` + `auto`, `upgrade`, greedy cask `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version via `link-skills.sh`), without the triage; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
 - **versions-review**: daily at 10:30; skips on battery or offline; triages tool updates and drafts plans (see [Tool Versions](#tool-versions)) (LaunchAgent: `com.hllvc.versions-review`).
 - **tmux-autosave** — idle-gated tmux session saver; fires every 30 min, saves when idle ≥ 30 s or 90 min has elapsed; also triggered on sleep (`~/.sleep` via `sleepwatcher`) and shutdown (`SIGTERM` trap via `com.hllvc.tmux-shutdown-save`). Replaces `@continuum-save-interval` (LaunchAgents: `com.hllvc.tmux-autosave`, `com.hllvc.tmux-shutdown-save`, `com.hllvc.sleepwatcher`).
@@ -128,7 +128,7 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 
 - `./dotctl versions`: tested vs installed per tool, the triage state, and where to read the changes.
 - `./dotctl versions accept <tool>`: record the installed version and sync the in-file copies (`.tmux.conf` `@target_version`, nvim `init.lua` and README).
-- **Brew pins**: tmux, neovim and fzf are `brew pin`ned. The `pin` column sets what the homebrew-update cron may still apply on its own (`patch`, `minor`, or nothing with `exact`); bigger upgrades are held until `./dotctl versions upgrade <tool>`. `./dotctl versions pins` (also run by `dotctl all`) makes brew match the column.
+- **Brew pins**: tmux, neovim and fzf are `brew pin`ned. The `pin` column sets what the homebrew-update cron may still apply on its own (`patch`, `minor`, or nothing with `exact`); bigger upgrades are held until `./dotctl versions upgrade <tool>`. `brewup` applies these levels on manual upgrades (a plain `brew upgrade` just skips pinned formulae). `./dotctl versions pins` (also run by `dotctl all`) makes brew match the column.
 - **Daily review** (`com.hllvc.versions-review`, 10:30, `.shell/scripts/crons/versions-review/`): for each `review=auto` tool that drifted or has a held upgrade, Claude Haiku triages the changes against this repo (read-only tools, capped by budget and time).
   - *No config impact*: `.versions` is bumped and committed (`fix: versions — <tool> <version>, no config impact`), silently. If that's blocked (not on `main`, uncommitted edits in those files, signing failed), you get one quiet note, the next run retries, and `./dotctl versions accept --triaged` does it by hand.
   - *Needs review or unsure*: Claude Opus drafts a plan in a session that waits in a window of the `updates` tmux session (personal socket), named `<tool> <from>→<to>`, and a "Plan ready" notification opens it. Accepting the tool closes the window (unless you accept from inside it; then it closes when Claude exits).
@@ -138,6 +138,7 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 
 ### Key Scripts
 
+- **brewup.sh** (`brewup`) - The manual Homebrew upgrade: `brew update`, brew pins and pin-level upgrades (`dotctl versions pins`/`auto`), formulae, greedy casks, `autoremove` + `cleanup -s`, cask-shipped skill links, then a report of tools off their tested version and an immediate triage (see [Tool Versions](#tool-versions)). The sequence is `lib/brew-upgrade.sh`, shared with the homebrew-update cron. `brewup -n` previews.
 - **com.sh** - Git commit with branch prefix extraction
 - **j.sh** - Jira integration (sprints, worktrees from tickets)
 - **tt.sh** - Tmux socket selector with fzf

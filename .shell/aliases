@@ -27,6 +27,9 @@ alias ql='quick-look'
 
 alias confetti='open raycast://extensions/raycast/raycast/confetti'
 
+# homebrew: update + pinned-aware upgrade + cleanup + version triage (brewup -n previews)
+alias brewup='~/.shell/scripts/brewup.sh'
+
 # 1pass
 alias jira="op run -- jira"
 

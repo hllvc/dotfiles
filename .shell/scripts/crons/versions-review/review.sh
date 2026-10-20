@@ -9,10 +9,15 @@
 #                   in a window of the `updates` tmux session (updates.sh), with
 #                   a "Plan ready" notification
 #
-#   review.sh --auto       every review=auto tool that needs it (launch agent)
-#   review.sh <tool...>    just these, whatever their review mode — the manual
-#                          trigger behind `dotctl versions review`; prints
-#                          instead of notifying
+#   review.sh --auto [tool...]   every review=auto tool that needs it, or just
+#                                the named ones (launch agent, brewup)
+#   review.sh <tool...>          just these, whatever their review mode — the
+#                                manual trigger behind `dotctl versions
+#                                review`; prints instead of notifying
+#   --defer-plans                with --auto: triage in the foreground, but hand
+#                                each Opus plan to a detached `review.sh --auto
+#                                <tool>` (log: plans.log) that notifies when
+#                                ready — brewup returns without waiting
 #
 # Results are cached per tool for one range (tested → target), so a range is
 # triaged and planned once. Env overrides, for testing against a clone:
@@ -45,15 +50,28 @@ readonly READ_DIRS=(/opt/homebrew "$HOME/.oh-my-zsh" "$HOME/.tmux/plugins"
 mkdir -p "$CACHE" "$LOG_DIR"
 
 auto=0
+defer=0
 wanted=()
-case "${1:-}" in
---auto) auto=1 ;;
-"" | -h | --help)
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --auto) auto=1 ;;
+  --defer-plans) defer=1 ;;
+  -h | --help)
+    sed -n '2,/^$/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+    exit 0
+    ;;
+  -*)
+    echo "review.sh: unknown option: $1" >&2
+    exit 1
+    ;;
+  *) wanted+=("$1") ;;
+  esac
+  shift
+done
+if ((!auto && ${#wanted[@]} == 0)); then
   sed -n '2,/^$/s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
   exit 1
-  ;;
-*) wanted=("$@") ;;
-esac
+fi
 
 # ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -270,10 +288,11 @@ _plan() {
   ((new)) || return 0
 
   if ((auto)); then
+    # The time it was drafted, since the alert may be read much later.
     if [[ "$plan" == ready ]]; then
-      _notify_open "Plan ready: $tool $from → $to" "$(_cache_get "$tool" .reason)" "$name"
+      _notify_open "Plan ready: $tool $from → $to" "$(date +%H:%M) · $(_cache_get "$tool" .reason)" "$name"
     else
-      _notify_open "Plan incomplete: $tool $from → $to" "Stopped at a cap — open to continue" "$name"
+      _notify_open "Plan incomplete: $tool $from → $to" "$(date +%H:%M) · Stopped at a cap — open to continue" "$name"
     fi
   else
     echo "  window: $name (personal socket, session ${VERSIONS_REVIEW_SESSION:-updates})"
@@ -315,6 +334,12 @@ _review_tool() {
     else
       _auto_accept "$tool" "$to" "$(_cache_get "$tool" .reason)"
     fi
+  elif ((defer)) && [[ -z "$(_cache_get "$tool" .plan)" ]]; then
+    # The cached verdict lets the detached run go straight to the plan.
+    nohup bash -c 'echo "── $(date "+%F %T") ──"; exec bash "$0" --auto "$1"' \
+      "$SCRIPT_DIR/review.sh" "$tool" >>"$LOG_DIR/plans.log" 2>&1 &
+    disown
+    echo "  plan: drafting in the background (notification when ready; log: $LOG_DIR/plans.log)"
   else
     _plan "$tool" "$tested" "$to" "$installed" "$changes" "$probe"
   fi
@@ -325,6 +350,10 @@ found=()
 while IFS=$'\t' read -r tool review tested installed held changes probe; do
   if ((auto)); then
     [[ "$review" == auto ]] || continue
+    if ((${#wanted[@]})); then
+      [[ " ${wanted[*]} " == *" $tool "* ]] || continue
+      found+=("$tool")
+    fi
   else
     [[ " ${wanted[*]} " == *" $tool "* ]] || continue
     found+=("$tool")
@@ -332,7 +361,7 @@ while IFS=$'\t' read -r tool review tested installed held changes probe; do
   _review_tool "$tool" "$tested" "$installed" "$held" "$changes" "$probe"
 done <<<"$rows"
 
-if ((!auto)); then
+if ((${#wanted[@]})); then
   for tool in "${wanted[@]}"; do
     [[ " ${found[*]:-} " == *" $tool "* ]] || echo "$tool: not in .versions" >&2
   done

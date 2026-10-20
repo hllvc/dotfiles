@@ -7,10 +7,7 @@ set -u
 # shellcheck source=../_lib/notify.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../_lib/notify.sh"
 
-# ~/.shell links into the dotfiles repo, so the physical path leads to it —
-# dotctl and .versions are found without naming a worktree.
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-readonly REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null)"
 readonly LOG_DIR="${HOME}/Library/Logs/com.hllvc.homebrew-update"
 readonly LOG_FILE="${LOG_DIR}/main.log"
 readonly CACHE_DIR="${HOME}/Library/Caches/com.hllvc.homebrew-update"
@@ -39,50 +36,31 @@ if [[ -f "$LAST_RUN_FILE" ]] && [[ "$(<"$LAST_RUN_FILE")" == "$today" ]]; then
   exit 0
 fi
 
-failed_cmds=()
-
-_run_cmd() {
-  local label="$1"; shift
-  _block_line "$LOG_FILE" "$(_color dim "→ $label")"
-  local tmpout rc=0
-  tmpout=$(mktemp)
-  "$@" >"$tmpout" 2>&1 || rc=$?
-  while IFS= read -r line; do
-    _block_line "$LOG_FILE" "$(_color dim "   $line")"
-  done < <(tail -n 20 "$tmpout")
-  rm -f "$tmpout"
-  if ((rc != 0)); then
-    failed_cmds+=("$label")
-    _block_line "$LOG_FILE" "$(_color red "   exited ${rc}")"
-  fi
-}
-
 _block_open "$LOG_FILE"
 
-_run_cmd "brew update"  brew update
-_block_line "$LOG_FILE" ""
-# `brew upgrade` skips pinned formulae (.versions pin column); this applies the
-# upgrades their pin level allows and logs the ones it holds back.
-_run_cmd "versions auto"  "$REPO_ROOT/dotctl" versions auto
-_block_line "$LOG_FILE" ""
-_run_cmd "brew upgrade"  brew upgrade
-_block_line "$LOG_FILE" ""
-_run_cmd "brew upgrade --cask"  brew upgrade --greedy --greedy-auto-updates --greedy-latest --cask
-_block_line "$LOG_FILE" ""
-_run_cmd "brew autoremove"  brew autoremove
-_block_line "$LOG_FILE" ""
-_run_cmd "brew cleanup -s"  brew cleanup -s
-_block_line "$LOG_FILE" ""
-# cleanup just deleted the old Caskroom versions skill links point into.
-_run_cmd "link skills"  bash "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/link-skills.sh"
+# The sequence itself is shared with `brewup` (lib/brew-upgrade.sh). Its output
+# is copied into the log block; a last "FAILED: a, b" line names failed steps.
+upgrade_out=$(mktemp)
+bash "$SCRIPT_DIR/../../lib/brew-upgrade.sh" >"$upgrade_out" 2>&1
+while IFS= read -r line; do
+  case "$line" in
+  "── "*)
+    line="${line#── }"
+    _block_line "$LOG_FILE" "$(_color dim "→ ${line% ──}")"
+    ;;
+  FAILED:*) ;;
+  *) _block_line "$LOG_FILE" "$(_color dim "   $line")" ;;
+  esac
+done <"$upgrade_out"
+failed_list=$(sed -n 's/^FAILED: //p' "$upgrade_out")
+rm -f "$upgrade_out"
 _block_line "$LOG_FILE" ""
 
-if ((${#failed_cmds[@]} == 0)); then
+if [[ -z "$failed_list" ]]; then
   _block_line "$LOG_FILE" "$(_color green "All commands succeeded.")"
   _block_close "$LOG_FILE"
   printf '%s\n' "$today" >"$LAST_RUN_FILE"
 else
-  failed_list=$(IFS=', '; echo "${failed_cmds[*]}")
   _block_line "$LOG_FILE" "$(_color red "FAILED: ${failed_list}")"
   _block_close "$LOG_FILE"
   _notify_sticky \
