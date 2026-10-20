@@ -8,8 +8,9 @@ Shell configuration files sourced by `.zshrc`.
 
 | File | Description |
 |------|-------------|
-| `aliases` | Shell aliases for directory navigation, git, kubectl, permissions, and editors |
-| `profile` | Environment variables, PATH, history settings, FZF config, and tool configurations |
+| `aliases` | Shell aliases for directory navigation, git, kubectl, terraform, tmux (`ttl`, `tprune`, `treplace`), permissions, and editors. Scripts at the top of `scripts/` get their aliases from `.zshrc`, not from here |
+| `profile` | Environment variables, PATH, history settings, FZF config, and tool configurations: the Terraform plugin cache, `GIT_ASKPASS` (points at `scripts/unloaded/git-askpass.sh`), and the Telegram bot token as an `op://` 1Password reference, not the token itself |
+| `functions` | Small zsh helpers: `cpg` / `mvg` (copy or move, then `cd` into a directory target), `take` (mkdir and cd), `copy` / `cpaste` / `lscopy` / `cclean` (a `/tmp/copy` staging clipboard for files), `bup` (copy to `<name>.old`, then offer to delete the original), `res` (copy a file to its name minus the last extension), `vi` (nvim, or `cd` into a directory and open it; remembers the old directory in `~/.curr`), `bundle_id` (fzf-pick an app, copy its bundle id) |
 | `zshinit` | Oh-My-Zsh setup, Powerlevel10k theme, plugins, and Zsh behavior settings |
 | `tmux-pane-env` | Snapshots each tmux pane's exported env per prompt, and re-applies it (never overwriting) after a pane replace |
 

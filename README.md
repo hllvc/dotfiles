@@ -29,26 +29,29 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 
 ### dotctl Commands
 
-- `./dotctl` - Show help (running without a command is a no-op)
-- `./dotctl all` - Stow + load launch agents + install crons + apply macOS defaults
+- `./dotctl` - Show help (running without a command only prints it)
+- `./dotctl all` - Stow + load launch agents + install crons + apply macOS defaults + re-pin brew formulae (`versions pins`)
 - `./dotctl stow [--adopt]` - Symlink dotfiles into `$HOME` (adopt folds existing files into the repo), then link Homebrew-shipped Claude skills (see [Cask-shipped skills](#cask-shipped-skills))
-- `./dotctl agents <load|unload|list> [name...]` - Manage launch agents under `~/.config/launch-agents`; names are optional (`tmux-autosave` or `com.hllvc.tmux-autosave`), all agents when omitted
+- `./dotctl agents <load|unload|disable|enable|list> [name...]` - Manage launch agents under `~/.config/launch-agents` (symlinked into `~/Library/LaunchAgents` on load); a name is the full label, the plist filename or the short suffix (`tmux-autosave`), all agents when omitted. `disable` unloads and keeps an agent off across `load`, `all` and reboots (the plist stays); `enable` undoes it
 - `./dotctl crons <install|list>` - Run per-cron `install.sh` hooks under `.shell/scripts/crons/*/`
 - `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
 - `./dotctl doctor` - Audit launch-agent plists and scripts for worktree-pinned or missing absolute paths
-- `./dotctl orphans [--fix]` - Report (and with `--fix` delete) dangling symlinks left in `$HOME` by renamed or removed repo files
-- `./dotctl versions [status|review|accept|upgrade|pins|auto]` - Compare installed tool versions with the ones the config was checked against, triage updates (see [Tool Versions](#tool-versions))
+- `./dotctl orphans [--fix]` - Report dangling symlinks left in `$HOME` by renamed or removed repo files: REPO (ours; `--fix` deletes them and any parent dirs left empty), FOREIGN (broken, pointing elsewhere; listed only) and STALE (resolves to a repo path git no longer tracks; listed only)
+- `./dotctl versions [status|review|accept|upgrade|pins|auto|accepted]` - Compare installed tool versions with the ones the config was checked against, triage updates (`status --brief|--issues`, `accept --all|--triaged`, `auto -n`, `accepted --days N`; see [Tool Versions](#tool-versions))
 - `./dotctl -h` (or `./dotctl <command> -h`) - Help
 
 Zsh tab completion for all of the above ships in `.shell/completions/_dotctl` and is picked up via `fpath` once stowed.
 
 ## Prerequisites
 
-- [Homebrew](https://brew.sh) (auto-installed by `dotctl`)
+macOS only: LaunchAgents, `defaults`, `pbcopy`, Ghostty and 1Password are assumed throughout.
+
+- [Homebrew](https://brew.sh) (auto-installed by `dotctl`, via Homebrew's install script from the web)
 - [GNU Stow](https://www.gnu.org/software/stow/) (auto-installed by `dotctl`)
-- Zsh with [Oh-My-Zsh](https://ohmyz.sh)
-- [Powerlevel10k](https://github.com/romkatv/powerlevel10k) theme
-- [sleepwatcher](https://formulae.brew.sh/formula/sleepwatcher) — `brew install sleepwatcher` (required for sleep/hibernate save hooks)
+- Zsh with [Oh-My-Zsh](https://ohmyz.sh), the [Powerlevel10k](https://github.com/romkatv/powerlevel10k) theme, and the plugins `.shell/zshinit` and `.zshrc` load from `~/.oh-my-zsh/custom` (zsh-autosuggestions, zsh-defer, zsh-vi-mode, fast-syntax-highlighting)
+- Tools the config calls: `tmux`, `fzf`, `jq`, `gh`, `nvim`, `git-lfs` (required by `.gitconfig`), Ghostty, the Claude Code CLI (`~/.local/bin/claude`), and 1Password with its `op` CLI (commit signing, secrets). `alerter` and `sleepwatcher` are installed by the cron `install.sh` hooks.
+- [tpm](https://github.com/tmux-plugins/tpm), not installed by `dotctl`: `git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm`, then `prefix + I` in tmux to fetch the plugins `.tmux.conf` lists (extrakto, tmux-fzf-url, tmux-suspend, the resurrect/continuum forks)
+- Optional: `gotop` for `prefix G`; kubectl, kubectx and k9s for the Kubernetes aliases
 
 ## Structure
 
@@ -56,30 +59,43 @@ Zsh tab completion for all of the above ships in `.shell/completions/_dotctl` an
 .
 ├── .config/            # Application configs
 │   ├── nvim/           # Neovim (Lua + lazy.nvim)
-│   ├── ghostty/        # Ghostty terminal
+│   ├── ghostty/        # Ghostty terminal (no-tmux/ holds a variant with its own keybinds)
 │   ├── karabiner/      # Keyboard remapping
 │   ├── launch-agents/  # macOS LaunchAgents
+│   ├── gh/             # GitHub CLI config (ssh protocol, aliases)
 │   └── 1Password/      # SSH agent config
 ├── .shell/             # Shell configuration
 │   ├── profile         # Environment variables, PATH
 │   ├── aliases         # Shell aliases
+│   ├── functions       # Small zsh helpers (cpg, mvg, take, ...)
 │   ├── zshinit         # Zsh plugins/theme setup
+│   ├── tmux-pane-env   # Per-pane env snapshot, re-applied after a pane replace
+│   ├── completions/    # Zsh completions (dotctl, sw, tofu, ...)
 │   └── scripts/        # Custom scripts
+│       ├── brewup.sh   # Manual Homebrew upgrade (alias: brewup)
 │       ├── functions/  # Scripts that can cd (gbare.sh, sw.sh)
+│       ├── lib/        # Shared helpers (worktree.sh, brew-upgrade.sh)
 │       ├── init/       # Startup scripts (tt.sh)
 │       ├── tmux/       # Tmux helper scripts
 │       ├── crons/      # Scheduled jobs (installed by `dotctl crons install`)
 │       ├── macos/      # macOS `defaults write` tweaks (`dotctl macos apply`)
-│       └── unloaded/   # Inactive scripts
+│       └── unloaded/   # Not aliased: archived scripts, plus git-askpass.sh, which is in use
 ├── .claude/            # Claude Code CLI
-│   ├── CLAUDE.md       # Global instructions
-│   ├── settings.json   # Settings, permissions, plugins
+│   ├── CLAUDE.md       # Global instructions (AGENTS.md links to it)
+│   ├── settings.json   # Settings, permissions, plugins, status line
+│   ├── statusline-command.sh  # Status line script
 │   └── skills/         # Custom skills
+├── .codex/             # Codex CLI config
+├── .agents/            # Shared agent skills dir (links to .claude/skills)
 ├── .zshrc              # Main Zsh config
 ├── .tmux.conf          # Tmux config
 ├── .gitconfig          # Git config
 ├── .p10k.zsh           # Powerlevel10k theme
-└── dotctl              # Dotfiles CLI (stow, agents, crons)
+├── .tofurc, .terraformrc  # OpenTofu / Terraform CLI config (shared plugin cache)
+├── .sleep              # sleepwatcher hook (saves tmux sessions before sleep)
+├── .versions           # Tested tool versions (see Tool Versions; not stowed)
+├── .stow-local-ignore  # What stow skips
+└── dotctl              # Dotfiles CLI (stow, agents, crons, macos, doctor, orphans, versions)
 ```
 
 See detailed documentation: [`.config/`](.config/) | [`.shell/`](.shell/)
@@ -98,13 +114,40 @@ Separate tmux sockets for work/personal contexts:
 - `personal` - Personal projects
 - `work` - Work projects
 
-LaunchAgents auto-start these on login (`com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
+LaunchAgents auto-start these on login (`com.hllvc.personal.tmux`, `com.hllvc.work.tmux`). `tt.sh` attaches to one (Ghostty runs it at startup); `ttl` lists sessions. The `updates` session on the `personal` socket holds the drafted update plans (see [Tool Versions](#tool-versions)).
 
 Session state is preserved across reboots via `tmux-resurrect` (forks: `hllvc/tmux-resurrect`, `hllvc/tmux-continuum`). The in-tmux auto-save is disabled (`@continuum-save-interval 0`) to avoid pty hitches; saving is handled externally:
 
 - **Idle / periodic** — `com.hllvc.tmux-autosave` fires every 30 min, saves when HID idle ≥ 30 s (force-saves after 90 min)
 - **Sleep / hibernate** — `sleepwatcher` runs `~/.sleep` before the system sleeps
 - **Shutdown / reboot** — `com.hllvc.tmux-shutdown-save` daemon catches `SIGTERM` from launchd during shutdown
+
+On restore (`@continuum-restore on`, `@continuum-multiple-sockets on` so each socket keeps its own save), pane contents are captured and only `vi`, `vim`, `view`, `nvim` and `claude` come back running (`claude --continue` when it was started bare, the exact `--resume` otherwise); every other pane restores as a plain shell. Detached sessions untouched for 7+ days count as stale and are offered for pruning with `prefix K` (`tprune` from a shell).
+
+#### Keys and settings (`.tmux.conf`)
+
+The prefix is `C-f` (`C-b` still works). Ghostty's `no-tmux/` profile mirrors the prefix for the same split keys.
+
+| Key (after prefix) | Action |
+|--------------------|--------|
+| `t` / `C-t` | Popup: a shell / the repo's todo file (`todo-popup.sh`) |
+| `T` / `Z` / `O` | Popup: edit `.tmux.conf` / `.zshrc` / `~/.ssh/config` in nvim |
+| `G` / `C-e` | Popup: `gotop` / scratch nvim buffer (`nvim +enew -`) |
+| `N` / `W` | Popup: new session / move the window to another session (fzf) |
+| `K` | Popup: review stale sessions to kill; says so if there are none |
+| `o` | New window running `hop` (ssh host picker) |
+| `C-v` / `C-s` | Split right / down, keeping the directory (`"` is unbound) |
+| `C-z` / `C-r` | Zoom the pane / replace it with a fresh shell, keeping cwd, title and env |
+| `C-h` `C-j` `C-k` `C-l` | Resize (repeatable) |
+| `r` / `Q` | Reload `.tmux.conf` / kill the server |
+| `a` / `u` | extrakto (grab text from the window) / tmux-fzf-url |
+| `S` / `R` | Save / restore sessions (resurrect) |
+| `F2` (no prefix) | tmux-suspend: pass every key to the inner tmux or program |
+| `M-h/j/k/l`, `M-\` (no prefix) | Move between panes; passed through to nvim when it's the foreground command |
+
+Other settings: vi copy mode (`v`, `C-v`, `y` copies with `pbcopy`), mouse on, no escape delay, 50,000 lines of history, extended keys (CSI u), passthrough on, windows not renamed automatically, panes numbered from 1. The status line shows the socket name, plus a yellow `tmux X ≠ Y` when the server isn't the tested version (see [Tool Versions](#tool-versions)).
+
+**Dark theme pinned.** tmux 3.8 colors popups, menus and modes from a light or dark theme it detects from the terminal. Ghostty reports light even though it runs a dark theme, which gave gray popups, so `.tmux.conf` sets `set -gq theme dark`.
 
 ### Background Crons
 
@@ -119,12 +162,13 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 - **homebrew-update** — daily at 10:00; skips on battery or offline; runs the same sequence as `brewup` (`.shell/scripts/lib/brew-upgrade.sh`: `brew update`, `dotctl versions pins` + `auto`, `upgrade`, greedy cask `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version via `link-skills.sh`), without the triage; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
 - **versions-review**: daily at 10:30; skips on battery or offline; triages tool updates and drafts plans (see [Tool Versions](#tool-versions)) (LaunchAgent: `com.hllvc.versions-review`).
+- **wifi-watchdog** — every 30 s and on network change; recovers the ISP router's silent 5 GHz stream collapse on the `hllvc` network by bouncing the Wi-Fi radio (details and safeguards in [`crons/README.md`](.shell/scripts/crons/README.md); LaunchAgent: `com.hllvc.wifi-watchdog`).
 - **tmux-autosave** — idle-gated tmux session saver; fires every 30 min, saves when idle ≥ 30 s or 90 min has elapsed; also triggered on sleep (`~/.sleep` via `sleepwatcher`) and shutdown (`SIGTERM` trap via `com.hllvc.tmux-shutdown-save`). Replaces `@continuum-save-interval` (LaunchAgents: `com.hllvc.tmux-autosave`, `com.hllvc.tmux-shutdown-save`, `com.hllvc.sleepwatcher`).
 - **tmux-warmup** — pre-starts the `work` and `personal` tmux servers at login so `tmux-continuum` auto-restore runs before first attach (LaunchAgents: `com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
 
 ### Tool Versions
 
-`.versions` (repo root, not stowed) records the version of each tool the config was last checked against: tmux, Neovim, fzf, Ghostty, Claude Code, macOS, the Neovim plugin lockfile, and the oh-my-zsh / tmux plugin checkouts. Upgrades change defaults without asking (tmux 3.8 turned popups gray through its new theme colors), so drift from that version is the cue to read the tool's changes and adjust the config.
+`.versions` (repo root, not stowed) records the version of each tool the config was last checked against: tmux, Neovim, fzf, Ghostty, Claude Code, macOS, the Neovim plugin lockfile, and the oh-my-zsh, Powerlevel10k, zsh-vi-mode, fast-syntax-highlighting and tmux-resurrect/continuum checkouts. Upgrades change defaults without asking (tmux 3.8 turned popups gray through its new theme colors), so drift from that version is the cue to read the tool's changes and adjust the config.
 
 - `./dotctl versions`: tested vs installed per tool, the triage state, and where to read the changes.
 - `./dotctl versions accept <tool>`: record the installed version and sync the in-file copies (`.tmux.conf` `@target_version`, nvim `init.lua` and README).
@@ -140,23 +184,26 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 
 ### Key Scripts
 
-- **brewup.sh** (`brewup`) - The manual Homebrew upgrade: `brew update`, brew pins and pin-level upgrades (`dotctl versions pins`/`auto`), formulae, greedy casks, `autoremove` + `cleanup -s`, cask-shipped skill links, then a report of tools off their tested version and an immediate triage (see [Tool Versions](#tool-versions)). The sequence is `lib/brew-upgrade.sh`, shared with the homebrew-update cron. `brewup -n` previews.
+Every executable at the top of `.shell/scripts/` is aliased by its name (`hop.sh` → `hop`); the full list is in [`.shell/scripts/README.md`](.shell/scripts/README.md). The ones used daily:
+
+- **brewup.sh** - The manual Homebrew upgrade: `brew update`, brew pins and pin-level upgrades (`dotctl versions pins`/`auto`), formulae, greedy casks, `autoremove` + `cleanup -s`, cask-shipped skill links, then a report of tools off their tested version and an immediate triage (see [Tool Versions](#tool-versions)). The sequence is `lib/brew-upgrade.sh`, shared with the homebrew-update cron. `brewup -n` previews.
 - **com.sh** - Git commit with branch prefix extraction
-- **j.sh** - Jira integration (sprints, worktrees from tickets)
 - **tt.sh** - Tmux socket selector with fzf
+- **sw.sh**, **gbare.sh** - Worktree switching and bare clones (see above)
+
+Scripts in `.shell/scripts/unloaded/` aren't aliased (`j.sh`, the Jira helper, is one). `git-askpass.sh` there is still in use: `.shell/profile` points `GIT_ASKPASS` at it.
 
 ### Neovim
 
-Lua-based config with:
-
-- lazy.nvim plugin manager
-- LSP (TypeScript, Python, Go, Rust, Terraform, Helm, YAML, JSON, Lua, Markdown)
-- Telescope, Treesitter, Copilot
-- Custom keymaps (jk escape, L/H buffer nav)
+Lua-based config with lazy.nvim, the native LSP client, nvim-cmp, Telescope, Treesitter, Copilot and claudecode.nvim, format on save for changed lines only, GitHub Actions helpers, and a todo workflow. It pins the Neovim version it targets and warns at startup when it drifts. See [`.config/nvim/README.md`](.config/nvim/README.md) and [`KEYMAPS.md`](.config/nvim/KEYMAPS.md) for the details and every keymap.
 
 ### Claude Code
 
-LSP plugins (pyright, lua-language-server) reuse Neovim's Mason-managed binaries.
+`.claude/settings.json` holds the settings: auto permission mode, a deny list for credential paths (`~/.ssh`, `~/.aws`, ...), an ask rule for the `sg-prod` AWS profiles, the enabled plugins (LSP plugins for Lua, Python, TypeScript, Go and Swift, `frontend-design`, `terminal-browser`, `cache-tax`), three plugin marketplaces, and the status line (`.claude/statusline-command.sh`, which needs `jq`). `.claude/CLAUDE.md` is the global instruction file and `AGENTS.md` links to it, so Codex reads the same one; `.codex/config.toml` is Codex's config. `.claude/skills/` holds the custom skills (sg-* and sikarugir-legendary); six of them (`sg-create-*`, `sg-update-workflow`, `sg-upgrade-workflow`, `sg-manage-secrets`) are written by the StackGuardian org sync through `~/.agents/skills`, so they are in `.gitignore` and `.stow-local-ignore`.
+
+`settings.json` sets `BASH_ENV` to `~/.local/bin/claude-shims-init.sh` (`.codex/config.toml` does too). That file isn't in this repo; without it, shells Claude starts have no shims.
+
+The LSP plugins reuse Neovim's Mason-managed binaries.
 Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by default.
 `mason-link.sh` symlinks all Mason binaries into `~/.local/bin/`:
 
@@ -213,6 +260,8 @@ Don't re-add `disableClaudeAiConnectors: true` — any source setting it to
   database/page URL shape for a ticket ID before it can be wired up.
 
 ## Git Config
+
+Commits and tags are signed with the SSH key in `user.signingkey` through 1Password's `op-ssh-sign`; `core.sshCommand` pins `~/.ssh/git_keys/personal_git.pub` for SSH remotes, and `~/.config/1Password/ssh/agent.toml` limits the 1Password SSH agent to the `SSH Keys` vault. Pulls rebase and fast-forward only, merges never fast-forward, push sets the upstream automatically, fetch prunes, and the default branch is `develop`. Git LFS is required (the `lfs` filter has `required = true`, so `git-lfs` must be installed). For HTTPS, `credential.helper store` applies, with `gh auth git-credential` for github.com and gist.github.com; a username/password prompt that still comes up is answered by `GIT_ASKPASS` (set in `.shell/profile`) with the StackGuardian token from 1Password.
 
 Conditional include for work repositories:
 

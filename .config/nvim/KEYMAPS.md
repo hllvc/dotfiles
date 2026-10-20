@@ -154,7 +154,8 @@ Buffer-local, attached per language server.
 | `<leader>cD`               | Type definition                                                        |
 | `<leader>cd`               | Diagnostic float                                                       |
 | `<leader>cq`               | Buffer diagnostics in Trouble                                          |
-| `<leader>cu`               | GitHub workflows: bump every `uses:` pin to the version its note names |
+| `<leader>cs`               | YAML / Helm values buffers only: pick the schema by hand (schema-companion) |
+| `<leader>cu`               | Workflow files (`.github`, `.forgejo`, `.gitea`) only, set when the buffer opens: bump every `uses:` pin to the version its note names |
 | `[d` / `]d`                | Previous / next diagnostic                                             |
 | `<leader>wa` / `wr` / `wl` | Add / remove / list workspace folder                                   |
 
@@ -170,6 +171,7 @@ One result jumps straight there; several open Trouble.
 | `<C-n>` / `<C-p>` | Jump forward / back through snippet placeholders   |
 | `<C-u>` / `<C-d>` | Scroll the docs popup                              |
 | `<Tab>`           | Accept the Copilot suggestion                      |
+| `<Tab>` (visual)  | Store the selection for a snippet's `$TM_SELECTED_TEXT` |
 | `<M-]>` / `<M-[>` | Cycle Copilot suggestions                          |
 
 In GitHub workflows (`lua/gha.lua`) the menu also offers the action's tags after
@@ -284,7 +286,9 @@ day, when the oldest inbox item is more than 5 days old.
 | ----------------------------- | -------------------------------------------- |
 | `<leader>cm`                  | Mason — install servers, formatters, linters |
 | `<leader>vs`                  | Pick a Python virtualenv                     |
-| `<leader>snl` / `snh` / `snd` | Noice: last message / history / dismiss      |
+| `<leader>snl` / `snh` / `sna` / `snd` | Noice: last message / history / all messages / dismiss |
+| `<S-Enter>` (cmdline)         | Noice: show the command's output in a split instead of the cmdline |
+| `<C-f>` / `<C-b>`             | Scroll the LSP hover or signature window while it is open (otherwise their usual meaning) |
 | `:Lazy`                       | Plugin manager                               |
 | `:StartupTime`                | Profile startup                              |
 | `:MarkdownPreviewToggle`      | Live markdown preview in the browser         |
@@ -308,7 +312,7 @@ day, when the oldest inbox item is more than 5 days old.
 | --------------------------- | ------------------------------------------ |
 | telescope.nvim              | Fuzzy finder for everything                |
 | telescope-fzf-native.nvim   | Native sorter; makes Telescope fast        |
-| flash.nvim                  | Label-based jumping; also enhances `f`/`t` |
+| flash.nvim                  | Label-based jumping (its `f`/`t` integration is off) |
 | nvim-treesitter-textobjects | Syntax-aware textobjects and motions       |
 
 ### LSP & completion
@@ -322,6 +326,7 @@ day, when the oldest inbox item is more than 5 days old.
 | LuaSnip, cmp_luasnip                                                    | Snippet engine and its source             |
 | lazydev.nvim, luvit-meta                                                | Neovim API types when editing this config |
 | schemastore.nvim                                                        | JSON/YAML schemas                         |
+| schema-companion.nvim                                                   | Per-kind Kubernetes schemas and CRDs, manual pick with `<leader>cs` |
 | fidget.nvim                                                             | LSP progress indicator                    |
 
 ### Formatting & linting
@@ -384,7 +389,7 @@ day, when the oldest inbox item is more than 5 days old.
 | copilot.lua        | Inline suggestions                        |
 | vim-tmux-navigator | Unified split/pane movement               |
 | vim-zoom           | Maximize a split                          |
-| plenary.nvim       | Lua stdlib used by Telescope and gitsigns |
+| plenary.nvim       | Lua stdlib, a dependency of Telescope, schema-companion, typescript-tools and others |
 
 ---
 
