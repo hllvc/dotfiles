@@ -86,7 +86,8 @@ _dotctl() {
   versions)
     if (( CURRENT == 3 )); then
       cmds=(
-        'status:tested vs installed (default)'
+        'status:tested vs installed, plus triage state (default)'
+        'review:triage named tools now, draft a plan if needed'
         'accept:record installed as tested, sync in-file copies'
         'upgrade:upgrade a brew-pinned tool now'
         'pins:make brew pins match the pin column'
@@ -97,11 +98,11 @@ _dotctl() {
     else
       case $words[3] in
       status) _arguments '--brief[one line per issue]' ;;
-      accept | upgrade)
+      accept | upgrade | review)
         # Tool names from the .versions next to the dotctl being run.
         local -a tools
         tools=(${(f)"$(awk '!/^[[:space:]]*(#|$)/ { print $1 }' ${words[1]:h}/.versions 2>/dev/null)"})
-        [[ $words[3] == accept ]] && tools+=(--all)
+        [[ $words[3] == accept ]] && tools+=(--all --triaged)
         compadd -a tools
         ;;
       esac

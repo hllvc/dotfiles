@@ -1,9 +1,10 @@
 # Tool versions this repo's config was last checked against.
 #
 #   ./dotctl versions                  drift report (tested vs installed)
-#   ./dotctl versions accept <tool>    after reviewing the changes: record the
-#                                      installed version and sync in-file copies
-#                                      (.tmux.conf @target_version, nvim init.lua)
+#   ./dotctl versions review <tool>    triage the changes now, draft a plan if needed
+#   ./dotctl versions accept <tool>    after reviewing: record the installed version
+#                                      and sync in-file copies (.tmux.conf
+#                                      @target_version, nvim init.lua + README)
 #
 # Columns (whitespace-separated; probe is the rest of the line):
 #   tool     brew formula name when pin is set
@@ -13,21 +14,26 @@
 #            exact  brew-pinned, only `dotctl versions upgrade` moves it
 #            patch  brew-pinned, the homebrew-update cron may apply patch upgrades
 #            minor  brew-pinned, the cron may apply minor and patch upgrades
-#   changes  where to read what changed: file path, URL, nvim:help-news, or
-#            git-log (git log <tested>..HEAD in the checkout the probe names)
-#   probe    command printing the installed version; the first X.Y[.Z] token
-#            (or the first word, cut to 7 chars for a git SHA) is compared
+#   review   auto   the daily versions-review agent triages drift by itself
+#            manual tracked only; run `dotctl versions review <tool>` yourself
+#   changes  where to read what changed: file path, URL, nvim:help-news,
+#            git-log (git log <tested>..HEAD in the checkout the probe names), or
+#            lazy-lock (diff of .config/nvim/lazy-lock.json between the commits)
+#   probe    command printing the installed version, run from the repo root; the
+#            first X.Y[.Z] token (or the first word, cut to 7 chars for a git
+#            SHA) is compared
 #
-# tool                    tested    checked     pin    changes                                         probe
-tmux                      3.8       2026-10-20  patch  /opt/homebrew/opt/tmux/CHANGES                  tmux -V
-neovim                    0.12.6    2026-10-20  patch  nvim:help-news                                  nvim --version
-fzf                       0.74.5    2026-10-20  patch  https://github.com/junegunn/fzf/releases        fzf --version
-ghostty                   1.3.1     2026-10-20  -      https://ghostty.org/docs/install/release-notes  /Applications/Ghostty.app/Contents/MacOS/ghostty --version
-claude-code               2.1.304   2026-10-20  -      https://code.claude.com/docs/en/changelog       claude --version
-macos                     27.2      2026-10-20  -      -                                               sw_vers -productVersion
-oh-my-zsh                 d57775d   2026-10-20  -      git-log                                         git -C ~/.oh-my-zsh rev-parse HEAD
-powerlevel10k             36f3045   2026-10-20  -      git-log                                         git -C ~/.oh-my-zsh/custom/themes/powerlevel10k rev-parse HEAD
-zsh-vi-mode               4cbbd1b   2026-10-20  -      git-log                                         git -C ~/.oh-my-zsh/custom/plugins/zsh-vi-mode rev-parse HEAD
-fast-syntax-highlighting  3d574cc   2026-10-20  -      git-log                                         git -C ~/.oh-my-zsh/custom/plugins/fast-syntax-highlighting rev-parse HEAD
-tmux-resurrect            cfd2386   2026-10-20  -      git-log                                         git -C ~/.tmux/plugins/tmux-resurrect rev-parse HEAD
-tmux-continuum            9e375fb   2026-10-20  -      git-log                                         git -C ~/.tmux/plugins/tmux-continuum rev-parse HEAD
+# tool                    tested    checked     pin    review  changes                                         probe
+tmux                      3.8       2026-10-20  patch  auto    /opt/homebrew/opt/tmux/CHANGES                  tmux -V
+neovim                    0.12.6    2026-10-20  patch  auto    nvim:help-news                                  nvim --version
+fzf                       0.74.5    2026-10-20  patch  auto    https://github.com/junegunn/fzf/releases        fzf --version
+ghostty                   1.3.1     2026-10-20  -      auto    https://ghostty.org/docs/install/release-notes  /Applications/Ghostty.app/Contents/MacOS/ghostty --version
+claude-code               2.1.304   2026-10-20  -      manual  https://code.claude.com/docs/en/changelog       claude --version
+macos                     27.2      2026-10-20  -      manual  -                                               sw_vers -productVersion
+nvim-plugins              d70a12f   2026-10-20  -      auto    lazy-lock                                       git log -1 --format=%H -- .config/nvim/lazy-lock.json
+oh-my-zsh                 d57775d   2026-10-20  -      auto    git-log                                         git -C ~/.oh-my-zsh rev-parse HEAD
+powerlevel10k             36f3045   2026-10-20  -      auto    git-log                                         git -C ~/.oh-my-zsh/custom/themes/powerlevel10k rev-parse HEAD
+zsh-vi-mode               4cbbd1b   2026-10-20  -      auto    git-log                                         git -C ~/.oh-my-zsh/custom/plugins/zsh-vi-mode rev-parse HEAD
+fast-syntax-highlighting  3d574cc   2026-10-20  -      auto    git-log                                         git -C ~/.oh-my-zsh/custom/plugins/fast-syntax-highlighting rev-parse HEAD
+tmux-resurrect            cfd2386   2026-10-20  -      auto    git-log                                         git -C ~/.tmux/plugins/tmux-resurrect rev-parse HEAD
+tmux-continuum            9e375fb   2026-10-20  -      auto    git-log                                         git -C ~/.tmux/plugins/tmux-continuum rev-parse HEAD

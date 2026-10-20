@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.hllvc.versions-review</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>entrypoint.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>/Users/hllvc/.shell/scripts/crons/versions-review</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+      <!-- ~/.local/bin: claude and jq. TMUX_TMPDIR: the socket dir the tmux
+           servers run under, for the `updates` session. -->
+      <key>PATH</key>
+      <string>/Users/hllvc/.local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+      <key>TMUX_TMPDIR</key>
+      <string>/Users/hllvc/.tmux/sockets</string>
+      <key>LANG</key>
+      <string>en_US.UTF-8</string>
+    </dict>
+    <!-- "Plan ready" alerts wait for a click after entrypoint.sh exits;
+         without this launchd kills them with the job. -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+    <key>StartCalendarInterval</key>
+    <dict>
+      <key>Hour</key>
+      <integer>10</integer>
+      <key>Minute</key>
+      <integer>30</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>/Users/hllvc/Library/Logs/com.hllvc.versions-review/out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/hllvc/Library/Logs/com.hllvc.versions-review/err.log</string>
+  </dict>
+</plist>

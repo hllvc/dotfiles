@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "verdict": { "type": "string", "enum": ["ignore", "review", "unsure"] },
+    "reason": { "type": "string" },
+    "notable": { "type": "array", "items": { "type": "string" } }
+  },
+  "required": ["verdict", "reason", "notable"],
+  "additionalProperties": false
+}

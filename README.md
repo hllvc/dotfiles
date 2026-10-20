@@ -37,7 +37,7 @@ git clone "git@github.com:hllvc/dotfiles.git" \
 - `./dotctl macos <apply>` - Apply macOS `defaults write` tweaks (Finder, Dock, trackpad, Safari, Mail, …)
 - `./dotctl doctor` - Audit launch-agent plists and scripts for worktree-pinned or missing absolute paths
 - `./dotctl orphans [--fix]` - Report (and with `--fix` delete) dangling symlinks left in `$HOME` by renamed or removed repo files
-- `./dotctl versions [status|accept|upgrade|pins|auto]` - Compare installed tool versions with the ones the config was checked against (see [Tool Versions](#tool-versions))
+- `./dotctl versions [status|review|accept|upgrade|pins|auto]` - Compare installed tool versions with the ones the config was checked against, triage updates (see [Tool Versions](#tool-versions))
 - `./dotctl -h` (or `./dotctl <command> -h`) - Help
 
 Zsh tab completion for all of the above ships in `.shell/completions/_dotctl` and is picked up via `fpath` once stowed.
@@ -116,20 +116,25 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 > silently (launchd exit 78) the moment that worktree is renamed. Scripts use
 > `$HOME/.shell/...`. `dotctl doctor` enforces both.
 
-- **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `dotctl versions auto`, `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version (`link-skills.sh`); notifies on failure, and on [version drift](#tool-versions) (LaunchAgent: `com.hllvc.homebrew-update`).
+- **homebrew-update** — daily at 10:00; skips on battery or offline; runs `brew update`, `dotctl versions auto`, `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version (`link-skills.sh`); notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
+- **versions-review**: daily at 10:30; skips on battery or offline; triages tool updates and drafts plans (see [Tool Versions](#tool-versions)) (LaunchAgent: `com.hllvc.versions-review`).
 - **tmux-autosave** — idle-gated tmux session saver; fires every 30 min, saves when idle ≥ 30 s or 90 min has elapsed; also triggered on sleep (`~/.sleep` via `sleepwatcher`) and shutdown (`SIGTERM` trap via `com.hllvc.tmux-shutdown-save`). Replaces `@continuum-save-interval` (LaunchAgents: `com.hllvc.tmux-autosave`, `com.hllvc.tmux-shutdown-save`, `com.hllvc.sleepwatcher`).
 - **tmux-warmup** — pre-starts the `work` and `personal` tmux servers at login so `tmux-continuum` auto-restore runs before first attach (LaunchAgents: `com.hllvc.personal.tmux`, `com.hllvc.work.tmux`).
 
 ### Tool Versions
 
-`.versions` (repo root, not stowed) records the version of each tool the config was last checked against: tmux, Neovim, fzf, Ghostty, Claude Code, macOS, and the oh-my-zsh / tmux plugin checkouts. Upgrades change defaults without asking (tmux 3.8 turned popups gray through its new theme colors), so drift from that version is the cue to read the tool's changes and adjust the config.
+`.versions` (repo root, not stowed) records the version of each tool the config was last checked against: tmux, Neovim, fzf, Ghostty, Claude Code, macOS, the Neovim plugin lockfile, and the oh-my-zsh / tmux plugin checkouts. Upgrades change defaults without asking (tmux 3.8 turned popups gray through its new theme colors), so drift from that version is the cue to read the tool's changes and adjust the config.
 
-- `./dotctl versions` — tested vs installed per tool, plus where to read the changes.
-- `./dotctl versions accept <tool>` — after reviewing: record the installed version and sync the in-file copies (`.tmux.conf` `@target_version`, nvim `init.lua` and README).
-- **Brew pins** — tmux, neovim and fzf are `brew pin`ned. The `pin` column sets what the cron may still apply on its own (`patch`, `minor`, or nothing with `exact`); bigger upgrades are held until `./dotctl versions upgrade <tool>`. `./dotctl versions pins` (also run by `dotctl all`) makes brew match the column.
-- **Cron alert** — after each run, homebrew-update compares versions and, when the report changed, posts an alert with two actions: *Show report*, or *Plan with Claude*, which opens a `versions` window in the `personal` tmux server running Claude Code in plan mode in this repo (prompt: `.shell/scripts/crons/homebrew-update/versions-review.md`).
-- **In-tool warnings** — tmux shows `tmux X ≠ Y` in yellow on the status line while the running server differs from `@target_version`; Neovim warns at startup (`vim.g.nvim_target_version`).
+- `./dotctl versions`: tested vs installed per tool, the triage state, and where to read the changes.
+- `./dotctl versions accept <tool>`: record the installed version and sync the in-file copies (`.tmux.conf` `@target_version`, nvim `init.lua` and README).
+- **Brew pins**: tmux, neovim and fzf are `brew pin`ned. The `pin` column sets what the homebrew-update cron may still apply on its own (`patch`, `minor`, or nothing with `exact`); bigger upgrades are held until `./dotctl versions upgrade <tool>`. `./dotctl versions pins` (also run by `dotctl all`) makes brew match the column.
+- **Daily review** (`com.hllvc.versions-review`, 10:30, `.shell/scripts/crons/versions-review/`): for each `review=auto` tool that drifted or has a held upgrade, Claude Haiku triages the changes against this repo (read-only tools, capped by budget and time).
+  - *No config impact*: `.versions` is bumped and committed (`fix: versions — <tool> <version>, no config impact`), silently. If that's blocked (not on `main`, uncommitted edits in those files, signing failed), you get one quiet note, the next run retries, and `./dotctl versions accept --triaged` does it by hand.
+  - *Needs review or unsure*: Claude Opus drafts a plan in a session that waits in a window of the `updates` tmux session (personal socket), named `<tool> <from>→<to>`, and a "Plan ready" notification opens it. Accepting the tool closes the window (unless you accept from inside it; then it closes when Claude exits).
+  - A held upgrade with no impact gets a "safe to upgrade" note; it is never upgraded automatically.
+  - `review=manual` tools (claude-code, macOS) are tracked but only reviewed when you run `./dotctl versions review <tool>`.
+- **In-tool warnings**: tmux shows `tmux X ≠ Y` in yellow on the status line while the running server differs from `@target_version`; Neovim warns at startup (`vim.g.nvim_target_version`).
 
 ### Key Scripts
 
