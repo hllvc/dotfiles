@@ -48,7 +48,7 @@ Commands:
                              missing absolute paths
   orphans     [--fix]        Report symlinks in \$HOME left behind by renamed
                              or removed repo files
-  versions    [status|accept|upgrade|pins|auto]
+  versions    [status|review|accept|upgrade|pins|auto|accepted]
                              Compare installed tool versions with the ones
                              recorded in .versions
 
@@ -69,6 +69,16 @@ Examples:
   ./dotctl orphans          # report dangling dotfile symlinks
   ./dotctl orphans --fix    # ...and delete the ones pointing at this repo
   ./dotctl versions         # what drifted since the config was last checked
+EOF
+}
+
+usage_all() {
+  cat <<EOF
+Usage: ./dotctl all [--adopt]
+
+Runs everything in order: stow (\`--adopt\` is passed to it), load launch
+agents, install crons (may prompt for sudo), apply macOS defaults, and make
+\`brew pin\` match .versions. See \`./dotctl <command> -h\` for each step.
 EOF
 }
 
@@ -1418,6 +1428,14 @@ cmd_versions() {
 # ─── all ───────────────────────────────────────────────────────────────── {{{
 
 cmd_all() {
+  # cmd_stow would print its own help and return 0, and everything below would
+  # then run anyway.
+  case "${1:-}" in
+  -h | --help)
+    usage_all
+    return 0
+    ;;
+  esac
   cmd_stow "$@"
   echo
   _agents_load
