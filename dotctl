@@ -1457,8 +1457,22 @@ main() {
     exit 0
   fi
 
-  local cmd="$1"
+  local cmd="$1" arg
   shift
+
+  # -h anywhere after a command means help for it, before anything runs: the
+  # commands that parse their own arguments only see -h in the first position,
+  # so `crons install -h` used to run the installs.
+  for arg in "$@"; do
+    case "$arg" in
+    -h | --help)
+      if declare -F "usage_$cmd" >/dev/null; then
+        "usage_$cmd"
+        return 0
+      fi
+      ;;
+    esac
+  done
 
   case "$cmd" in
   all) cmd_all "$@" ;;
