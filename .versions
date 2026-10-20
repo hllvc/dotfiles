@@ -14,7 +14,10 @@
 #            exact  brew-pinned, only `dotctl versions upgrade` moves it
 #            patch  brew-pinned, the homebrew-update cron may apply patch upgrades
 #            minor  brew-pinned, the cron may apply minor and patch upgrades
-#   review   auto   the daily versions-review agent triages drift by itself
+#   review   auto   the daily versions-review agent (and brewup) triage drift;
+#                   no config impact is accepted and committed silently
+#            strict triaged too, but always gets a drafted plan, never a silent
+#                   accept
 #            manual tracked only; run `dotctl versions review <tool>` yourself
 #   changes  where to read what changed: file path, URL, nvim:help-news,
 #            git-log (git log <tested>..HEAD in the checkout the probe names), or
@@ -24,8 +27,8 @@
 #            SHA) is compared
 #
 # tool                    tested    checked     pin    review  changes                                         probe
-tmux                      3.8       2026-10-20  patch  auto    /opt/homebrew/opt/tmux/CHANGES                  tmux -V
-neovim                    0.12.6    2026-10-20  patch  auto    nvim:help-news                                  nvim --version
+tmux                      3.8       2026-10-20  patch  strict  /opt/homebrew/opt/tmux/CHANGES                  tmux -V
+neovim                    0.12.6    2026-10-20  patch  strict  nvim:help-news                                  nvim --version
 fzf                       0.74.5    2026-10-20  patch  auto    https://github.com/junegunn/fzf/releases        fzf --version
 ghostty                   1.3.1     2026-10-20  -      auto    https://ghostty.org/docs/install/release-notes  /Applications/Ghostty.app/Contents/MacOS/ghostty --version
 claude-code               2.1.304   2026-10-20  -      manual  https://code.claude.com/docs/en/changelog       claude --version

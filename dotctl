@@ -815,7 +815,7 @@ usage_versions() {
   cat <<EOF
 Usage: ./dotctl versions [status [--brief|--issues] | review <tool...> |
                           accept <tool...|--all|--triaged> | upgrade <tool> |
-                          pins | auto [-n]]
+                          pins | auto [-n] | accepted [--days N]]
 
 Compares each tool's installed version with the one recorded in .versions —
 the version this repo's config was last checked against. Drift is the cue to
@@ -843,6 +843,10 @@ Subcommands:
   auto       For brewup and the homebrew-update cron: apply upgrades of
              pinned tools that fit their pin level (patch / minor), report
              the rest as held. -n only prints what it would do.
+
+  accepted   [--days N] Updates the versions-review agent accepted silently
+             (no config impact) in the last N days (default 14), with the
+             reason from each commit. Also shown under \`status\`.
 
 Scripting (used by the versions-review agent):
   rows       Tab-separated: tool review tested installed available changes probe
@@ -992,6 +996,7 @@ _versions_triage() {
       if (.accept // "") | startswith("blocked") then "no action, accept " + .accept
       elif .to != $installed then "no action, safe to upgrade"
       else "no action, accept pending" end
+    elif (.plan // "") == "" then "plan pending (" + .verdict + ")"
     elif .plan == "ready" then "plan ready (" + .verdict + ")"
     elif .plan == "incomplete" then "plan incomplete (" + .verdict + ")"
     else "plan failed (" + .verdict + ")" end' "$file" 2>/dev/null || echo "-"
@@ -1071,7 +1076,13 @@ _versions_status() {
     fi
   done < <(_versions_rows)
 
-  ((issues)) || return 0
+  if ((!issues)); then
+    if ((only_issues)); then
+      echo "every tool is at its tested version"
+    fi
+    ((brief)) || _versions_accepted_block
+    return 0
+  fi
   if ((!brief)) && ((${#review_list[@]})); then
     echo
     echo "Changes to read:"
@@ -1084,7 +1095,46 @@ _versions_status() {
     echo
     echo "Unpinned formulae: ./dotctl versions pins"
   fi
+  ((brief)) || _versions_accepted_block
   return 1
+}
+
+# Silent accepts by the versions-review agent: its "fix: versions — <tool>
+# <version>, no config impact" commits on main, newest first, one line each
+# with the first line of the commit body (the triage summary).
+_versions_accepted() {
+  local days=14 h subject date tool version reason
+  case "${1:-}" in
+  "") ;;
+  --days) days="${2:?versions accepted: --days needs a number}" ;;
+  *)
+    echo "versions accepted: unknown option: $1" >&2
+    return 1
+    ;;
+  esac
+  while read -r h; do
+    [[ -n "$h" ]] || continue
+    subject="$(git -C "$REPO_ROOT" log -1 --format=%s "$h")"
+    date="$(git -C "$REPO_ROOT" log -1 --format=%cs "$h")"
+    reason="$(git -C "$REPO_ROOT" log -1 --format=%b "$h" | awk 'NF { print; exit }')"
+    subject="${subject#fix: versions — }"
+    subject="${subject%, no config impact}"
+    tool="${subject% *}"
+    version="${subject##* }"
+    [[ ${#reason} -le 100 ]] || reason="${reason:0:99}…"
+    printf '  %s  %s  %-25s %-9s %s\n' "${h:0:7}" "$date" "$tool" "$version" "$reason"
+  done < <(git -C "$REPO_ROOT" log main --since="$days days ago" --format=%H \
+    --all-match --grep='^fix: versions — ' --grep=', no config impact$' 2>/dev/null)
+}
+
+# The footer `status` ends with, so silent accepts stay in view.
+_versions_accepted_block() {
+  local list
+  list="$(_versions_accepted)"
+  [[ -n "$list" ]] || return 0
+  echo
+  echo "Auto-accepted (no config impact) in the last 14 days — to reopen one: git revert <commit>, then ./dotctl versions review <tool>"
+  printf '%s\n' "$list"
 }
 
 # Machine-readable rows for the versions-review agent: tool, review, tested,
@@ -1211,7 +1261,7 @@ _versions_forget() {
   local file="$VERSIONS_CACHE/$1.json"
   if [[ -f "$file" ]] && _command_installed jq &&
     jq -e --arg v "$2" '.to == $v' "$file" >/dev/null 2>&1; then
-    rm -f "$file" "$VERSIONS_CACHE/$1".{plan.md,plan.json,triage.json}
+    rm -f "$file" "$VERSIONS_CACHE/$1".{plan.md,plan.json,triage.1.json,triage.2.json}
   fi
   if [[ -x "$VERSIONS_REVIEW_DIR/updates.sh" ]]; then
     "$VERSIONS_REVIEW_DIR/updates.sh" close "$1" || true
@@ -1353,6 +1403,7 @@ cmd_versions() {
   auto) _versions_auto "$@" ;;
   rows) _versions_rows_tsv ;;
   mirrors) _versions_mirror_files "${1:-}" ;;
+  accepted) _versions_accepted "$@" ;;
   -h | --help) usage_versions ;;
   *)
     echo "versions: unknown subcommand: $sub" >&2

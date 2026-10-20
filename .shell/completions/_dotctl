@@ -92,6 +92,7 @@ _dotctl() {
         'upgrade:upgrade a brew-pinned tool now'
         'pins:make brew pins match the pin column'
         'auto:apply upgrades the pin level allows (cron)'
+        'accepted:silent no-impact accepts of the last N days'
         '-h:help'
       )
       _describe -t commands 'versions subcommand' cmds
@@ -99,6 +100,7 @@ _dotctl() {
       case $words[3] in
       status) _arguments '(--issues)--brief[one line per issue]' '(--brief)--issues[table without the ok rows]' ;;
       auto) _arguments '-n[only print what would be upgraded or held]' ;;
+      accepted) _arguments '--days[how far back (default 14)]:days:' ;;
       accept | upgrade | review)
         # Tool names from the .versions next to the dotctl being run.
         local -a tools

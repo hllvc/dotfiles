@@ -64,9 +64,8 @@ trap 'rm -f "$failed_file"' EXIT
 BREW_UPGRADE_FAILED_FILE="$failed_file" bash "$CORE"
 
 _section "versions"
-if "$DOTCTL" versions status --issues; then
-  echo "every tool is at its tested version"
-else
+# Prints only what isn't ok (or says all is), plus the recent silent accepts.
+if ! "$DOTCTL" versions status --issues; then
   _section "triage"
   bash "$REVIEW" --auto --defer-plans
 fi

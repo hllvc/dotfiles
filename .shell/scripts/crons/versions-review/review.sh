@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 # Update review for the tools in .versions. When a tool's installed version
 # drifted from the one the config was checked against (or a brew-pinned
-# formula has an upgrade held back), a cheap model triages the changes:
+# formula has an upgrade held back), a cheap model classifies the changes twice
+# and a fixed rule (_rule) turns each run into a verdict:
 #
-#   ignore          no config impact: `dotctl versions accept` + a signed commit
-#                   (a held upgrade gets a "safe to upgrade" note instead)
-#   review/unsure   a stronger model drafts a plan; it waits as a Claude session
-#                   in a window of the `updates` tmux session (updates.sh), with
-#                   a "Plan ready" notification
+#   ignore          both runs found only harmless changes: `dotctl versions
+#                   accept` + a signed commit (a held upgrade gets a "safe to
+#                   upgrade" note instead)
+#   review/unsure   anything else, including the runs disagreeing: a stronger
+#                   model drafts a plan; it waits as a Claude session in a
+#                   window of the `updates` tmux session (updates.sh), with a
+#                   "Plan ready" notification
 #
-#   review.sh --auto [tool...]   every review=auto tool that needs it, or just
+# Tools with review=strict (tmux, neovim) are always planned.
+#
+#   review.sh --auto [tool...]   every review=auto/strict tool that needs it, or just
 #                                the named ones (launch agent, brewup)
 #   review.sh <tool...>          just these, whatever their review mode — the
 #                                manual trigger behind `dotctl versions
@@ -155,34 +160,71 @@ _notify_open() {
 
 # ─── triage ───────────────────────────────────────────────────────────────
 
-# Haiku verdict for tool from → to, stored in the cache. A run that fails,
-# times out or returns no verdict counts as unsure — never as ignore.
+# The fixed rule over one run's classification (verdict.schema.json):
+# ignore only when the whole range was read, at least one change was listed,
+# and every change is harmless — fix/docs/internal/performance, or a feature
+# outside what the config uses. A range not fully read is unsure; anything
+# else is review. No usable output is unsure.
+_rule() {
+  jq -r '
+    .structured_output as $o
+    | if ($o | type) != "object" then "unsure"
+      elif $o.read_full_range != true then "unsure"
+      elif ($o.changes // []) | length == 0 then "review"
+      elif all($o.changes[]; (.kind | IN("fix", "docs", "internal", "performance"))
+                             or (.kind == "feature" and .uses_config_area == false))
+        then "ignore"
+      else "review" end' "$1" 2>/dev/null || echo unsure
+}
+
+# Two Haiku runs classify the changes in tool from → to; the rule turns each
+# into a verdict, and only two `ignore`s make an ignore — one lenient run can't
+# wave an update through. Disagreement is review. Stored in the cache.
 _triage() {
   local tool="$1" from="$2" to="$3" installed="$4" changes="$5" probe="$6"
-  local out="$CACHE/$tool.triage.json" rc=0 verdict reason notable
-  {
-    cat "$SCRIPT_DIR/triage.md"
-    _context "$tool" "$from" "$to" "$installed" "$changes" "$probe"
-  } | _claude "$TRIAGE_MODEL" "$TRIAGE_BUDGET" "$TRIAGE_TIMEOUT" "$out" \
-    --no-session-persistence --json-schema "$(cat "$SCRIPT_DIR/verdict.schema.json")" || rc=$?
+  local i out rc verdict reason
+  local -a rules=() outs=()
+  for i in 1 2; do
+    out="$CACHE/$tool.triage.$i.json"
+    rc=0
+    {
+      cat "$SCRIPT_DIR/triage.md"
+      _context "$tool" "$from" "$to" "$installed" "$changes" "$probe"
+    } | _claude "$TRIAGE_MODEL" "$TRIAGE_BUDGET" "$TRIAGE_TIMEOUT" "$out" \
+      --no-session-persistence --json-schema "$(cat "$SCRIPT_DIR/verdict.schema.json")" || rc=$?
+    # A run without output still needs a summary for the notes.
+    jq -e '.structured_output' "$out" >/dev/null 2>&1 ||
+      jq -n --arg s "run didn't finish (exit $rc, $(jq -r '.subtype // "no output"' "$out" 2>/dev/null || echo "no output"))" \
+        '{structured_output: {read_full_range: false, summary: $s, changes: []}}' >"$out"
+    rules+=("$(_rule "$out")")
+    outs+=("$out")
+    echo "  triage run $i: ${rules[$((i - 1))]} — $(jq -r '.structured_output.summary' "$out")"
+  done
 
-  verdict="$(jq -r '.structured_output.verdict // empty' "$out" 2>/dev/null)"
-  if [[ -n "$verdict" ]]; then
-    reason="$(jq -r '.structured_output.reason' "$out")"
-    notable="$(jq -c '.structured_output.notable // []' "$out")"
+  if [[ "${rules[0]}" == "${rules[1]}" ]]; then
+    verdict="${rules[0]}"
+    reason="$(jq -r '.structured_output.summary' "${outs[0]}")"
   else
-    verdict=unsure
-    reason="triage didn't finish (exit $rc, $(jq -r '.subtype // "no output"' "$out" 2>/dev/null || echo "no output")); treated as unsure"
-    notable='[]'
+    verdict=review
+    reason="triage runs disagreed (${rules[0]} vs ${rules[1]}): $(jq -r '.structured_output.summary' "${outs[0]}")"
   fi
+
   # A record for an older range is superseded, and so is its plan window.
   if [[ -f "$(_cache_file "$tool")" ]]; then
     "$SCRIPT_DIR/updates.sh" close "$tool"
   fi
   rm -f "$(_cache_file "$tool")" "$CACHE/$tool.plan.md"
-  _cache_put "$tool" --arg from "$from" --arg to "$to" --arg verdict "$verdict" \
-    --arg reason "$reason" --argjson notable "$notable" --arg at "$(date +%FT%T)" \
-    '{from: $from, to: $to, verdict: $verdict, reason: $reason, notable: $notable, triaged_at: $at}'
+  jq -s --arg from "$from" --arg to "$to" --arg verdict "$verdict" --arg reason "$reason" \
+    --arg r1 "${rules[0]}" --arg r2 "${rules[1]}" --arg at "$(date +%FT%T)" '
+    def harmless: (.kind | IN("fix", "docs", "internal", "performance"))
+                  or (.kind == "feature" and .uses_config_area == false);
+    def line: "\(.kind) (\(if .uses_config_area then "config uses it" else "not used" end)): \(.what)\(if .config_ref != "" then " [\(.config_ref)]" else "" end)";
+    {from: $from, to: $to, verdict: $verdict, reason: $reason, triaged_at: $at,
+     notable: ([.[].structured_output.changes[] | select(harmless | not) | line] | unique),
+     runs: [[$r1, $r2], .] | transpose
+       | map({rule: .[0], summary: .[1].structured_output.summary,
+              changes: [.[1].structured_output.changes[] | line]})}' \
+    "${outs[@]}" >"$(_cache_file "$tool")"
   echo "  triage: $verdict — $reason"
 }
 
@@ -259,7 +301,9 @@ _plan() {
       _context "$tool" "$from" "$to" "$installed" "$changes" "$probe"
       echo
       echo "## Triage notes"
-      jq -r '"Verdict: \(.verdict). \(.reason)", (.notable[] | "- \(.)")' "$(_cache_file "$tool")"
+      jq -r '"Verdict: \(.verdict). \(.reason)",
+        (if .strict then "Review mode is strict for this tool: it is planned even when triage finds no impact." else empty end),
+        (.runs[] | "", "Run (\(.rule)): \(.summary)", (.changes[] | "- \(.)"))' "$(_cache_file "$tool")"
     } | _claude "$PLAN_MODEL" "$PLAN_BUDGET" "$PLAN_TIMEOUT" "$out" \
       --session-id "$uuid" --name "updates: $name" || rc=$?
 
@@ -305,7 +349,7 @@ _plan() {
 # ─── main ─────────────────────────────────────────────────────────────────
 
 _review_tool() {
-  local tool="$1" tested="$2" installed="$3" held="$4" changes="$5" probe="$6" to
+  local tool="$1" review="$2" tested="$3" installed="$4" held="$5" changes="$6" probe="$7" to
   if [[ "$installed" == "-" ]]; then
     echo "$tool: probe printed nothing — skipped"
     return 0
@@ -324,7 +368,11 @@ _review_tool() {
     _triage "$tool" "$tested" "$to" "$installed" "$changes" "$probe"
   fi
 
-  if [[ "$(_cache_get "$tool" .verdict)" == ignore ]]; then
+  if [[ "$(_cache_get "$tool" .verdict)" == ignore && "$review" == strict ]]; then
+    # Strict tools are always planned; the plan prompt says triage found nothing.
+    _cache_put "$tool" '.strict = true'
+  fi
+  if [[ "$(_cache_get "$tool" .verdict)" == ignore && "$review" != strict ]]; then
     if [[ "$to" != "$installed" ]]; then
       # Held by a brew pin: never upgraded from here, only flagged once.
       if [[ "$(_cache_get "$tool" .notified)" != true ]]; then
@@ -349,7 +397,7 @@ rows="$("$REPO/dotctl" versions rows)" || exit 1
 found=()
 while IFS=$'\t' read -r tool review tested installed held changes probe; do
   if ((auto)); then
-    [[ "$review" == auto ]] || continue
+    [[ "$review" == auto || "$review" == strict ]] || continue
     if ((${#wanted[@]})); then
       [[ " ${wanted[*]} " == *" $tool "* ]] || continue
       found+=("$tool")
@@ -358,7 +406,7 @@ while IFS=$'\t' read -r tool review tested installed held changes probe; do
     [[ " ${wanted[*]} " == *" $tool "* ]] || continue
     found+=("$tool")
   fi
-  _review_tool "$tool" "$tested" "$installed" "$held" "$changes" "$probe"
+  _review_tool "$tool" "$review" "$tested" "$installed" "$held" "$changes" "$probe"
 done <<<"$rows"
 
 if ((${#wanted[@]})); then

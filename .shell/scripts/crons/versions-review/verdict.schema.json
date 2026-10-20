@@ -1,10 +1,27 @@
 {
   "type": "object",
   "properties": {
-    "verdict": { "type": "string", "enum": ["ignore", "review", "unsure"] },
-    "reason": { "type": "string" },
-    "notable": { "type": "array", "items": { "type": "string" } }
+    "read_full_range": { "type": "boolean" },
+    "summary": { "type": "string" },
+    "changes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": ["fix", "docs", "internal", "performance", "feature",
+                     "default-change", "removal", "deprecation"]
+          },
+          "uses_config_area": { "type": "boolean" },
+          "what": { "type": "string" },
+          "config_ref": { "type": "string" }
+        },
+        "required": ["kind", "uses_config_area", "what", "config_ref"],
+        "additionalProperties": false
+      }
+    }
   },
-  "required": ["verdict", "reason", "notable"],
+  "required": ["read_full_range", "summary", "changes"],
   "additionalProperties": false
 }
