@@ -183,6 +183,59 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
   - Silent accepts of the last 14 days are listed under `./dotctl versions` and at the end of `brewup`, with each commit's hash and reason (`./dotctl versions accepted [--days N]`); to reopen a wrong call, `git revert <commit>` and then `./dotctl versions review <tool>`.
 - **In-tool warnings**: tmux shows `tmux X ≠ Y` in yellow on the status line while the running server differs from `@target_version`; Neovim warns at startup (`vim.g.nvim_target_version`).
 
+#### Handling updates
+
+Day to day you do two things: run `brewup` when you want to upgrade, and react when a "Plan ready" notification shows up. The rest is automatic.
+
+```
+brewup, or the 10:30 agent
+        │
+        ▼
+tool differs from the version in .versions?
+        │
+   ┌────┴──────────────────────────────┐
+   no                                  yes → two Haiku runs classify the changes
+   └─ nothing happens                         │
+                                   ┌──────────┴─────────────┐
+                            all harmless              anything else, a strict tool,
+                                   │                  or a minor/major bump of a
+                         silent signed commit         tool with silent=patch
+                         "fix: versions — … no               │
+                          config impact"                     ▼
+                                                    Opus drafts a plan →
+                                                    "Plan ready" notification →
+                                                    window in the `updates` session
+```
+
+**Upgrading.** `brewup -n` previews without installing; `brewup` runs the full sequence, then lists what drifted and triages it (plans draft in the background). tmux, neovim and fzf get patch releases automatically; anything bigger is held (below).
+
+**A "Plan ready" notification.**
+1. Click *Open*. It switches your tmux client to the `updates` session on the `personal` socket, to the window named `<tool> <from>→<to>`.
+2. Claude is already in plan mode with the drafted plan: what changed that matters, the edits with `file:line`, and what isn't affected. Ask questions or push back.
+3. When you approve it makes the edits, runs `dotctl versions accept <tool>` (and `upgrade` for a held one you agreed to) and commits. `accept` closes the window.
+
+**A held upgrade** (`held → X (minor)` for tmux, neovim or fzf). If triage finds it harmless you get a quiet "safe to upgrade" note, otherwise a plan. To take it: `./dotctl versions upgrade <tool>` (unpin, upgrade, pin), review the changes, then `./dotctl versions accept <tool>`. After accepting a tmux upgrade the status line shows `tmux X ≠ Y` until the running server is restarted onto the new version.
+
+**Checking by hand.** `./dotctl versions` (or `--issues`) shows tested vs installed, the triage state and where to read the changes. `./dotctl versions review <tool>` triages one now; it's the only way to review a `review=manual` tool such as macOS.
+
+| Command | When |
+|---|---|
+| `brewup` / `brewup -n` | upgrade / preview |
+| `dotctl versions` | everything; `--issues` shows only what needs attention |
+| `dotctl versions review <tool>` | triage a tool now |
+| `dotctl versions upgrade <tool>` | install a held upgrade |
+| `dotctl versions accept <tool>` | after you've read the changes; doesn't commit, it suggests a message |
+| `dotctl versions accept --triaged` | accept what triage cleared when its auto-commit was blocked |
+| `dotctl versions accepted [--days N]` | audit what was accepted silently |
+
+**Per-tool rules** (the `review` and `silent` columns of `.versions`): tmux and Neovim are `strict`, so always planned; `claude-code` is `silent=patch`, so a harmless patch bump is accepted and 2.2.0 or 3.0 is planned; macOS is manual only; everything else (fzf, Ghostty, the plugins, nvim plugins) is auto and silent when harmless.
+
+**Things to watch for**
+- Silent accepts are listed at the end of `dotctl versions` and `brewup` for 14 days. If one looks wrong, `git revert <commit>`, then `dotctl versions review <tool>`.
+- A triage state of `accept blocked: …` means the commit was blocked: not on `main`, uncommitted edits in `.versions` or a synced file, or 1Password signing failed. Fix that and the next run retries, or run `accept --triaged`.
+- `plan pending` means a plan is still drafting, so wait for the notification. For `plan failed` or `plan incomplete`, run `dotctl versions review <tool>`. Logs are in `~/Library/Logs/com.hllvc.versions-review/`.
+- Don't edit `.versions` by hand to bump a version; `accept` also updates `.tmux.conf` and the nvim files. A new tool is a new row, and the header of `.versions` explains the columns.
+
 ### Key Scripts
 
 Every executable at the top of `.shell/scripts/` is aliased by its name (`hop.sh` → `hop`); the full list is in [`.shell/scripts/README.md`](.shell/scripts/README.md). The ones used daily:
