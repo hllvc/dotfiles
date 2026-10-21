@@ -178,7 +178,8 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
   - *Needs review or unsure*: Claude Opus drafts a plan in a session that waits in a window of the `updates` tmux session (personal socket), named `<tool> <from>→<to>`, and a "Plan ready" notification opens it. Accepting the tool closes the window (unless you accept from inside it; then it closes when Claude exits).
   - A held upgrade with no impact gets a "safe to upgrade" note; it is never upgraded automatically.
   - `review=strict` tools (tmux, Neovim) are triaged but always get a drafted plan, never a silent accept.
-  - `review=manual` tools (claude-code, macOS) are tracked but only reviewed when you run `./dotctl versions review <tool>`.
+  - `review=manual` tools (macOS) are tracked but only reviewed when you run `./dotctl versions review <tool>`.
+  - The `silent` column limits what a harmless triage may accept without a plan: `any` (every size) or `patch`. `claude-code` is `patch`: a patch bump such as 2.1.305 → 2.1.306 is triaged and, if harmless, accepted with a signed commit, while a minor or major bump is always planned (the step is judged by the first two version numbers).
   - Silent accepts of the last 14 days are listed under `./dotctl versions` and at the end of `brewup`, with each commit's hash and reason (`./dotctl versions accepted [--days N]`); to reopen a wrong call, `git revert <commit>` and then `./dotctl versions review <tool>`.
 - **In-tool warnings**: tmux shows `tmux X ≠ Y` in yellow on the status line while the running server differs from `@target_version`; Neovim warns at startup (`vim.g.nvim_target_version`).
 

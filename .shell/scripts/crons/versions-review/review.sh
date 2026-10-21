@@ -12,7 +12,9 @@
 #                   window of the `updates` tmux session (updates.sh), with a
 #                   "Plan ready" notification
 #
-# Tools with review=strict (tmux, neovim) are always planned.
+# Tools with review=strict (tmux, neovim) are always planned. A tool with
+# silent=patch (claude-code) is accepted without a plan only for a patch bump;
+# a minor or major bump is planned even when triage finds nothing.
 #
 #   review.sh --auto [tool...]   every review=auto/strict tool that needs it, or just
 #                                the named ones (launch agent, brewup)
@@ -38,7 +40,7 @@ readonly REPO="${VERSIONS_REVIEW_REPO:-$(git -C "$SCRIPT_DIR" rev-parse --show-t
 readonly CACHE="${VERSIONS_REVIEW_CACHE:-$HOME/Library/Caches/com.hllvc.versions-review}"
 readonly LOG_DIR="$HOME/Library/Logs/com.hllvc.versions-review"
 # launchd's PATH has no ~/.local/bin, where claude lives.
-readonly CLAUDE="$HOME/.local/bin/claude"
+readonly CLAUDE="${VERSIONS_REVIEW_CLAUDE:-$HOME/.local/bin/claude}"
 # dotctl and updates.sh read these too.
 export VERSIONS_REVIEW_REPO="$REPO" VERSIONS_REVIEW_CACHE="$CACHE"
 
@@ -302,7 +304,7 @@ _plan() {
       echo
       echo "## Triage notes"
       jq -r '"Verdict: \(.verdict). \(.reason)",
-        (if .strict then "Review mode is strict for this tool: it is planned even when triage finds no impact." else empty end),
+        (.note // empty),
         (.runs[] | "", "Run (\(.rule)): \(.summary)", (.changes[] | "- \(.)"))' "$(_cache_file "$tool")"
     } | _claude "$PLAN_MODEL" "$PLAN_BUDGET" "$PLAN_TIMEOUT" "$out" \
       --session-id "$uuid" --name "updates: $name" || rc=$?
@@ -349,7 +351,7 @@ _plan() {
 # ─── main ─────────────────────────────────────────────────────────────────
 
 _review_tool() {
-  local tool="$1" review="$2" tested="$3" installed="$4" held="$5" changes="$6" probe="$7" to
+  local tool="$1" review="$2" silent="$3" tested="$4" installed="$5" held="$6" changes="$7" probe="$8" to
   if [[ "$installed" == "-" ]]; then
     echo "$tool: probe printed nothing — skipped"
     return 0
@@ -368,11 +370,20 @@ _review_tool() {
     _triage "$tool" "$tested" "$to" "$installed" "$changes" "$probe"
   fi
 
-  if [[ "$(_cache_get "$tool" .verdict)" == ignore && "$review" == strict ]]; then
-    # Strict tools are always planned; the plan prompt says triage found nothing.
-    _cache_put "$tool" '.strict = true'
+  # Harmless per triage, but not allowed to be accepted silently: strict tools
+  # never are, and a tool limited to silent patch accepts doesn't take a minor or
+  # major bump. Both are planned instead; the plan prompt says why.
+  local -i plan_anyway=0
+  if [[ "$(_cache_get "$tool" .verdict)" == ignore ]]; then
+    if [[ "$review" == strict ]]; then
+      plan_anyway=1
+      _cache_put "$tool" '.note = "Review mode is strict for this tool: it is planned even when triage finds no impact."'
+    elif [[ "$silent" == patch && "$("$REPO/dotctl" versions level "$tested" "$to")" != patch ]]; then
+      plan_anyway=1
+      _cache_put "$tool" '.note = "Triage found no impact, but this is a minor or major bump and this tool only accepts patch bumps without a plan, so it is planned anyway."'
+    fi
   fi
-  if [[ "$(_cache_get "$tool" .verdict)" == ignore && "$review" != strict ]]; then
+  if [[ "$(_cache_get "$tool" .verdict)" == ignore ]] && ((!plan_anyway)); then
     if [[ "$to" != "$installed" ]]; then
       # Held by a brew pin: never upgraded from here, only flagged once.
       if [[ "$(_cache_get "$tool" .notified)" != true ]]; then
@@ -395,7 +406,7 @@ _review_tool() {
 
 rows="$("$REPO/dotctl" versions rows)" || exit 1
 found=()
-while IFS=$'\t' read -r tool review tested installed held changes probe; do
+while IFS=$'\t' read -r tool review silent tested installed held changes probe; do
   if ((auto)); then
     [[ "$review" == auto || "$review" == strict ]] || continue
     if ((${#wanted[@]})); then
@@ -406,7 +417,7 @@ while IFS=$'\t' read -r tool review tested installed held changes probe; do
     [[ " ${wanted[*]} " == *" $tool "* ]] || continue
     found+=("$tool")
   fi
-  _review_tool "$tool" "$review" "$tested" "$installed" "$held" "$changes" "$probe"
+  _review_tool "$tool" "$review" "$silent" "$tested" "$installed" "$held" "$changes" "$probe"
 done <<<"$rows"
 
 if ((${#wanted[@]})); then

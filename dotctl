@@ -859,7 +859,8 @@ Subcommands:
              reason from each commit. Also shown under \`status\`.
 
 Scripting (used by the versions-review agent):
-  rows       Tab-separated: tool review tested installed available changes probe
+  rows       Tab-separated: tool review silent tested installed available changes probe
+  level      <from> <to>: major, minor or patch (the step between two versions)
   mirrors    <tool>: repo-relative files \`accept\` rewrites besides .versions
 
 States:
@@ -872,7 +873,7 @@ EOF
 }
 
 # Layout used when .versions is rewritten; matches the hand-aligned file.
-readonly VERSIONS_FORMAT='%-25s %-9s %-11s %-6s %-7s %-47s %s\n'
+readonly VERSIONS_FORMAT='%-25s %-9s %-11s %-6s %-7s %-6s %-47s %s\n'
 # Triage results of the versions-review agent, one <tool>.json each.
 readonly VERSIONS_CACHE="${VERSIONS_REVIEW_CACHE:-$HOME/Library/Caches/com.hllvc.versions-review}"
 readonly VERSIONS_REVIEW_DIR="$REPO_ROOT/.shell/scripts/crons/versions-review"
@@ -1027,12 +1028,12 @@ _versions_status() {
   done
   _versions_require_file || return 1
 
-  local brew_state tool tested checked pin review changes probe installed state n held level triage
+  local brew_state tool tested checked pin review silent changes probe installed state n held level triage
   local -i issues=0
   local -a notes review_list=()
   brew_state="$(_versions_brew_state)"
 
-  while read -r tool tested checked pin review changes probe; do
+  while read -r tool tested checked pin review silent changes probe; do
     notes=()
     held="-"
     installed="$(_versions_probe "$probe")"
@@ -1147,20 +1148,20 @@ _versions_accepted_block() {
   printf '%s\n' "$list"
 }
 
-# Machine-readable rows for the versions-review agent: tool, review, tested,
-# installed (- when the probe failed), available (held version or -), changes,
-# probe — tab-separated, no empty fields (read with IFS=tab merges them).
+# Machine-readable rows for the versions-review agent: tool, review, silent,
+# tested, installed (- when the probe failed), available (held version or -),
+# changes, probe — tab-separated, no empty fields (read with IFS=tab merges them).
 _versions_rows_tsv() {
   _versions_require_file || return 1
-  local brew_state tool tested checked pin review changes probe installed held
+  local brew_state tool tested checked pin review silent changes probe installed held
   brew_state="$(_versions_brew_state)"
-  while read -r tool tested checked pin review changes probe; do
+  while read -r tool tested checked pin review silent changes probe; do
     installed="$(_versions_probe "$probe")"
     held="-"
     if [[ "$pin" != "-" ]]; then
       held="$(_versions_held "$tool" "$brew_state")"
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$tool" "$review" "$tested" "${installed:--}" "$held" "$changes" "$probe"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$tool" "$review" "$silent" "$tested" "${installed:--}" "$held" "$changes" "$probe"
   done < <(_versions_rows)
 }
 
@@ -1169,7 +1170,7 @@ _versions_rows_tsv() {
 _versions_triaged_tools() {
   local tool tested installed
   _command_installed jq || return 0
-  while IFS=$'\t' read -r tool _ tested installed _ _ _; do
+  while IFS=$'\t' read -r tool _ _ tested installed _ _ _; do
     [[ "$installed" != "-" && "$installed" != "$tested" && -f "$VERSIONS_CACHE/$tool.json" ]] || continue
     jq -e --arg from "$tested" --arg to "$installed" \
       '.verdict == "ignore" and .from == $from and .to == $to' \
@@ -1222,7 +1223,7 @@ _versions_accept() {
       echo "versions accept: unknown tool: $t" >&2
       return 1
     }
-    read -r _ _ _ _ _ _ probe <<<"$row"
+    read -r _ _ _ _ _ _ _ probe <<<"$row"
     v="$(_versions_probe "$probe")"
     [[ -n "$v" ]] || {
       echo "versions accept: $t: probe printed nothing ($probe)" >&2
@@ -1231,7 +1232,7 @@ _versions_accept() {
     accepted+=("$t $v")
   done
 
-  local today line tool tested checked pin review changes pair rewritten skip='^[[:space:]]*(#|$)'
+  local today line tool tested checked pin review silent changes pair rewritten skip='^[[:space:]]*(#|$)'
   today="$(date +%Y-%m-%d)"
   rewritten="$(
     while IFS= read -r line; do
@@ -1239,7 +1240,7 @@ _versions_accept() {
         printf '%s\n' "$line"
         continue
       fi
-      read -r tool tested checked pin review changes probe <<<"$line"
+      read -r tool tested checked pin review silent changes probe <<<"$line"
       for pair in "${accepted[@]}"; do
         if [[ "${pair%% *}" == "$tool" ]]; then
           tested="${pair#* }"
@@ -1247,7 +1248,7 @@ _versions_accept() {
         fi
       done
       # shellcheck disable=SC2059 # the format is the fixed column layout
-      printf "$VERSIONS_FORMAT" "$tool" "$tested" "$checked" "$pin" "$review" "$changes" "$probe"
+      printf "$VERSIONS_FORMAT" "$tool" "$tested" "$checked" "$pin" "$review" "$silent" "$changes" "$probe"
     done <"$VERSIONS_FILE"
   )"
   # Overwrite in place (not mv) so the file keeps its mode.
@@ -1327,7 +1328,7 @@ _versions_upgrade() {
     echo "versions upgrade: unknown tool: $tool" >&2
     return 1
   }
-  read -r _ _ _ pin _ changes _ <<<"$row"
+  read -r _ _ _ pin _ _ changes _ <<<"$row"
   [[ "$pin" != "-" ]] || {
     echo "versions upgrade: $tool isn't brew-pinned — it upgrades on its own" >&2
     return 1
@@ -1412,6 +1413,7 @@ cmd_versions() {
   pins) _versions_pins ;;
   auto) _versions_auto "$@" ;;
   rows) _versions_rows_tsv ;;
+  level) _versions_level "${1:?versions level: two versions}" "${2:?versions level: two versions}" ;;
   mirrors) _versions_mirror_files "${1:-}" ;;
   accepted) _versions_accepted "$@" ;;
   -h | --help) usage_versions ;;
