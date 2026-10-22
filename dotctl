@@ -91,6 +91,8 @@ renamed/removed files don't linger. Afterwards links Homebrew-shipped Claude
 skills (e.g. terminal-browser) into ~/.claude/skills via
 .shell/scripts/crons/homebrew-update/link-skills.sh — those point at
 version-pinned Caskroom paths, so they're kept out of the repo and out of stow.
+Also registers the git filter that keeps session model/effort switches out of
+.claude/settings.json diffs.
 
 Options:
   --adopt    Run \`stow --adopt\`: files already in \$HOME that shadow repo files
@@ -300,6 +302,15 @@ _ensure_plugin_cache_dir() {
   [[ -d "$TF_PLUGIN_CACHE" ]] || mkdir -pv "$TF_PLUGIN_CACHE"
 }
 
+# .gitattributes names the filter, but the command lives in repo config (the
+# shared .bare config, so every worktree gets it). Paths are relative: git runs
+# filters from the worktree root.
+_register_git_filters() {
+  git -C "$REPO_ROOT" config filter.claude-settings.clean \
+    "bash .shell/scripts/git-filters/claude-settings-clean.sh %f"
+  echo "git filter claude-settings registered"
+}
+
 # }}}
 
 # ─── stow ──────────────────────────────────────────────────────────────── {{{
@@ -327,6 +338,7 @@ cmd_stow() {
   _require_tools
   _clean_stale_symlinks
   _ensure_plugin_cache_dir
+  _register_git_filters
 
   if ((adopt)); then
     stow -v -t "$HOME" -d "$REPO_ROOT" . --adopt
@@ -729,6 +741,7 @@ Checks:
                    stowed one — works today, breaks on rename
   MISSING PATH     a plist referencing a path that does not exist — the
                    breakage itself, whatever caused it
+  UNREGISTERED     the claude-settings git filter is missing from repo config
 
 Exits non-zero if anything is flagged.
 EOF
@@ -803,6 +816,16 @@ cmd_doctor() {
     -type f \( -name '*.sh' -o -name '.sleep' \) -print0 2>/dev/null)
   printf '  %d file(s) checked, %d issue(s)\n' "$n_files" "$sec"
   issues+=$sec
+
+  echo
+  echo "── git filters ──"
+  if git -C "$REPO_ROOT" config --get filter.claude-settings.clean >/dev/null; then
+    echo "  claude-settings registered"
+  else
+    echo "  UNREGISTERED     filter.claude-settings"
+    echo "    -> ./dotctl stow (model/effort switches will show as repo changes)"
+    issues+=1
+  fi
 
   echo
   if ((issues)); then

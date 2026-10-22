@@ -257,6 +257,32 @@ Lua-based config with lazy.nvim, the native LSP client, nvim-cmp, Telescope, Tre
 
 `settings.json` sets `BASH_ENV` to `~/.local/bin/claude-shims-init.sh` (`.codex/config.toml` does too). That file isn't in this repo; without it, shells Claude starts have no shims.
 
+#### Session model/effort switches and git
+
+`~/.claude/settings.json` is a symlink into this repo, and Claude Code writes the `/model` picker's choice (`model`, `effortLevel`, `modelSettings`) back to it and reorders top-level keys when it does. A git clean filter (`.gitattributes` → `.shell/scripts/git-filters/claude-settings-clean.sh`, registered in repo config by `./dotctl stow`, checked by `./dotctl doctor`) restores those three keys and the top-level key order from `HEAD` whenever git reads the file (`add`, `commit -a`, `status`, `diff`). Only what goes into git is filtered; the file on disk, which Claude Code reads, keeps the session values, so new sessions start with them. For a one-off model that doesn't touch the file at all, start with `claude --model <name>`.
+
+| Situation | Committed | On disk |
+|---|---|---|
+| Only a `/model` switch | nothing; `status` shows the file clean | session values |
+| `/model` switch plus a real edit (e.g. a permission) | the edit; the three keys stay at `HEAD` | both |
+| Claude Code only reordered keys | nothing | its order |
+
+Changing a default on purpose (the filter would otherwise drop it silently):
+
+```sh
+# set model / effortLevel / modelSettings to what you want, then
+git -c filter.claude-settings.clean=cat add .claude/settings.json
+git diff --cached        # the bypass stages the file as-is: check for leftover session values and key reshuffles
+git commit -m "fix: claude — default to <model>"
+```
+
+After that commit the filter compares against the new `HEAD`, so the new default sticks.
+
+- Back to the committed defaults: `git checkout -- .claude/settings.json` (drops whatever the session saved).
+- A pull that changes `settings.json` overwrites the file on disk, since git sees it as clean; session values are lost, which is normally what you want.
+- There's no smudge filter: checkout writes the committed content unchanged.
+- If the filter isn't registered (fresh clone before `./dotctl stow`), git just passes the file through and switches show as changes again.
+
 The LSP plugins reuse Neovim's Mason-managed binaries.
 Mason installs to `~/.local/share/nvim/mason/bin/`, which isn't in PATH by default.
 `mason-link.sh` symlinks all Mason binaries into `~/.local/bin/`:
