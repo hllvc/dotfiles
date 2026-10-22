@@ -37,7 +37,7 @@ tmux                      3.8       2026-10-20  patch  strict  any    /opt/homeb
 neovim                    0.12.6    2026-10-20  patch  strict  any    nvim:help-news                                  nvim --version
 fzf                       0.74.5    2026-10-20  patch  auto    any    https://github.com/junegunn/fzf/releases        fzf --version
 ghostty                   1.3.1     2026-10-20  -      auto    any    https://ghostty.org/docs/install/release-notes  /Applications/Ghostty.app/Contents/MacOS/ghostty --version
-claude-code               2.1.306   2026-10-21  -      auto    patch  https://code.claude.com/docs/en/changelog       claude --version
+claude-code               2.1.308   2026-10-22  -      auto    patch  https://code.claude.com/docs/en/changelog       claude --version
 macos                     27.2      2026-10-20  -      manual  any    -                                               sw_vers -productVersion
 nvim-plugins              d70a12f   2026-10-20  -      auto    any    lazy-lock                                       git log -1 --format=%H -- .config/nvim/lazy-lock.json
 oh-my-zsh                 d57775d   2026-10-20  -      auto    any    git-log                                         git -C ~/.oh-my-zsh rev-parse HEAD
