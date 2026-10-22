@@ -70,10 +70,7 @@
     "disableBypassPermissionsMode": "disable"
   },
   "model": "opus",
-  "fallbackModel": [
-    "opus[1m]",
-    "sonnet[1m]"
-  ],
+  "fallbackModel": ["opus[1m]", "sonnet[1m]", "haiku[1m]"],
   "enableAllProjectMcpServers": false,
   "skillOverrides": {
     "anthropic-skills:tirith-outbound": "off",
@@ -161,19 +158,7 @@
   },
   "feedbackDrafts": "notify",
   "alwaysThinkingEnabled": true,
-  "effortLevel": "high",
-  "modelSettings": {
-    "claude-fable-5-1": {
-      "effortLevel": "high"
-    },
-    "claude-opus-5-5": {
-      "effortLevel": "medium",
-      "autoCompactWindow": "auto"
-    },
-    "claude-sonnet-5-5": {
-      "effortLevel": "medium"
-    }
-  },
+  "effortLevel": "medium",
   "askUserQuestionTimeout": "never",
   "pluginConfigs": {
     "terminal-browser@terminal-browser": {
