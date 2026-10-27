@@ -137,3 +137,22 @@ bundle_id() {
 }
 
 #}}}: macOS
+
+#{{{ claude
+
+# Non-repo sessions on a side (~/.repos/<side> root or anywhere under its
+# 00-artifacts, nested repos included) share that side's memory store.
+claude() {
+  local side
+  case "$PWD/" in
+    "$HOME/.repos/stackguardian/"|"$HOME/.repos/stackguardian/00-artifacts/"*) side=stackguardian ;;
+    "$HOME/.repos/private/"|"$HOME/.repos/private/00-artifacts/"*) side=private ;;
+  esac
+  if [[ -z $side ]]; then
+    command claude "$@"
+    return
+  fi
+  command claude --settings "{\"autoMemoryDirectory\":\"$HOME/.claude/projects/-Users-hllvc--repos-$side-00-artifacts/memory\"}" "$@"
+}
+
+#}}}: claude
