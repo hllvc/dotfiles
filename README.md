@@ -159,7 +159,7 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
 > silently (launchd exit 78) the moment that worktree is renamed. Scripts use
 > `$HOME/.shell/...`. `dotctl doctor` enforces both.
 
-- **homebrew-update** — daily at 10:00; skips on battery or offline; runs the same sequence as `brewup` (`.shell/scripts/lib/brew-upgrade.sh`: `brew update`, `dotctl versions pins` + `auto`, `upgrade`, greedy cask `upgrade`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version via `link-skills.sh`), without the triage; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
+- **homebrew-update** — daily at 10:00; skips on battery or offline; runs the same sequence as `brewup` (`.shell/scripts/lib/brew-upgrade.sh`: `brew update`, `dotctl versions pins` + `auto`, `upgrade --greedy`, `autoremove`, `cleanup`, then re-points cask-shipped Claude skills at the new version via `link-skills.sh`), without the triage; notifies on failure (LaunchAgent: `com.hllvc.homebrew-update`).
 - **memory-pressure** — samples `memory_pressure` every 5 min, logs to `~/Library/Logs/com.hllvc.memory-pressure.log`, fires a macOS alert when free memory drops below 40% (LaunchAgent: `com.hllvc.memory-pressure`).
 - **versions-review**: daily at 10:30; skips on battery or offline; triages tool updates and drafts plans (see [Tool Versions](#tool-versions)) (LaunchAgent: `com.hllvc.versions-review`).
 - **wifi-watchdog** — every 30 s and on network change; recovers the ISP router's silent 5 GHz stream collapse on the `hllvc` network by bouncing the Wi-Fi radio (details and safeguards in [`crons/README.md`](.shell/scripts/crons/README.md); LaunchAgent: `com.hllvc.wifi-watchdog`).
@@ -240,7 +240,7 @@ tool differs from the version in .versions?
 
 Every executable at the top of `.shell/scripts/` is aliased by its name (`hop.sh` → `hop`); the full list is in [`.shell/scripts/README.md`](.shell/scripts/README.md). The ones used daily:
 
-- **brewup.sh** - The manual Homebrew upgrade: `brew update`, brew pins and pin-level upgrades (`dotctl versions pins`/`auto`), formulae, greedy casks, `autoremove` + `cleanup -s`, cask-shipped skill links, then a report of tools off their tested version and an immediate triage (see [Tool Versions](#tool-versions)). The sequence is `lib/brew-upgrade.sh`, shared with the homebrew-update cron. `brewup -n` previews.
+- **brewup.sh** - The manual Homebrew upgrade: `brew update`, brew pins and pin-level upgrades (`dotctl versions pins`/`auto`), `brew upgrade --greedy` (formulae and every cask), `autoremove` + `cleanup -s`, cask-shipped skill links, then a report of tools off their tested version and an immediate triage (see [Tool Versions](#tool-versions)). The sequence is `lib/brew-upgrade.sh`, shared with the homebrew-update cron. `brewup -n` previews.
 - **com.sh** - Git commit with branch prefix extraction
 - **tt.sh** - Tmux socket selector with fzf
 - **sw.sh**, **gbare.sh** - Worktree switching and bare clones (see above)

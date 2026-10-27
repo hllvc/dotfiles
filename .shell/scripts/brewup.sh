@@ -58,10 +58,13 @@ esac
 
 failed_file="$(mktemp)"
 trap 'rm -f "$failed_file"' EXIT
+# Ctrl-C ends the whole run, not just the brew step it lands in.
+trap 'exit 130' INT
 
 # Straight to the terminal: brew keeps its progress bars and colors, and cask
 # sudo prompts work.
 BREW_UPGRADE_FAILED_FILE="$failed_file" bash "$CORE"
+(($? == 130)) && exit 130
 
 _section "versions"
 # Prints only what isn't ok (or says all is), plus the recent silent accepts.
