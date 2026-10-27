@@ -44,6 +44,7 @@ _sw() {
       '-l:list branches'
       'ls:list branches'
       '-L:local branches only'
+      '-r:every remote-only branch'
       '-c:create a branch'
       '-n:create a branch'
       '--no-rebase:skip the rebase after -c'

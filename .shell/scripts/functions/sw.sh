@@ -2,13 +2,15 @@
 #
 # sw — fzf branch switcher with bare+worktree support.
 #
-# Usage: sw [-a] [-l] [-L] [-c|-n] [-d] [-h] [branch] [base]
+# Usage: sw [-a] [-l] [-L|-r] [-c|-n] [-d] [-h] [branch] [base]
 #   (none)     pick a branch and switch to it (worktree-aware)
 #   branch     skip the picker; an unknown name offers to create it
 #   -          switch back to the previous branch
-#   -a         fetch --all --prune first (the picker always shows known remotes)
+#   -a         fetch --all --prune first
 #   -l, ls     list branches and exit
 #   -L         local branches only (hide remote-only refs)
+#   -r         every remote-only branch (default: yours or active in the
+#              last sw.remoteAge days)
 #   -c, -n     create a branch: `sw -c`, `sw -c name`, `sw -c name base`
 #   --no-rebase  skip the rebase onto the base's remote after -c
 #   -d         delete branches (TAB multi-select); refuses the default branch
@@ -19,15 +21,27 @@
 #   -h         this help
 #
 # Picker keys: Enter switch  ctrl-x delete  ctrl-o create from highlighted
-#              ctrl-f fetch + reload  ctrl-r reload
-#   carry:     ctrl-s link  ctrl-o copy  ctrl-x detach  ctrl-f forget
+#              ctrl-r fetch + reload  ctrl-a all remotes
+#              alt-m merged only  alt-g gone only  alt-n new only  alt-0 all
+#              (the filter shows in the prompt and survives ctrl-r)
+#              ctrl-/ key and legend cheat sheet in the preview pane
+#   carry:     ctrl-s link  ctrl-o copy  ctrl-t detach  ctrl-x forget
 #
 # Config (git config, e.g. in .bare/config):
 #   sw.remote      remote to track (default origin)
 #   sw.rebase      false = never rebase after -c
 #   sw.postCreate  shell command run inside every new worktree
+#   sw.remoteAge   days a remote-only branch counts as active (default 14)
 #
-# Picker line: name  [worktree|local|remote] [merged] [gone] [recent]  ↑ahead ↓behind  age  subject
+# Picker line: [*·]name  where  status  age  subject
+#   *        current branch; · visited recently (listed first, latest visit on top)
+#   name     colored by state: dim = merged (changes already on
+#            <remote>/<default>: ff, rebase or squash), cyan = new (no commits
+#            of its own yet: at the default tip, or WIP), bold = anything else
+#   where    worktree | local | remote (remote only)
+#   status   against its own <remote>/<name>: ⇡ahead ⇣behind | unpushed | gone
+#            (blank = in sync), then the worktree's changes like the prompt:
+#            ~conflicted +staged !modified ?untracked
 # In switch mode, typing a name with no match and pressing Enter offers to
 # create it from the default branch.
 #
@@ -47,8 +61,8 @@ if ! command -v fzf >/dev/null; then
 fi
 
 fetchAll=0 deleteBranch=0 gitList=0 createBranch=0 showHelp=0 previewMode=0 carryMode=0
-tableMode=0 statusMode=0 goBack=0 localOnly=0 noRebase=0
-branch="" base=""
+tableMode=0 statusMode=0 goBack=0 localOnly=0 allRemotes=0 noRebase=0
+branch="" base="" onlyState="" keysMode="" keysToggle=""
 
 for arg; do
   case $arg in
@@ -56,11 +70,20 @@ for arg; do
   'd' | '-d') deleteBranch=1 ;;
   'ls' | 'l' | '-l') gitList=1 ;;
   '-L') localOnly=1 ;;
+  '-r') allRemotes=1 ;;
   [cn] | -[cn]) createBranch=1 ;;
   '--no-rebase') noRebase=1 ;;
   '-h' | '--help') showHelp=1 ;;
   '--preview') previewMode=1 ;;
+  --keys=*) keysMode="${arg#--keys=}" ;;
+  --keys-toggle=*) keysToggle="${arg#--keys-toggle=}" ;;
   '--table') tableMode=1 ;;
+  --only=*)
+    # Comes from the picker prompt: anything but a known filter means none
+    case ${arg#--only=} in
+    merged | gone | new) onlyState="${arg#--only=}" ;;
+    esac
+    ;;
   'st' | 'status') statusMode=1 ;;
   'carry') carryMode=1 ;;
   '-') goBack=1 ;;
@@ -88,11 +111,11 @@ source "${BASH_SOURCE[0]%/*}/../lib/worktree.sh"
 
 C_RESET=$'\e[0m' C_BOLD=$'\e[1m' C_DIM=$'\e[2m'
 C_GREEN=$'\e[32m' C_RED=$'\e[31m' C_YELLOW=$'\e[33m' C_BLUE=$'\e[34m' C_MAGENTA=$'\e[35m'
-
+C_CYAN=$'\e[36m'
 
 
 _usage() { #{{{
-  sed -n '/^# Usage/,/^# Picker line/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'
+  sed -n '/^# Usage/,/^# Prints a directory/p' "$0" | sed -e '$d' -e 's/^# \{0,1\}//'
 }
 #}}}: _usage
 
@@ -216,32 +239,187 @@ _age() { #{{{
 }
 #}}}: _age
 
-_track() { #{{{
-  # $1 = name, $2 = upstream:track text ("ahead 2, behind 1", "gone", ""),
-  # $3 = upstream ref (empty when none), $4 = local sha, $5 = origin/<name> sha
-  # (empty when absent). Sets REPLY to "↑N ↓M", "gone" or "".
-  local name="$1" text="$2" upstream="$3" localSha="$4" remoteSha="$5"
-  local ahead="" behind="" counts
-  REPLY=""
-  if [[ $text == gone ]]; then
-    REPLY="gone"
+_cacheDir() { #{{{
+  echo "${barePath:-$(git rev-parse --git-common-dir 2>/dev/null)}"
+}
+#}}}: _cacheDir
+
+_stateInit() { #{{{
+  # Load the merge-state cache for the current base. Entries are keyed by
+  # branch tip and only valid for one base sha, so a moved base starts over.
+  local tip base own merged
+  declare -gA stateCache=()
+  stateFile="$(_cacheDir)/sw.state" patchFile="" stateChanged=0
+  baseSha="$(git rev-parse -q --verify "$baseRef^{commit}" 2>/dev/null || true)"
+  [[ -f $stateFile && -n $baseSha ]] || return 0
+  while read -r tip base own merged; do
+    [[ $base == "$baseSha" ]] && stateCache[$tip]="$own $merged"
+  done <"$stateFile"
+}
+#}}}: _stateInit
+
+_stateSave() { #{{{
+  local tip
+  ((stateChanged)) && [[ -n $baseSha && -d ${stateFile%/*} ]] || return 0
+  for tip in "${!stateCache[@]}"; do
+    printf '%s %s %s\n' "$tip" "$baseSha" "${stateCache[$tip]}"
+  done >"$stateFile.tmp" && mv "$stateFile.tmp" "$stateFile"
+}
+#}}}: _stateSave
+
+_patchIds() { #{{{
+  # Sets patchFile to a sorted list of the patch-ids of every non-merge commit
+  # on the base (first line: the base sha it was built for). Rebuilt only
+  # when the base moves.
+  [[ -n $patchFile ]] && return 0
+  patchFile="$(_cacheDir)/sw.patchids"
+  [[ -f $patchFile && "$(head -n1 "$patchFile")" == "$baseSha" ]] && return 0
+  {
+    echo "$baseSha"
+    git log -p --no-merges --format='commit %H' "$baseRef" | git patch-id --stable | cut -d' ' -f1 | sort -u
+  } >"$patchFile.tmp" && mv "$patchFile.tmp" "$patchFile"
+}
+#}}}: _patchIds
+
+_mergeInfo() { #{{{
+  # $1 = ref, $2 = its sha. Sets OWN (commits not on the base) and MERGED
+  # to how its changes reached the base: ff (no own commits), rebase (every
+  # commit has an equal patch there), squash (the whole diff does) or "".
+  local ref="$1" tip="$2" mb pid
+  OWN=0 MERGED=""
+  [[ -n $baseSha ]] || return 0
+  if [[ -n ${stateCache[$tip]-} ]]; then
+    read -r OWN MERGED <<<"${stateCache[$tip]}"
+    [[ $MERGED == - ]] && MERGED=""
     return 0
   fi
-  if [[ -n $text ]]; then
+  OWN="$(git rev-list --count "$baseSha..$tip" 2>/dev/null || echo 0)"
+  if ((OWN == 0)); then
+    MERGED="ff"
+  else
+    _patchIds
+    # Patches missing from the base (comm -23 prints lines only in the first list)
+    if [[ -z "$(git log -p --no-merges --format='commit %H' "$baseSha..$tip" | git patch-id --stable |
+      cut -d' ' -f1 | sort -u | comm -23 - <(sed 1d "$patchFile"))" ]]; then
+      MERGED="rebase"
+    elif mb="$(git merge-base "$baseSha" "$tip" 2>/dev/null)"; then
+      pid="$(git diff "$mb" "$tip" | git patch-id --stable | cut -d' ' -f1)"
+      [[ -n $pid ]] && sed 1d "$patchFile" | grep -qxF "$pid" && MERGED="squash"
+    fi
+  fi
+  stateCache[$tip]="$OWN ${MERGED:--}"
+  stateChanged=1
+}
+#}}}: _mergeInfo
+
+_state() { #{{{
+  # $1 = ref, $2 = its sha, $3 = dirty count (0 without a worktree).
+  # Sets OWN and MERGED (see _mergeInfo) and REPLY to new | merged | "".
+  _mergeInfo "$1" "$2"
+  REPLY=""
+  # The default branch is the base itself: no merge state to speak of
+  [[ $1 == "$defaultBranch" || $1 == "$baseRef" ]] && return 0
+  # No commits of its own is only "merged" for a branch that moved on from the
+  # base it started at; one sitting at the base tip or holding WIP is new.
+  if ((OWN == 0)) && [[ $2 == "$baseSha" || ${3:-0} -gt 0 ]]; then
+    REPLY="new"
+  elif [[ -n $MERGED ]]; then
+    REPLY="merged"
+  fi
+}
+#}}}: _state
+
+_sync() { #{{{
+  # Where a local branch stands against its own remote branch.
+  # $1 = name, $2 = sha, $3 = upstream ref, $4 = upstream:track text,
+  # $5 = <remote>/<name> sha (empty when absent), $6 = state from _state
+  # (which also set the OWN this reads). Sets REPLY to "⇡N ⇣M" | unpushed |
+  # gone, or "" when in sync or there is nothing to lose.
+  local name="$1" sha="$2" upstream="$3" text="$4" remoteSha="$5" state="${6-}"
+  local ahead="" behind="" counts
+  REPLY=""
+  # Branching off origin/main makes git track origin/main; that says nothing
+  # about whether this branch is pushed.
+  [[ $upstream == "$remote/$defaultBranch" && $name != "$defaultBranch" ]] && upstream="" text=""
+  if [[ -n $upstream ]]; then
+    if [[ $text == gone ]]; then REPLY="gone"; return 0; fi
     [[ $text =~ ahead\ ([0-9]+) ]] && ahead="${BASH_REMATCH[1]}"
     [[ $text =~ behind\ ([0-9]+) ]] && behind="${BASH_REMATCH[1]}"
-  elif [[ -z $upstream && -n $remoteSha && $remoteSha != "$localSha" ]]; then
-    # No upstream configured and <remote>/<name> differs: count the divergence.
-    # Equal shas (the common case after a bare clone) cost nothing.
-    counts="$(git rev-list --left-right --count "$name...$remote/$name" 2>/dev/null || true)"
-    ahead="${counts%%[[:space:]]*}"
-    behind="${counts##*[[:space:]]}"
-    [[ $ahead == 0 ]] && ahead=""
-    [[ $behind == 0 ]] && behind=""
+  elif [[ -n $remoteSha ]]; then
+    if [[ $remoteSha != "$sha" ]]; then
+      counts="$(git rev-list --left-right --count "$sha...$remoteSha" 2>/dev/null || true)"
+      ahead="${counts%%[[:space:]]*}" behind="${counts##*[[:space:]]}"
+      [[ $ahead == 0 ]] && ahead=""
+      [[ $behind == 0 ]] && behind=""
+    fi
+  else
+    # Nothing to compare with: only worth a flag when work would be lost
+    ((OWN > 0)) && [[ $state != merged ]] && REPLY="unpushed"
+    return 0
   fi
-  REPLY="${ahead:+↑$ahead}${ahead:+${behind:+ }}${behind:+↓$behind}"
+  REPLY="${ahead:+⇡$ahead}${ahead:+${behind:+ }}${behind:+⇣$behind}"
 }
-#}}}: _track
+#}}}: _sync
+
+_syncColor() { #{{{
+  # Sets REPLY to the _sync text $1 colored for display
+  case $1 in
+  gone | unpushed) REPLY="${C_RED}$1${C_RESET}" ;;
+  *) REPLY="${C_GREEN}$1${C_RESET}" ;;
+  esac
+  [[ -n $1 ]] || REPLY=""
+}
+#}}}: _syncColor
+
+_statusCounts() { #{{{
+  # Reads `git status --porcelain` and prints "total staged modified untracked conflicted"
+  awk '{
+    t++; x = substr($0, 1, 1); y = substr($0, 2, 1)
+    if (x == "?") { u++; next }
+    if (x y ~ /^(DD|AU|UD|UA|DU|AA|UU)$/) { c++; next }
+    if (x != " ") s++
+    if (y != " ") m++
+  } END { printf "%d %d %d %d %d\n", t, s, m, u, c }'
+}
+#}}}: _statusCounts
+
+_changes() { #{{{
+  # $1 = "staged modified untracked conflicted" counts. Sets REPLY to the
+  # powerlevel10k-style "~c +s !m ?u" (colored) and PLAIN to the same uncolored.
+  local s m u c
+  read -r s m u c <<<"$1"
+  REPLY="" PLAIN=""
+  ((${c:-0})) && { REPLY+=" ${C_RED}~$c${C_RESET}"; PLAIN+=" ~$c"; }
+  ((${s:-0})) && { REPLY+=" ${C_YELLOW}+$s${C_RESET}"; PLAIN+=" +$s"; }
+  ((${m:-0})) && { REPLY+=" ${C_YELLOW}!$m${C_RESET}"; PLAIN+=" !$m"; }
+  ((${u:-0})) && { REPLY+=" ${C_BLUE}?$u${C_RESET}"; PLAIN+=" ?$u"; }
+  REPLY="${REPLY# }" PLAIN="${PLAIN# }"
+}
+#}}}: _changes
+
+_remoteVisible() { #{{{
+  # $1 = tip author email, $2 = committer unix time. Remote-only branches are
+  # shown when they are yours or recently active, unless -r asks for all.
+  ((allRemotes)) && return 0
+  [[ -n $userEmail && $1 == "$userEmail" ]] && return 0
+  (($2 >= remoteSince))
+}
+#}}}: _remoteVisible
+
+_hiddenRemotes() { #{{{
+  # Number of remote-only branches the picker leaves out
+  local name email when n=0
+  local -A isLocal
+  ((localOnly || allRemotes)) && { echo 0; return 0; }
+  while IFS= read -r name; do isLocal[$name]=1; done < <(git branch --format='%(refname:short)')
+  while read -r name email when; do
+    [[ $name == "$remote" || $name == "$remote/HEAD" ]] && continue
+    [[ -n ${isLocal[${name#"$remote"/}]-} ]] && continue
+    _remoteVisible "$email" "$when" || n=$((n + 1))
+  done < <(git for-each-ref --format='%(refname:short) %(authoremail:trim) %(committerdate:unix)' "refs/remotes/$remote")
+  echo "$n"
+}
+#}}}: _hiddenRemotes
 
 _pad() { #{{{
   # Sets REPLY to $1 right-padded with spaces to $2 characters (multibyte safe)
@@ -250,118 +428,165 @@ _pad() { #{{{
 }
 #}}}: _pad
 
+_padc() { #{{{
+  # Sets REPLY to colored text $1 padded to $3 characters, measured on its
+  # plain form $2
+  local pad=$(($3 - ${#2}))
+  REPLY="$1"
+  while ((pad-- > 0)); do REPLY+=" "; done
+}
+#}}}: _padc
+
+_dirtyAll() { #{{{
+  # Prints "total staged modified untracked conflicted<TAB>path" for every
+  # worktree, checked in parallel (each line is one short write, so they
+  # never interleave)
+  local wt
+  while IFS= read -r wt; do
+    printf '%s\t%s\n' "$(git -C "$wt" status --porcelain 2>/dev/null | _statusCounts)" "$wt" &
+  done < <(git worktree list --porcelain | sed -n 's/^worktree //p')
+  wait
+}
+#}}}: _dirtyAll
+
 _branchTable() { #{{{
   # Emits one line per branch, newest commit first:  name<TAB>display
-  # display = "name  tags  track  age  subject", aligned, with ANSI colors.
-  # $1 = branch to put first (used to preselect a base).
+  # display = "[*·]name  where  status  age  subject" (name colored by
+  # state, see the usage legend), aligned, with
+  # ANSI colors; status = sync plus the worktree's ~conflicted +staged
+  # !modified ?untracked counts. $1 = branch to put first (base preselect).
   local front="${1-}"
-  local -a names tagList trackList ageList subjectList
-  local -A isLocal isRemote isMerged index
-  local ref sha wt upstream track date subject name kind tagText
-  local n=0 nameWidth=0 tagWidth=0 trackWidth=0
+  local -a names marks nameColors wheres stats statPlain ages subjects
+  local -A isLocal remoteSha dirtyAt countsAt recent index
+  local ref sha wt upstream track date when email subject name where state sync counts
+  local n=0 i nameWidth=0 statWidth=0 dirty total path
 
   while IFS= read -r name; do isLocal[$name]=1; done \
     < <(git branch --format='%(refname:short)' | sed '/^(HEAD/d')
-  local sha
-  while read -r name sha; do isRemote[${name#"$remote"/}]="$sha"; done \
+  while read -r name sha; do remoteSha[${name#"$remote"/}]="$sha"; done \
     < <(git for-each-ref --format='%(refname:short) %(objectname)' "refs/remotes/$remote" | sed "/^$remote /d")
-
-  if [[ -n $defaultBranch ]]; then
-    while IFS= read -r name; do
-      name="${name#"$remote"/}"
-      [[ $name == "$defaultBranch" || $name == "$remote" ]] && continue
-      isMerged[$name]=1
-    done < <(
-      git branch --format='%(refname:short)' --merged "$defaultBranch" 2>/dev/null
-      git branch -r --format='%(refname:short)' --merged "$defaultBranch" 2>/dev/null
-    )
-  fi
+  while IFS=$'\t' read -r counts path; do
+    total="${counts%% *}"
+    dirtyAt[$path]="$total" countsAt[$path]="${counts#* }"
+  done < <(_dirtyAll)
+  while IFS= read -r name; do [[ -n $name ]] && recent[$name]=1; done < <(_recent)
+  _stateInit
 
   local -a refDirs=(refs/heads)
   ((localOnly)) || refDirs+=("refs/remotes/$remote")
 
-  while IFS=$'\x1f' read -r ref sha wt upstream track date subject; do
+  while IFS=$'\x1f' read -r ref sha wt upstream track date when email subject; do
     case $ref in
     refs/heads/*)
       name="${ref#refs/heads/}"
-      if [[ -n $wt && -n $barePath ]]; then kind="worktree"; else kind="local"; fi
-      _track "$name" "$track" "$upstream" "$sha" "${isRemote[$name]-}"
+      dirty=0 counts=""
+      if [[ -n $wt && -n $barePath ]]; then
+        where="worktree"
+        dirty="${dirtyAt[$wt]-0}" counts="${countsAt[$wt]-}"
+      else
+        where="local"
+      fi
+      _state "$name" "$sha" "$dirty"; state="$REPLY"
+      _sync "$name" "$sha" "$upstream" "$track" "${remoteSha[$name]-}" "$state"; sync="$REPLY"
       ;;
     "refs/remotes/$remote/HEAD") continue ;;
     "refs/remotes/$remote/"*)
       name="${ref#refs/remotes/"$remote"/}"
       [[ -n ${isLocal[$name]-} ]] && continue
-      kind="remote"
-      REPLY=""
+      _remoteVisible "$email" "$when" || continue
+      where="remote" dirty=0 counts="" sync=""
+      _state "$remote/$name" "$sha" 0; state="$REPLY"
       ;;
     *) continue ;;
     esac
-    track="$REPLY"
 
-    tagText="$kind"
-    [[ -n ${isMerged[$name]-} ]] && tagText+=" merged"
-    if [[ $track == gone ]]; then
-      tagText+=" gone"
-      track=""
+    # --only=<filter> (the picker's alt keys) keeps one kind of branch
+    case $onlyState in
+    '') ;;
+    gone) [[ $sync == gone ]] || continue ;;
+    *) [[ $state == "$onlyState" ]] || continue ;;
+    esac
+
+    # The state colors the name instead of taking a column
+    case $state in
+    merged) nameColors[n]="$C_DIM" ;;
+    new) nameColors[n]="${C_BOLD}${C_CYAN}" ;;
+    *) nameColors[n]="$C_BOLD" ;;
+    esac
+
+    # status column, read like the prompt: sync first, then local changes
+    _syncColor "$sync"; stats[n]="$REPLY" statPlain[n]="$sync"
+    _changes "$counts"
+    if [[ -n $PLAIN ]]; then
+      stats[n]+="${sync:+ }$REPLY" statPlain[n]+="${sync:+ }$PLAIN"
     fi
 
+    case $where in
+    worktree) wheres[n]="${C_GREEN}worktree${C_RESET}" ;;
+    local) wheres[n]="${C_BLUE}local   ${C_RESET}" ;;
+    remote) wheres[n]="${C_MAGENTA}remote  ${C_RESET}" ;;
+    esac
+
+    marks[n]=" "
+    [[ $name == "$currentBranch" ]] && marks[n]="${C_BOLD}*${C_RESET}"
+    if [[ -n ${recent[$name]-} ]]; then marks[n]+="${C_DIM}·${C_RESET}"; else marks[n]+=" "; fi
+
     _age "$date"
-    names[n]="$name" tagList[n]="$tagText" trackList[n]="$track"
-    ageList[n]="$REPLY" subjectList[n]="${subject:0:60}"
+    names[n]="$name" ages[n]="$REPLY" subjects[n]="${subject:0:60}"
     index[$name]=$n
-    ((${#name} > nameWidth && ${#name} <= 48)) && nameWidth=${#name}
-    ((${#track} > trackWidth)) && trackWidth=${#track}
+    ((${#name} > nameWidth)) && nameWidth=${#name}
+    ((${#statPlain[n]} > statWidth)) && statWidth=${#statPlain[n]}
     n=$((n + 1))
   done < <(git for-each-ref --sort=-committerdate \
-    --format='%(refname)%1f%(objectname)%1f%(worktreepath)%1f%(upstream:short)%1f%(upstream:track,nobracket)%1f%(committerdate:relative)%1f%(subject)' \
+    --format='%(refname)%1f%(objectname)%1f%(worktreepath)%1f%(upstream:short)%1f%(upstream:track,nobracket)%1f%(committerdate:relative)%1f%(committerdate:unix)%1f%(authoremail:trim)%1f%(subject)' \
     "${refDirs[@]}")
+  _stateSave
+  ((nameWidth > 48)) && nameWidth=48
 
-  # Order: the requested front branch, then recently visited ones, then by date
-  local i mark padName padTags padTrack
+  # Order: the requested front branch, then recently visited ones (latest
+  # visit first), then the rest by commit date
   local -a order=()
   local -A placed
   if [[ -n $front && -n ${index[$front]-} ]]; then
     order+=("${index[$front]}"); placed[$front]=1
   fi
   while IFS= read -r name; do
-    [[ -n ${index[$name]-} && -z ${placed[$name]-} && $name != "$currentBranch" ]] || continue
+    [[ -n $name && -n ${index[$name]-} && -z ${placed[$name]-} ]] || continue
     order+=("${index[$name]}"); placed[$name]=1
-    i="${index[$name]}"; tagList[i]+=" recent"
   done < <(_recent)
   for ((i = 0; i < n; i++)); do
     [[ -n ${placed[${names[i]}]-} ]] || order+=("$i")
   done
-  for ((i = 0; i < n; i++)); do
-    ((${#tagList[i]} > tagWidth)) && tagWidth=${#tagList[i]}
-  done
 
+  local padName padStat
   for i in "${order[@]+"${order[@]}"}"; do
     name="${names[i]}"
-    mark=" "
-    [[ $name == "$currentBranch" ]] && mark="*"
+    ((${#name} > 48)) && name="${name:0:47}…"
     _pad "$name" "$nameWidth"; padName="$REPLY"
-    _pad "${tagList[i]}" "$tagWidth"; padTags="$REPLY"
-    _pad "${trackList[i]}" "$trackWidth"; padTrack="$REPLY"
+    _padc "${stats[i]}" "${statPlain[i]}" "$statWidth"; padStat="$REPLY"
 
-    padTags="${padTags//worktree/${C_GREEN}worktree${C_RESET}}"
-    padTags="${padTags//local/${C_BLUE}local${C_RESET}}"
-    padTags="${padTags//remote/${C_MAGENTA}remote${C_RESET}}"
-    padTags="${padTags//merged/${C_YELLOW}merged${C_RESET}}"
-    padTags="${padTags//gone/${C_RED}gone${C_RESET}}"
-    padTags="${padTags//recent/${C_DIM}recent${C_RESET}}"
-    padTrack="${padTrack//↑/${C_GREEN}↑}"
-    padTrack="${padTrack//↓/${C_RED}↓}"
-
-    printf '%s\t%s%s%s%s  %s  %s%s  %s%4s%s  %s%s%s\n' \
-      "$name" \
-      "$C_BOLD" "$mark" "$padName" "$C_RESET" \
-      "$padTags" \
-      "$padTrack" "$C_RESET" \
-      "$C_DIM" "${ageList[i]}" "$C_RESET" \
-      "$C_DIM" "${subjectList[i]}" "$C_RESET"
+    printf '%s\t%s%s%s%s  %s  %s  %s%4s%s  %s%s%s\n' \
+      "${names[i]}" \
+      "${marks[i]}" "${nameColors[i]}" "$padName" "$C_RESET" \
+      "${wheres[i]}" "$padStat" \
+      "$C_DIM" "${ages[i]}" "$C_RESET" \
+      "$C_DIM" "${subjects[i]}" "$C_RESET"
   done
 }
 #}}}: _branchTable
+
+_userBinds() { #{{{
+  # The --bind options from FZF_DEFAULT_OPTS, one per line. Every fzf call
+  # passes them again after sw's own keys, so a personal mapping always wins.
+  local opt next=0
+  # shellcheck disable=SC2086 # word splitting is the point
+  for opt in ${FZF_DEFAULT_OPTS-}; do
+    if ((next)); then printf -- '--bind=%s\n' "$opt"; next=0
+    elif [[ $opt == --bind=* ]]; then printf '%s\n' "$opt"
+    elif [[ $opt == --bind ]]; then next=1; fi
+  done
+}
+#}}}: _userBinds
 
 _fzf() { #{{{
   # Shows and searches the display column; callers cut -f1 for the name.
@@ -375,17 +600,49 @@ _fzf() { #{{{
     --with-nth=2 \
     --preview "'$0' --preview {1}" \
     --preview-window="right:40%,wrap,<120(down:40%)" \
-    "$@"
+    --color=header:-1:dim \
+    "$@" "${userBinds[@]+"${userBinds[@]}"}"
 }
 #}}}: _fzf
 
 _preview() { #{{{
-  local name="$1" path dirty
+  local name="$1" path dirty=0 ref sha where state upstream track mb line remoteSha
   name="${name%%[[:space:]]*}"
   path="$(_worktreePath "$name")"
+  ref="$(_logRef "$name")"
+  sha="$(git rev-parse -q --verify "$ref^{commit}" 2>/dev/null)" || { echo "(no commits)"; return 0; }
+  [[ -n $path ]] && dirty="$(_dirtyCount "$path")"
+
+  # Summary: where · state · sync · own commits
+  _stateInit
+  _state "$ref" "$sha" "$dirty"; state="$REPLY"
+  if [[ -n $path ]]; then where="${C_GREEN}worktree${C_RESET}"
+  elif _hasLocal "$name"; then where="${C_BLUE}local${C_RESET}"
+  else where="${C_MAGENTA}remote only${C_RESET} $remote/$name"; fi
+  line="$where"
+  case $state in
+  merged) line+="  ·  ${C_YELLOW}merged${C_RESET} into $baseRef ($MERGED)" ;;
+  new) line+="  ·  ${C_CYAN}new${C_RESET}" ;;
+  esac
+  if _hasLocal "$name"; then
+    IFS=$'\x1f' read -r upstream track < <(git for-each-ref \
+      --format='%(upstream:short)%1f%(upstream:track,nobracket)' "refs/heads/$name")
+    remoteSha="$(git rev-parse -q --verify "refs/remotes/$remote/$name" 2>/dev/null || true)"
+    _sync "$name" "$sha" "$upstream" "$track" "$remoteSha" "$state"
+    case $REPLY in
+    '') [[ -n $remoteSha ]] && line+="  ·  in sync with $remote/$name" ;;
+    gone | unpushed) line+="  ·  ${C_RED}$REPLY${C_RESET}" ;;
+    *) _syncColor "$REPLY"; line+="  ·  $REPLY vs $remote/$name" ;;
+    esac
+  fi
+  ((OWN > 0)) && line+="  ·  $OWN commit(s) not on $baseRef"
+  if [[ -n $path ]]; then
+    _changes "$(git -C "$path" status --porcelain 2>/dev/null | _statusCounts | cut -d' ' -f2-)"
+    [[ -n $REPLY ]] && line+="  ·  $REPLY"
+  fi
+  printf '%s\n' "$line"
 
   if [[ -n $path ]]; then
-    dirty="$(_dirtyCount "$path")"
     printf '%sworktree%s %s' "$C_BOLD" "$C_RESET" "$path"
     if ((dirty > 0)); then
       printf ' %s(%s uncommitted)%s\n' "$C_YELLOW" "$dirty" "$C_RESET"
@@ -395,22 +652,124 @@ _preview() { #{{{
     fi
     _carryCounts "$path"
     [[ -n $REPLY ]] && printf '%scarry%s %s\n' "$C_BOLD" "$C_RESET" "$REPLY"
-    echo
-  elif ! _hasLocal "$name"; then
-    printf '%sremote only%s %s/%s\n\n' "$C_MAGENTA" "$C_RESET" "$remote" "$name"
   fi
+  echo
 
-  git log --oneline --decorate --color=always -n 40 "$(_logRef "$name")" 2>/dev/null ||
-    echo "(no commits)"
+  if [[ -z $baseSha ]]; then
+    git log --oneline --decorate --color=always -n 40 "$sha"
+    return 0
+  fi
+  # The branch's own commits, then a little of the base it forked from
+  if ((OWN > 0)); then
+    git log --oneline --decorate --color=always -n 40 "$baseSha..$sha"
+  elif [[ $sha == "$baseSha" ]]; then
+    printf '%sno commits of its own: at the tip of %s%s\n' "$C_DIM" "$baseRef" "$C_RESET"
+  else
+    printf '%sno commits of its own: its tip is on %s (%s)%s\n' "$C_DIM" "$baseRef" \
+      "$(git log -1 --format=%cr "$sha")" "$C_RESET"
+  fi
+  mb="$(git merge-base "$baseSha" "$sha" 2>/dev/null || true)"
+  if [[ -n $mb ]]; then
+    printf '\n%s── %s ──%s\n' "$C_DIM" "$baseRef" "$C_RESET"
+    git log --oneline --no-decorate --color=always -n 5 "$mb"
+  fi
+  _stateSave
 }
 #}}}: _preview
 
 _header() { #{{{
-  local where="$currentBranch"
+  # One line: where we are, what the list leaves out, then the hint $1
+  local where="$currentBranch" root="${repoRoot:-$PWD}" hidden line
   [[ -z $where ]] && where="(detached)"
-  echo "on ${where}  ·  ${repoRoot:-$PWD}${1:+  ·  $1}"
+  line="on ${where}  ·  ${root##*/}"
+  hidden="$(_hiddenRemotes)"
+  ((hidden > 0)) && line+="  ·  $hidden remote-only hidden"
+  echo "$line${1:+  ·  $1}"
 }
 #}}}: _header
+
+_keysRow() { #{{{
+  # One legend row: $1 = color, $2 = symbol (padded by characters, not
+  # bytes, so ⇡ and · line up), $3 = meaning
+  _pad "$2" 10
+  printf '  %s%s%s %s\n' "$1" "$REPLY" "$C_RESET" "$3"
+}
+#}}}: _keysRow
+
+_keysHelp() { #{{{
+  # Key cheat sheet shown in the preview pane by ctrl-/; $1 = switch | delete
+  local b="$C_BOLD" r="$C_RESET" d="$C_DIM"
+  printf '%skeys%s\n' "$b" "$r"
+  if [[ $1 == delete ]]; then
+    printf '  %-10s %s\n' "TAB" "mark several branches" "Enter" "delete the marked (or highlighted) branches"
+  else
+    printf '  %-10s %s\n' \
+      "Enter" "switch (adds a worktree when there is none)" \
+      "ctrl-x" "delete the highlighted or TAB-marked branches" \
+      "ctrl-o" "create a new branch from the highlighted one" \
+      "TAB" "mark several branches"
+    printf '  %s\n' "a new name + Enter creates it from ${defaultBranch:-the default branch}"
+  fi
+  printf '  %-10s %s\n' "ctrl-r" "fetch all remotes and reload"
+  [[ $1 == delete ]] || printf '  %-10s %s\n' "ctrl-a" "show every remote-only branch"
+  printf '  %-10s %s\n' \
+    "alt-m" "only merged branches" \
+    "alt-g" "only branches whose remote is gone" \
+    "alt-n" "only new branches" \
+    "alt-0" "all branches again" \
+    "ctrl-/" "back to the branch preview"
+  local bind pair
+  if ((${#userBinds[@]})); then
+    printf '\n%syours%s %s(FZF_DEFAULT_OPTS, win over the above)%s\n' "$b" "$r" "$d" "$r"
+    for bind in "${userBinds[@]}"; do
+      bind="${bind#--bind=}"
+      while IFS= read -r pair; do
+        [[ -n $pair ]] && printf '  %-10s %s\n' "${pair%%:*}" "${pair#*:}"
+      done < <(tr ',' '\n' <<<"$bind")
+    done
+  fi
+  printf '\n%sname%s\n' "$b" "$r"
+  _keysRow "$C_CYAN" "cyan" "new: no commits of its own yet"
+  _keysRow "$d" "dim" "merged into $baseRef"
+  _keysRow "$d" "·" "visited recently (listed first)"
+  _keysRow "$b" "*" "current branch"
+  printf '\n%sstatus%s\n' "$b" "$r"
+  _keysRow "$C_GREEN" "⇡N ⇣M" "ahead / behind its own $remote branch (blank = in sync)"
+  _keysRow "$C_RED" "unpushed" "commits on no remote branch"
+  _keysRow "$C_RED" "gone" "its remote branch was deleted"
+  _keysRow "$C_RED" "~N" "conflicts"
+  _keysRow "$C_YELLOW" "+N" "staged"
+  _keysRow "$C_YELLOW" "!N" "modified"
+  _keysRow "$C_BLUE" "?N" "untracked"
+}
+#}}}: _keysHelp
+
+_keysToggle() { #{{{
+  # fzf transform for ctrl-/: swap the preview between the branch and the
+  # key cheat sheet ($1 = switch | delete), tracked by the preview label
+  local self
+  self="$(printf '%q' "$0")"
+  if [[ ${FZF_PREVIEW_LABEL-} == " keys " ]]; then
+    printf '%s' "change-preview-label()+change-preview($self --preview {1})"
+  else
+    printf '%s' "change-preview-label( keys )+change-preview($self --keys=$1)"
+  fi
+}
+#}}}: _keysToggle
+
+_filterArgs() { #{{{
+  # $1 = reload command. Prints fzf arguments, one per line: alt-m/g/n narrow
+  # the list to merged, gone or new branches and name the filter in the
+  # prompt, alt-0 shows everything again. Reloads read the filter back from
+  # the prompt (fzf exports it as FZF_PROMPT), so ctrl-r keeps it.
+  local cmd="$1" key kind
+  for key in m:merged g:gone n:new; do
+    kind="${key#*:}"
+    printf -- '--bind\nalt-%s:reload(%s --only=%s)+change-prompt(%s> )\n' "${key%%:*}" "$cmd" "$kind" "$kind"
+  done
+  printf -- '--bind\nalt-0:reload(%s)+change-prompt(> )\n' "$cmd"
+}
+#}}}: _filterArgs
 
 _pickOne() { #{{{
   # $1 = branch to put first (optional), $2 = header hint (optional)
@@ -553,26 +912,41 @@ _create() { #{{{
 #}}}: _create
 
 _delete() { #{{{
-  local -a targets=("$@")
+  local -a targets=("$@") dirtyWts=()
+  local -A force
   local t p path dirty unpushed summary="" leaving=0 rc=0
 
   ((${#targets[@]})) || _die "No branch selected!"
+  _stateInit
 
   for t in "${targets[@]}"; do
     [[ $t == "$defaultBranch" ]] && _die "Refusing to delete the default branch '$t'."
     _hasLocal "$t" || _die "'$t' is not a local branch (remote branches are not deleted)."
     path="$(_worktreePath "$t")"
+    dirty=0
+    [[ -n $path ]] && dirty="$(_dirtyCount "$path")"
     summary+="   $t"
+    _state "$t" "$(git rev-parse "refs/heads/$t")" "$dirty"
+    case $REPLY in
+    merged) summary+="  ${C_YELLOW}merged ($MERGED)${C_RESET}" ;;
+    new) summary+="  ${C_CYAN}new${C_RESET}" ;;
+    *) ((OWN > 0)) && summary+="  ${C_RED}not merged (+$OWN)${C_RESET}" ;;
+    esac
     if [[ -n $path ]]; then
-      dirty="$(_dirtyCount "$path")"
       summary+="  (worktree"
-      ((dirty > 0)) && summary+=", ${C_YELLOW}${dirty} uncommitted change(s)${C_RESET}"
+      if ((dirty > 0)); then
+        summary+=", ${C_YELLOW}${dirty} uncommitted change(s)${C_RESET}"
+        dirtyWts+=("$t")
+      fi
       summary+=")"
       [[ $PWD == "$path" || $PWD == "$path"/* ]] && leaving=1
     fi
-    # Commits reachable from the branch but from no remote-tracking ref are lost with it
-    unpushed="$(git rev-list --count "$t" --not --remotes 2>/dev/null || echo 0)"
-    ((unpushed > 0)) && summary+="  ${C_RED}${unpushed} commit(s) not on any remote${C_RESET}"
+    # Commits reachable from the branch but from no remote-tracking ref are
+    # lost with it, unless they already landed on the base (squash merges)
+    if [[ $REPLY != merged ]]; then
+      unpushed="$(git rev-list --count "$t" --not --remotes 2>/dev/null || echo 0)"
+      ((unpushed > 0)) && summary+="  ${C_RED}${unpushed} commit(s) not on any remote${C_RESET}"
+    fi
     if [[ -n $path ]]; then
       while IFS= read -r p; do
         summary+=$'\n'"      ${C_YELLOW}local copy of '$p' differs from the store and will be lost${C_RESET}"
@@ -584,6 +958,12 @@ _delete() { #{{{
   _msg "Branches to delete:"
   printf '%s' "$summary" >&2
   _prompt "Delete ${#targets[@]} branch(es)?"
+  _stateSave
+  if ((${#dirtyWts[@]})); then
+    _msg "${C_YELLOW}Uncommitted changes would be discarded in:${C_RESET} ${dirtyWts[*]}"
+    _prompt "Discard them (${#dirtyWts[@]} worktree(s))?"
+    for t in "${dirtyWts[@]}"; do force[$t]=1; done
+  fi
 
   # Leave any worktree before removing it so git never runs from a deleted cwd
   [[ -n $repoRoot ]] && cd "$repoRoot"
@@ -591,7 +971,12 @@ _delete() { #{{{
   for t in "${targets[@]}"; do
     path="$(_worktreePath "$t")"
     if [[ -n $path ]]; then
-      git worktree remove -f "$path" || { rc=1; continue; }
+      # Only worktrees whose changes were explicitly given up are forced
+      if [[ -n ${force[$t]-} ]]; then
+        git worktree remove -f "$path" || { rc=1; continue; }
+      else
+        git worktree remove "$path" || { rc=1; continue; }
+      fi
     fi
     git branch -D "$t" >/dev/null || rc=1
     _recentDrop "$t"
@@ -655,37 +1040,44 @@ _plain() { #{{{
 #}}}: _plain
 
 _status() { #{{{
-  # One line per worktree: branch, dirty count, ahead/behind, carry, path
-  local wt br dirty upstream track sha remoteSha mark width=0 i
+  # One line per worktree: branch, dirty count, state, sync, carry, path
+  local wt br dirty counts changes upstream track syncPlain sha remoteSha mark state width=0 i
   local -a wts=() brs=()
   while IFS=$'\t' read -r wt br; do
     wts+=("$wt"); brs+=("$br")
     ((${#br} > width)) && width=${#br}
   done < <(_worktrees)
   ((${#wts[@]})) || _die "No worktrees."
+  _stateInit
 
   for ((i = 0; i < ${#wts[@]}; i++)); do
     wt="${wts[i]}" br="${brs[i]}"
     mark=" "
     [[ $br == "$currentBranch" ]] && mark="*"
-    dirty="$(_dirtyCount "$wt")"
+    counts="$(git -C "$wt" status --porcelain 2>/dev/null | _statusCounts)"
+    dirty="${counts%% *}"
     IFS=$'\x1f' read -r upstream track sha < <(git for-each-ref \
       --format='%(upstream:short)%1f%(upstream:track,nobracket)%1f%(objectname)' "refs/heads/$br")
     remoteSha="$(git rev-parse -q --verify "refs/remotes/$remote/$br" 2>/dev/null || true)"
-    _track "$br" "$track" "$upstream" "$sha" "$remoteSha"
-    track="$REPLY"
-    [[ $track == gone ]] && track="${C_RED}gone${C_RESET}"
-    track="${track//↑/${C_GREEN}↑}"
-    track="${track//↓/${C_RED}↓}"
+    _state "$br" "$sha" "$dirty"; state="$REPLY"
+    _sync "$br" "$sha" "$upstream" "$track" "$remoteSha" "$state"
+    syncPlain="$REPLY"
+    _syncColor "$syncPlain"; _padc "$REPLY" "$syncPlain" 9; track="$REPLY"
+    case $state in
+    merged) state="${C_YELLOW}merged${C_RESET}" ;;
+    new) state="${C_CYAN}new   ${C_RESET}" ;;
+    *) state="      " ;;
+    esac
+    _changes "${counts#* }"
+    if [[ -n $PLAIN ]]; then _padc "$REPLY" "$PLAIN" 14; else _padc "${C_GREEN}clean${C_RESET}" clean 14; fi
+    changes="$REPLY"
     _pad "$br" "$width"
-    printf '%s%s%s%s  ' "$C_BOLD" "$mark" "$REPLY" "$C_RESET"
-    if ((dirty > 0)); then printf '%s%3s uncommitted%s' "$C_YELLOW" "$dirty" "$C_RESET"
-    else printf '%s%15s%s' "$C_GREEN" clean "$C_RESET"; fi
-    printf '  %s%s' "$track" "$C_RESET"
+    printf '%s%s%s%s  %s  %s  %s%s' "$C_BOLD" "$mark" "$REPLY" "$C_RESET" "$state" "$track" "$changes" "$C_RESET"
     _carryCounts "$wt"
     [[ -n $REPLY ]] && printf '  carry: %s' "$REPLY"
     printf '  %s%s%s\n' "$C_DIM" "$wt" "$C_RESET"
   done
+  _stateSave
 }
 #}}}: _status
 
@@ -963,7 +1355,8 @@ _carrySource() { #{{{
   pick="$(for ((i = 0; i < n; i++)); do printf '%s\t%s\n' "${wts[i]}" "${brs[i]}"; done |
     fzf --exact --delimiter=$'\t' --with-nth=2 --layout=reverse-list \
       --header "'$1' differs between worktrees: pick the source" \
-      --preview "$(_previewFileCmd '{1}'"/$1")" --preview-window="right:60%,wrap" |
+      --preview "$(_previewFileCmd '{1}'"/$1")" --preview-window="right:60%,wrap" \
+      "${userBinds[@]+"${userBinds[@]}"}" |
     cut -f1)" || true
   [[ -n $pick ]] || _die "No source selected for '$1'."
   echo "$pick"
@@ -1061,15 +1454,15 @@ _carryPick() { #{{{
   [[ $PWD == "$1"/* ]] && query="${PWD#"$1"/}/"
   out="$(_carryTable "$1" |
     _fzf --multi --query "$query" --header "$(_header "$2")" \
-      --expect=ctrl-s,ctrl-o,ctrl-x,ctrl-f \
+      --expect=ctrl-s,ctrl-o,ctrl-t,ctrl-x \
       --preview "$(_previewFileCmd '{3}')" --preview-window="right:50%,wrap,<120(down:50%)")" || true
   [[ -n $out ]] || return 0
   key="${out%%$'\n'*}"
   case $key in
   ctrl-s) echo "link" ;;
   ctrl-o) echo "copy" ;;
-  ctrl-x) echo "detach" ;;
-  ctrl-f) echo "forget" ;;
+  ctrl-t) echo "detach" ;;
+  ctrl-x) echo "forget" ;;
   *) echo "" ;;
   esac
   printf '%s\n' "$out" | sed '1d' | cut -f1
@@ -1081,8 +1474,8 @@ _carryKeysHint() { #{{{
   local hint=""
   [[ $1 == *l* ]] && hint+="  ctrl-s link"
   [[ $1 == *c* ]] && hint+="  ctrl-o copy"
-  [[ $1 == *d* ]] && hint+="  ctrl-x detach"
-  [[ $1 == *f* ]] && hint+="  ctrl-f forget"
+  [[ $1 == *d* ]] && hint+="  ctrl-t detach"
+  [[ $1 == *f* ]] && hint+="  ctrl-x forget"
   echo "TAB multi  ·${hint}  ·  Enter asks"
 }
 #}}}: _carryKeysHint
@@ -1317,7 +1710,24 @@ repoRoot="${barePath%/*}"
 currentBranch="$(git branch --show-current 2>/dev/null || true)"
 remote="$(_cfg remote origin)"
 defaultBranch="$(_defaultBranch)"
-readonly barePath repoRoot currentBranch remote defaultBranch
+# Merge state is judged against the remote default branch: a stale local
+# default would hide anything merged since the last pull.
+baseRef="$defaultBranch"
+[[ -n $defaultBranch ]] && _hasRemote "$defaultBranch" && baseRef="$remote/$defaultBranch"
+userEmail="$(git config --get user.email 2>/dev/null || true)"
+remoteSince=$(($(date +%s) - $(_cfg remoteAge 14) * 86400))
+mapfile -t userBinds < <(_userBinds)
+readonly barePath repoRoot currentBranch remote defaultBranch baseRef userEmail remoteSince userBinds
+
+if [[ -n $keysToggle ]]; then
+  _keysToggle "$keysToggle"
+  exit 0
+fi
+
+if [[ -n $keysMode ]]; then
+  _keysHelp "$keysMode"
+  exit 0
+fi
 
 if ((previewMode)); then
   _preview "$branch"
@@ -1355,6 +1765,8 @@ fi
 
 if ((gitList)); then
   _branchTable | cut -f2 | _plain
+  hidden="$(_hiddenRemotes)"
+  ((hidden > 0)) && _msg "$hidden remote-only branch(es) hidden, -r shows all"
   exit 0
 fi
 
@@ -1369,12 +1781,23 @@ if ((createBranch)); then
   exit 0
 fi
 
+# Reload command for the pickers' keys; the active alt filter is read back
+# from the prompt so a reload keeps it
+tableFlags=""
+((localOnly)) && tableFlags+=" -L"
+((allRemotes)) && tableFlags+=" -r"
+tableCmd="$(printf '%q' "$0") --table$tableFlags --only=\"\${FZF_PROMPT%> }\""
+
 if ((deleteBranch)); then
   if [[ -n $branch ]]; then
     _delete "$branch"
   else
+    mapfile -t filterArgs < <(_filterArgs "$(printf '%q' "$0") --table$tableFlags")
     mapfile -t picked < <(
-      _branchTable | _fzf --multi --header "$(_header "TAB: multi  ·  filter: merged, gone")" | cut -f1
+      _branchTable | _fzf --multi "${filterArgs[@]}" \
+        --bind "ctrl-r:reload(git fetch --all --prune >/dev/null 2>&1; $tableCmd)" \
+        --bind "ctrl-/:transform($(printf '%q' "$0") --keys-toggle=delete)" \
+        --header "$(_header "delete  ·  TAB multi  ·  ctrl-/ keys")" | cut -f1
     )
     _delete "${picked[@]+"${picked[@]}"}"
   fi
@@ -1393,12 +1816,16 @@ if [[ -n $branch ]]; then
 fi
 
 rc=0
-reloadCmd="SW_EXCLUDE=$(printf '%q' "$currentBranch") $(printf '%q' "$0") --table"
+keys="ctrl-/ keys"
+exclude="SW_EXCLUDE=$(printf '%q' "$currentBranch")"
+mapfile -t filterArgs < <(_filterArgs "$exclude $(printf '%q' "$0") --table$tableFlags")
+allHeader="$(allRemotes=1 _header "$keys")"
 out="$(_branchTable | awk -F'\t' -v cur="$currentBranch" '$1 != cur' |
-  _fzf --multi --print-query --expect=ctrl-x,ctrl-o \
-    --bind "ctrl-r:reload($reloadCmd)" \
-    --bind "ctrl-f:reload(git fetch --all --prune >/dev/null 2>&1; $reloadCmd)" \
-    --header "$(_header "Enter switch  ·  ctrl-x delete  ·  ctrl-o create from  ·  ctrl-f fetch  ·  new name: create from $defaultBranch")")" || rc=$?
+  _fzf --multi --print-query --expect=ctrl-x,ctrl-o "${filterArgs[@]}" \
+    --bind "ctrl-r:reload(git fetch --all --prune >/dev/null 2>&1; $exclude $tableCmd)" \
+    --bind "ctrl-a:reload($exclude $tableCmd -r)+change-header:$allHeader" \
+    --bind "ctrl-/:transform($(printf '%q' "$0") --keys-toggle=switch)" \
+    --header "$(_header "$keys")")" || rc=$?
 
 # Output: query, key pressed (empty for Enter), then the selected lines
 mapfile -t lines <<<"$out"
