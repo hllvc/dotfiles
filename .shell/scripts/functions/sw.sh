@@ -679,9 +679,15 @@ _preview() { #{{{
 
 _header() { #{{{
   # One line: where we are, what the list leaves out, then the hint $1
-  local where="$currentBranch" root="${repoRoot:-$PWD}" hidden line
-  [[ -z $where ]] && where="(detached)"
-  line="on ${where}  ·  ${root##*/}"
+  local where="on $currentBranch" root="${repoRoot:-$PWD}" hidden line
+  if [[ -z $currentBranch ]]; then
+    if [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" == true ]]; then
+      where="detached"
+    else
+      where="no worktree"
+    fi
+  fi
+  line="${where}  ·  ${root##*/}"
   hidden="$(_hiddenRemotes)"
   ((hidden > 0)) && line+="  ·  $hidden remote-only hidden"
   echo "$line${1:+  ·  $1}"
@@ -875,7 +881,7 @@ _createBranch() { #{{{
     return 0
   fi
 
-  srcWt="$(_worktreePath "$currentBranch")"
+  [[ -n $currentBranch ]] && srcWt="$(_worktreePath "$currentBranch")"
   [[ -n $srcWt && ($PWD == "$srcWt" || $PWD == "$srcWt"/*) ]] && patch="$(_offerMoveChanges "$srcWt")"
 
   dir="$(_addWorktree "$new" "$from")"
@@ -1011,7 +1017,8 @@ _switch() { #{{{
   _recentAdd "$name" "$currentBranch"
 
   # Preserve the nested directory when it also exists in the target worktree
-  current="$(_worktreePath "$currentBranch")"
+  current=""
+  [[ -n $currentBranch ]] && current="$(_worktreePath "$currentBranch")"
   if [[ -n $current && $PWD == "$current"/* ]]; then
     working="$path${PWD#"$current"}"
     if [[ -d $working ]]; then
@@ -1653,7 +1660,8 @@ _carryManage() { #{{{
   local wt sub="$1" arg="${2-}" mode p
   local -a sel=()
   [[ -n $barePath ]] || _die "carry needs a bare+worktree repo."
-  wt="$(_worktreePath "$currentBranch")"
+  wt=""
+  [[ -n $currentBranch ]] && wt="$(_worktreePath "$currentBranch")"
   [[ -n $wt ]] || _die "Run 'sw carry' from inside a worktree."
 
   case $sub in
@@ -1707,7 +1715,12 @@ fi
 
 barePath="$(_worktreePath "")"
 repoRoot="${barePath%/*}"
-currentBranch="$(git branch --show-current 2>/dev/null || true)"
+# Outside every worktree (the repo root holding .bare) git still reports the
+# bare HEAD as the current branch; there it is none.
+currentBranch=""
+if [[ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" == true ]]; then
+  currentBranch="$(git branch --show-current 2>/dev/null || true)"
+fi
 remote="$(_cfg remote origin)"
 defaultBranch="$(_defaultBranch)"
 # Merge state is judged against the remote default branch: a stale local
