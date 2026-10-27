@@ -542,6 +542,14 @@
       local conflicted='%f'  # default foreground
     fi
 
+    # Root of a bare+worktree repo (<repo>/.bare beside the worktrees): not a
+    # working copy, so gitstatus' branch and counts there are bogus (no index
+    # makes every file look staged, the worktrees look untracked).
+    if [[ -d $VCS_STATUS_WORKDIR/.bare ]]; then
+      typeset -g my_git_format="${meta}bare"
+      return
+    fi
+
     local res
 
     if [[ -n $VCS_STATUS_LOCAL_BRANCH ]]; then
