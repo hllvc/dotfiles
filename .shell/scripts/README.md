@@ -28,7 +28,7 @@ Custom shell scripts. `.zshrc` wires them up at shell start:
 | `brewup.sh` | The manual Homebrew upgrade (`brewup`): `brew update`, brew pins and pin-level upgrades (`dotctl versions pins`/`auto`), `brew upgrade --greedy` (formulae and every cask), `autoremove` + `cleanup -s`, cask-shipped Claude skill links, then a report of tools off their tested version in `.versions` and an immediate triage of them. `brewup -n` previews without installing. The upgrade sequence itself is `lib/brew-upgrade.sh`, shared with the homebrew-update cron |
 | `cmcp.sh` | Starts Claude Code with chosen MCP servers opted in for one session (MCP is off by default): `cmcp notion slack`, `-c` checks via `claude mcp list`, `-l` lists connector aliases, args after `--` go to `claude` |
 | `com.sh` | Git commit helper with conventional commit prefixes and branch ticket references |
-| `gt.sh` | Opens Ghostty terminal windows with specified tmux socket configurations |
+| `gt.sh` | Opens a Ghostty window with the `no-tmux` profile (`gt.sh no_tmux`, called from `tt.sh`) |
 | `hexrand.sh` | Generates random hex strings and copies to clipboard |
 | `hop.sh` | Interactive SSH host selector using fzf (was `ss`, which is the Linux socket-statistics command) |
 | `newsh.sh` | Creates a new shell script with shebang, makes it executable, and opens in nvim (was `mksh`, which zsh mistook for the MirBSD Korn shell) |
