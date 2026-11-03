@@ -179,7 +179,8 @@ Scheduled user-level jobs live under `.shell/scripts/crons/<name>/` and are inst
   - A held upgrade with no impact gets a "safe to upgrade" note; it is never upgraded automatically.
   - `review=strict` tools (tmux, Neovim) are triaged but always get a drafted plan, never a silent accept.
   - `review=manual` tools (macOS) are tracked but only reviewed when you run `./dotctl versions review <tool>`.
-  - The `silent` column limits what may be accepted without a plan: `any` (every size, when triage finds it harmless) or `patch`. `claude-code` is `patch`: a patch bump such as 2.1.305 → 2.1.306 isn't triaged at all, just accepted with a signed commit, while a minor or major bump is triaged and always planned (the step is judged by the first two version numbers). `dotctl versions review <tool>` still triages a patch bump when you run it yourself.
+  - The `silent` column limits what a harmless triage may accept without a plan: `any` (every size) or `patch`. `claude-code` is `patch`: a minor or major bump is always planned (the step is judged by the first two version numbers).
+  - **Patch wildcard**: a `tested` value of `X.Y.x` (claude-code: `2.1.x`) matches every patch release of X.Y, so patch releases are neither drift nor a commit; the daily agent skips them. The `last` column keeps the exact version last triaged and accepted (`-` for tools with an exact `tested`). `./dotctl versions` shows such a tool as ok with `untriaged since <last>`, and `./dotctl versions review claude-code` triages `last → installed` by hand. `accept` keeps the wildcard (moved to the new X.Y on a minor bump) and sets `last` to the installed version.
   - Silent accepts of the last 14 days are listed under `./dotctl versions` and at the end of `brewup`, with each commit's hash and reason (`./dotctl versions accepted [--days N]`); to reopen a wrong call, `git revert <commit>` and then `./dotctl versions review <tool>`.
 - **In-tool warnings**: tmux shows `tmux X ≠ Y` in yellow on the status line while the running server differs from `@target_version`; Neovim warns at startup (`vim.g.nvim_target_version`).
 
@@ -194,10 +195,8 @@ brewup, or the 10:30 agent
 tool differs from the version in .versions?
         │
    ┌────┴──────────────────────────────┐
-   no                                  yes → patch bump of a silent=patch tool?
-   └─ nothing happens                  yes → silent signed commit, no triage
-                                       no  → two Haiku runs classify the changes
-                                              │
+   no                                  yes → two Haiku runs classify the changes
+   └─ nothing happens                         │
                                    ┌──────────┴─────────────┐
                             all harmless              anything else, a strict tool,
                                    │                  or a minor/major bump of a
@@ -230,7 +229,7 @@ tool differs from the version in .versions?
 | `dotctl versions accept --triaged` | accept what triage cleared when its auto-commit was blocked |
 | `dotctl versions accepted [--days N]` | audit what was accepted silently |
 
-**Per-tool rules** (the `review` and `silent` columns of `.versions`): tmux and Neovim are `strict`, so always planned; `claude-code` is `silent=patch`, so a patch bump is accepted without triage and 2.2.0 or 3.0 is triaged and planned; macOS is manual only; everything else (fzf, Ghostty, the plugins, nvim plugins) is auto and silent when harmless.
+**Per-tool rules** (the `review` and `silent` columns of `.versions`): tmux and Neovim are `strict`, so always planned; `claude-code` is `2.1.x` with `silent=patch`, so patch releases are skipped (triage them by hand when you want, from `last`) and 2.2.0 or 3.0 is planned; macOS is manual only; everything else (fzf, Ghostty, the plugins, nvim plugins) is auto and silent when harmless.
 
 **Things to watch for**
 - Silent accepts are listed at the end of `dotctl versions` and `brewup` for 14 days. If one looks wrong, `git revert <commit>`, then `dotctl versions review <tool>`.

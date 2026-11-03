@@ -13,9 +13,8 @@
 #                   "Plan ready" notification
 #
 # Tools with review=strict (tmux, neovim) are always planned. A tool with
-# silent=patch (claude-code) has its patch bumps accepted without triage (with
-# --auto; a manual review still triages); a minor or major bump is triaged and
-# planned even when triage finds nothing.
+# silent=patch (claude-code) is accepted without a plan only for a patch bump;
+# a minor or major bump is planned even when triage finds nothing.
 #
 #   review.sh --auto [tool...]   every review=auto/strict tool that needs it, or just
 #                                the named ones (launch agent, brewup)
@@ -27,7 +26,11 @@
 #                                <tool>` (log: plans.log) that notifies when
 #                                ready — brewup returns without waiting
 #
-# Results are cached per tool for one range (tested → target), so a range is
+# A tested value of X.Y.x (claude-code) matches every patch release of X.Y, so
+# --auto leaves those alone; the range then starts at the last column (the exact
+# version last accepted), and `review.sh <tool>` triages last → installed.
+#
+# Results are cached per tool for one range (from → target), so a range is
 # triaged and planned once. Env overrides, for testing against a clone:
 # VERSIONS_REVIEW_REPO, VERSIONS_REVIEW_CACHE, VERSIONS_REVIEW_SESSION.
 
@@ -231,21 +234,6 @@ _triage() {
   echo "  triage: $verdict — $reason"
 }
 
-# silent=patch: a patch bump is accepted without running triage at all. The
-# record looks like a harmless triage, so the accept path and `dotctl versions
-# accept --triaged` treat it the same way.
-_skip_triage() {
-  local tool="$1" from="$2" to="$3"
-  if [[ -f "$(_cache_file "$tool")" ]]; then
-    "$SCRIPT_DIR/updates.sh" close "$tool"
-  fi
-  rm -f "$(_cache_file "$tool")" "$CACHE/$tool.plan.md"
-  jq -n --arg from "$from" --arg to "$to" --arg at "$(date +%FT%T)" \
-    '{from: $from, to: $to, verdict: "ignore", triaged_at: $at, notable: [], runs: [],
-      reason: "patch bump, accepted without triage (silent=patch)"}' >"$(_cache_file "$tool")"
-  echo "  triage: skipped — patch bump, silent=patch"
-}
-
 # ─── ignore ───────────────────────────────────────────────────────────────
 
 # Accept and commit a no-impact update: .versions plus the files `accept`
@@ -367,27 +355,28 @@ _plan() {
 # ─── main ─────────────────────────────────────────────────────────────────
 
 _review_tool() {
-  local tool="$1" review="$2" silent="$3" tested="$4" installed="$5" held="$6" changes="$7" probe="$8" to
+  local tool="$1" review="$2" silent="$3" tested="$4" from="$5" installed="$6" held="$7" changes="$8" probe="$9" to
   if [[ "$installed" == "-" ]]; then
     echo "$tool: probe printed nothing — skipped"
     return 0
   fi
   to="$installed"
   [[ "$held" == "-" ]] || to="$held"
-  if [[ "$to" == "$tested" ]]; then
-    ((auto)) || echo "$tool: at its tested version ($tested), nothing to review"
+  # --auto: a patch release inside an X.Y.x wildcard is not drift. By hand,
+  # anything past the last accepted version is reviewed.
+  if ((auto)) && "$REPO/dotctl" versions matches "$tested" "$to"; then
+    return 0
+  fi
+  if [[ "$to" == "$from" ]]; then
+    ((auto)) || echo "$tool: at its tested version ($from), nothing to review"
     return 0
   fi
 
-  echo "$tool: $tested → $to"
-  local level
-  level="$("$REPO/dotctl" versions level "$tested" "$to")"
-  if [[ "$(_cache_get "$tool" .from)" == "$tested" && "$(_cache_get "$tool" .to)" == "$to" ]]; then
+  echo "$tool: $from → $to"
+  if [[ "$(_cache_get "$tool" .from)" == "$from" && "$(_cache_get "$tool" .to)" == "$to" ]]; then
     echo "  triage (cached): $(_cache_get "$tool" .verdict) — $(_cache_get "$tool" .reason)"
-  elif ((auto)) && [[ "$silent" == patch && "$review" != strict && "$level" == patch ]]; then
-    _skip_triage "$tool" "$tested" "$to"
   else
-    _triage "$tool" "$tested" "$to" "$installed" "$changes" "$probe"
+    _triage "$tool" "$from" "$to" "$installed" "$changes" "$probe"
   fi
 
   # Harmless per triage, but not allowed to be accepted silently: strict tools
@@ -398,7 +387,7 @@ _review_tool() {
     if [[ "$review" == strict ]]; then
       plan_anyway=1
       _cache_put "$tool" '.note = "Review mode is strict for this tool: it is planned even when triage finds no impact."'
-    elif [[ "$silent" == patch && "$level" != patch ]]; then
+    elif [[ "$silent" == patch && "$("$REPO/dotctl" versions level "$from" "$to")" != patch ]]; then
       plan_anyway=1
       _cache_put "$tool" '.note = "Triage found no impact, but this is a minor or major bump and this tool only accepts patch bumps without a plan, so it is planned anyway."'
     fi
@@ -420,13 +409,13 @@ _review_tool() {
     disown
     echo "  plan: drafting in the background (notification when ready; log: $LOG_DIR/plans.log)"
   else
-    _plan "$tool" "$tested" "$to" "$installed" "$changes" "$probe"
+    _plan "$tool" "$from" "$to" "$installed" "$changes" "$probe"
   fi
 }
 
 rows="$("$REPO/dotctl" versions rows)" || exit 1
 found=()
-while IFS=$'\t' read -r tool review silent tested installed held changes probe; do
+while IFS=$'\t' read -r tool review silent tested from installed held changes probe; do
   if ((auto)); then
     [[ "$review" == auto || "$review" == strict ]] || continue
     if ((${#wanted[@]})); then
@@ -437,7 +426,7 @@ while IFS=$'\t' read -r tool review silent tested installed held changes probe; 
     [[ " ${wanted[*]} " == *" $tool "* ]] || continue
     found+=("$tool")
   fi
-  _review_tool "$tool" "$review" "$silent" "$tested" "$installed" "$held" "$changes" "$probe"
+  _review_tool "$tool" "$review" "$silent" "$tested" "$from" "$installed" "$held" "$changes" "$probe"
 done <<<"$rows"
 
 if ((${#wanted[@]})); then

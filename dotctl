@@ -852,7 +852,9 @@ Usage: ./dotctl versions [status [--brief|--issues] | review <tool...> |
 
 Compares each tool's installed version with the one recorded in .versions —
 the version this repo's config was last checked against. Drift is the cue to
-read that tool's changes (the changes column) and adjust the config.
+read that tool's changes (the changes column) and adjust the config. A tested
+value of X.Y.x matches any patch release of X.Y; the last column then keeps
+the exact version last triaged and accepted, where a manual review starts.
 
 Subcommands:
   status     (default) Table of tested vs installed, plus the triage state
@@ -864,9 +866,10 @@ Subcommands:
              for review=manual tools like claude-code): no config impact is
              accepted and committed, anything else gets a drafted plan in a
              window of the \`updates\` tmux session (personal socket).
-  accept     Record the installed version as tested, dated today, and sync
-             the in-file copies (.tmux.conf @target_version, nvim init.lua
-             and README). --triaged takes every tool triage found no config
+  accept     Record the installed version as tested, dated today (an X.Y.x
+             tested stays a wildcard, moved to the installed X.Y, and last
+             becomes the installed version), and sync the in-file copies
+             (.tmux.conf @target_version, nvim init.lua and README). --triaged takes every tool triage found no config
              impact for. Closes the tool's \`updates\` window unless run from
              inside it. Does not commit.
   upgrade    Upgrade a brew-pinned tool now: unpin, brew upgrade, pin again.
@@ -882,13 +885,17 @@ Subcommands:
              reason from each commit. Also shown under \`status\`.
 
 Scripting (used by the versions-review agent):
-  rows       Tab-separated: tool review silent tested installed available changes probe
+  rows       Tab-separated: tool review silent tested from installed available changes probe
+             (from = last, or tested when last is -)
   level      <from> <to>: major, minor or patch (the step between two versions)
+  matches    <tested> <installed>: exit 0 when installed is tested, or a patch
+             release of an X.Y.x tested
   mirrors    <tool>: repo-relative files \`accept\` rewrites besides .versions
 
 States:
-  ok         installed == tested
-  drift      installed != tested — review, then accept
+  ok         installed == tested, or a patch release of an X.Y.x tested (the
+             triage column then says what is untriaged since last)
+  drift      installed doesn't match tested — review, then accept
   held       a pinned formula has a newer version waiting
   unpinned   the pin column is set but brew has the formula unpinned
   missing    the probe printed nothing (tool not installed?)
@@ -896,7 +903,7 @@ EOF
 }
 
 # Layout used when .versions is rewritten; matches the hand-aligned file.
-readonly VERSIONS_FORMAT='%-25s %-9s %-11s %-6s %-7s %-6s %-47s %s\n'
+readonly VERSIONS_FORMAT='%-25s %-9s %-9s %-11s %-6s %-7s %-6s %-47s %s\n'
 # Triage results of the versions-review agent, one <tool>.json each.
 readonly VERSIONS_CACHE="${VERSIONS_REVIEW_CACHE:-$HOME/Library/Caches/com.hllvc.versions-review}"
 readonly VERSIONS_REVIEW_DIR="$REPO_ROOT/.shell/scripts/crons/versions-review"
@@ -998,6 +1005,26 @@ _versions_level() {
   fi
 }
 
+# Whether an installed version counts as tested: the same, or for a tested
+# X.Y.x, any patch release of X.Y (one more field after "X.Y.", no further dot).
+_versions_matches() {
+  local tested="$1" installed="$2" rest
+  [[ "$installed" == "$tested" ]] && return 0
+  [[ "$tested" == *.x ]] || return 1
+  [[ "$installed" == "${tested%x}"* ]] || return 1
+  rest="${installed#"${tested%x}"}"
+  [[ "$rest" =~ ^[0-9A-Za-z]+$ ]]
+}
+
+# Where the next review starts: the last column, or tested when last is "-".
+_versions_from() {
+  if [[ "$2" == "-" || -z "$2" ]]; then
+    echo "$1"
+  else
+    echo "$2"
+  fi
+}
+
 # Whether a pin level lets the cron apply a step of the given size.
 _versions_allows() {
   case "$1:$2" in
@@ -1051,21 +1078,22 @@ _versions_status() {
   done
   _versions_require_file || return 1
 
-  local brew_state tool tested checked pin review silent changes probe installed state n held level triage
+  local brew_state tool tested last checked pin review silent changes probe installed state n held level triage from
   local -i issues=0
   local -a notes review_list=()
   brew_state="$(_versions_brew_state)"
 
-  while read -r tool tested checked pin review silent changes probe; do
+  while read -r tool tested last checked pin review silent changes probe; do
     notes=()
     held="-"
+    from="$(_versions_from "$tested" "$last")"
     installed="$(_versions_probe "$probe")"
     if [[ -z "$installed" ]]; then
       notes+=(missing)
       ((!brief)) || echo "$tool: not found ($probe)"
-    elif [[ "$installed" != "$tested" ]]; then
+    elif ! _versions_matches "$tested" "$installed"; then
       notes+=(drift)
-      ((!brief)) || echo "$tool: $tested → $installed"
+      ((!brief)) || echo "$tool: $from → $installed"
     fi
 
     if [[ "$pin" != "-" ]]; then
@@ -1091,14 +1119,19 @@ _versions_status() {
       if [[ "$state" != unpinned && -n "$installed" ]]; then
         review_list+=("$(printf '  %-25s %s' "$tool" "$changes")")
         if [[ "$held" != "-" ]]; then
-          triage="$(_versions_triage "$tool" "$tested" "$held" "$installed")"
+          triage="$(_versions_triage "$tool" "$from" "$held" "$installed")"
         else
-          triage="$(_versions_triage "$tool" "$tested" "$installed" "$installed")"
+          triage="$(_versions_triage "$tool" "$from" "$installed" "$installed")"
         fi
         [[ "$triage" != "-" || "$review" != manual ]] || triage="(manual)"
       fi
     else
       state=ok
+      # Inside an X.Y.x wildcard: not an issue, but say what is untriaged.
+      if [[ -n "$installed" && "$installed" != "$from" ]]; then
+        triage="$(_versions_triage "$tool" "$from" "$installed" "$installed")"
+        [[ "$triage" != "-" ]] || triage="untriaged since $from"
+      fi
     fi
     if ((!brief)) && [[ "$state" != ok || $only_issues -eq 0 ]]; then
       # Header on the first printed row, so --issues stays silent when all ok.
@@ -1172,30 +1205,32 @@ _versions_accepted_block() {
 }
 
 # Machine-readable rows for the versions-review agent: tool, review, silent,
-# tested, installed (- when the probe failed), available (held version or -),
+# tested, from (last, or tested when last is -), installed (- when the probe
+# failed), available (held version or -),
 # changes, probe — tab-separated, no empty fields (read with IFS=tab merges them).
 _versions_rows_tsv() {
   _versions_require_file || return 1
-  local brew_state tool tested checked pin review silent changes probe installed held
+  local brew_state tool tested last checked pin review silent changes probe installed held
   brew_state="$(_versions_brew_state)"
-  while read -r tool tested checked pin review silent changes probe; do
+  while read -r tool tested last checked pin review silent changes probe; do
     installed="$(_versions_probe "$probe")"
     held="-"
     if [[ "$pin" != "-" ]]; then
       held="$(_versions_held "$tool" "$brew_state")"
     fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$tool" "$review" "$silent" "$tested" "${installed:--}" "$held" "$changes" "$probe"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$tool" "$review" "$silent" "$tested" \
+      "$(_versions_from "$tested" "$last")" "${installed:--}" "$held" "$changes" "$probe"
   done < <(_versions_rows)
 }
 
 # Tools whose cached triage found no config impact for exactly tested →
 # installed, i.e. ready to accept as they are.
 _versions_triaged_tools() {
-  local tool tested installed
+  local tool from installed
   _command_installed jq || return 0
-  while IFS=$'\t' read -r tool _ _ tested installed _ _ _; do
-    [[ "$installed" != "-" && "$installed" != "$tested" && -f "$VERSIONS_CACHE/$tool.json" ]] || continue
-    jq -e --arg from "$tested" --arg to "$installed" \
+  while IFS=$'\t' read -r tool _ _ _ from installed _ _ _; do
+    [[ "$installed" != "-" && "$installed" != "$from" && -f "$VERSIONS_CACHE/$tool.json" ]] || continue
+    jq -e --arg from "$from" --arg to "$installed" \
       '.verdict == "ignore" and .from == $from and .to == $to' \
       "$VERSIONS_CACHE/$tool.json" >/dev/null 2>&1 && echo "$tool"
   done < <(_versions_rows_tsv)
@@ -1246,7 +1281,7 @@ _versions_accept() {
       echo "versions accept: unknown tool: $t" >&2
       return 1
     }
-    read -r _ _ _ _ _ _ _ probe <<<"$row"
+    read -r _ _ _ _ _ _ _ _ probe <<<"$row"
     v="$(_versions_probe "$probe")"
     [[ -n "$v" ]] || {
       echo "versions accept: $t: probe printed nothing ($probe)" >&2
@@ -1255,7 +1290,7 @@ _versions_accept() {
     accepted+=("$t $v")
   done
 
-  local today line tool tested checked pin review silent changes pair rewritten skip='^[[:space:]]*(#|$)'
+  local today line tool tested last checked pin review silent changes pair v rest rewritten skip='^[[:space:]]*(#|$)'
   today="$(date +%Y-%m-%d)"
   rewritten="$(
     while IFS= read -r line; do
@@ -1263,15 +1298,24 @@ _versions_accept() {
         printf '%s\n' "$line"
         continue
       fi
-      read -r tool tested checked pin review silent changes probe <<<"$line"
+      read -r tool tested last checked pin review silent changes probe <<<"$line"
       for pair in "${accepted[@]}"; do
         if [[ "${pair%% *}" == "$tool" ]]; then
-          tested="${pair#* }"
+          v="${pair#* }"
+          if [[ "$tested" == *.x ]]; then
+            # Keep the wildcard, moved to the installed X.Y; last is exact.
+            rest="${v#*.}"
+            tested="${v%%.*}.${rest%%[!0-9]*}.x"
+            last="$v"
+          else
+            tested="$v"
+            last="-"
+          fi
           checked="$today"
         fi
       done
       # shellcheck disable=SC2059 # the format is the fixed column layout
-      printf "$VERSIONS_FORMAT" "$tool" "$tested" "$checked" "$pin" "$review" "$silent" "$changes" "$probe"
+      printf "$VERSIONS_FORMAT" "$tool" "$tested" "$last" "$checked" "$pin" "$review" "$silent" "$changes" "$probe"
     done <"$VERSIONS_FILE"
   )"
   # Overwrite in place (not mv) so the file keeps its mode.
@@ -1351,7 +1395,7 @@ _versions_upgrade() {
     echo "versions upgrade: unknown tool: $tool" >&2
     return 1
   }
-  read -r _ _ _ pin _ _ changes _ <<<"$row"
+  read -r _ _ _ _ pin _ _ changes _ <<<"$row"
   [[ "$pin" != "-" ]] || {
     echo "versions upgrade: $tool isn't brew-pinned — it upgrades on its own" >&2
     return 1
@@ -1370,7 +1414,7 @@ _versions_pins() {
   local pinned tool pin
   pinned=" $(brew list --pinned 2>/dev/null | tr '\n' ' ') "
   echo "── brew pins ──"
-  while read -r tool _ _ pin _; do
+  while read -r tool _ _ _ pin _; do
     if [[ "$pin" == "-" ]]; then
       if [[ "$pinned" == *" $tool "* ]]; then
         brew unpin "$tool" </dev/null && echo "  unpinned  $tool"
@@ -1400,7 +1444,7 @@ _versions_auto() {
   _versions_require_file || return 1
   local brew_state tool pin bi held level
   brew_state="$(_versions_brew_state)"
-  while read -r tool _ _ pin _; do
+  while read -r tool _ _ _ pin _; do
     [[ "$pin" != "-" ]] || continue
     held="$(_versions_held "$tool" "$brew_state")"
     [[ "$held" != "-" ]] || continue
@@ -1437,6 +1481,7 @@ cmd_versions() {
   auto) _versions_auto "$@" ;;
   rows) _versions_rows_tsv ;;
   level) _versions_level "${1:?versions level: two versions}" "${2:?versions level: two versions}" ;;
+  matches) _versions_matches "${1:?versions matches: two versions}" "${2:?versions matches: two versions}" ;;
   mirrors) _versions_mirror_files "${1:-}" ;;
   accepted) _versions_accepted "$@" ;;
   -h | --help) usage_versions ;;
