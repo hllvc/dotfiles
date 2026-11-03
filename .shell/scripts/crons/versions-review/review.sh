@@ -13,8 +13,9 @@
 #                   "Plan ready" notification
 #
 # Tools with review=strict (tmux, neovim) are always planned. A tool with
-# silent=patch (claude-code) is accepted without a plan only for a patch bump;
-# a minor or major bump is planned even when triage finds nothing.
+# silent=patch (claude-code) has its patch bumps accepted without triage (with
+# --auto; a manual review still triages); a minor or major bump is triaged and
+# planned even when triage finds nothing.
 #
 #   review.sh --auto [tool...]   every review=auto/strict tool that needs it, or just
 #                                the named ones (launch agent, brewup)
@@ -230,6 +231,21 @@ _triage() {
   echo "  triage: $verdict — $reason"
 }
 
+# silent=patch: a patch bump is accepted without running triage at all. The
+# record looks like a harmless triage, so the accept path and `dotctl versions
+# accept --triaged` treat it the same way.
+_skip_triage() {
+  local tool="$1" from="$2" to="$3"
+  if [[ -f "$(_cache_file "$tool")" ]]; then
+    "$SCRIPT_DIR/updates.sh" close "$tool"
+  fi
+  rm -f "$(_cache_file "$tool")" "$CACHE/$tool.plan.md"
+  jq -n --arg from "$from" --arg to "$to" --arg at "$(date +%FT%T)" \
+    '{from: $from, to: $to, verdict: "ignore", triaged_at: $at, notable: [], runs: [],
+      reason: "patch bump, accepted without triage (silent=patch)"}' >"$(_cache_file "$tool")"
+  echo "  triage: skipped — patch bump, silent=patch"
+}
+
 # ─── ignore ───────────────────────────────────────────────────────────────
 
 # Accept and commit a no-impact update: .versions plus the files `accept`
@@ -364,8 +380,12 @@ _review_tool() {
   fi
 
   echo "$tool: $tested → $to"
+  local level
+  level="$("$REPO/dotctl" versions level "$tested" "$to")"
   if [[ "$(_cache_get "$tool" .from)" == "$tested" && "$(_cache_get "$tool" .to)" == "$to" ]]; then
     echo "  triage (cached): $(_cache_get "$tool" .verdict) — $(_cache_get "$tool" .reason)"
+  elif ((auto)) && [[ "$silent" == patch && "$review" != strict && "$level" == patch ]]; then
+    _skip_triage "$tool" "$tested" "$to"
   else
     _triage "$tool" "$tested" "$to" "$installed" "$changes" "$probe"
   fi
@@ -378,7 +398,7 @@ _review_tool() {
     if [[ "$review" == strict ]]; then
       plan_anyway=1
       _cache_put "$tool" '.note = "Review mode is strict for this tool: it is planned even when triage finds no impact."'
-    elif [[ "$silent" == patch && "$("$REPO/dotctl" versions level "$tested" "$to")" != patch ]]; then
+    elif [[ "$silent" == patch && "$level" != patch ]]; then
       plan_anyway=1
       _cache_put "$tool" '.note = "Triage found no impact, but this is a minor or major bump and this tool only accepts patch bumps without a plan, so it is planned anyway."'
     fi

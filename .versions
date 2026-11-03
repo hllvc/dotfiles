@@ -19,12 +19,13 @@
 #            strict triaged too, but always gets a drafted plan, never a silent
 #                   accept
 #            manual tracked only; run `dotctl versions review <tool>` yourself
-#   silent   which bumps a harmless triage may accept without a plan (never for
+#   silent   which bumps may be accepted without a plan (never for
 #            review=strict):
-#            any    every size
-#            patch  patch bumps only (the step is the first two numbers, so
-#                   2.1.304 -> 2.1.305 is a patch, 2.1.9 -> 2.2.0 a minor); a
-#                   minor or major bump is planned even when triage finds nothing
+#            any    every size, when triage finds them harmless
+#            patch  patch bumps are accepted without triage at all (the step is
+#                   the first two numbers, so 2.1.304 -> 2.1.305 is a patch,
+#                   2.1.9 -> 2.2.0 a minor); a minor or major bump is triaged
+#                   and planned even when triage finds nothing
 #   changes  where to read what changed: file path, URL, nvim:help-news,
 #            git-log (git log <tested>..HEAD in the checkout the probe names), or
 #            lazy-lock (diff of .config/nvim/lazy-lock.json between the commits)
