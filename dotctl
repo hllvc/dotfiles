@@ -1323,7 +1323,13 @@ _versions_accept() {
 
   local summary=""
   for pair in "${accepted[@]}"; do
-    echo "  ${pair%% *}: tested = ${pair#* } ($today)"
+    # What was written, read back: a wildcard tested shows with its last.
+    read -r _ tested last _ <<<"$(_versions_row "${pair%% *}")"
+    if [[ "$last" == "-" ]]; then
+      echo "  ${pair%% *}: tested = $tested ($today)"
+    else
+      echo "  ${pair%% *}: tested = $tested, last = $last ($today)"
+    fi
     _versions_sync_mirrors "${pair%% *}" "${pair#* }"
     _versions_forget "${pair%% *}" "${pair#* }"
     summary+="${summary:+, }${pair}"
