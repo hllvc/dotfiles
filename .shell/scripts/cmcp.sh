@@ -68,6 +68,32 @@ configured() {
   fi
 }
 
+# URL of a configured remote server, empty for stdio ones. Same sources as
+# configured().
+server_url() {
+  local top
+  top="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  {
+    jq -r --arg n "$1" --arg pwd "$PWD" --arg top "$top" '
+      (.mcpServers[$n].url // empty),
+      (.projects[$pwd].mcpServers[$n].url // empty),
+      (.projects[$top].mcpServers[$n].url // empty)' ~/.claude.json 2>/dev/null || true
+    if [[ -n "$top" && -f "$top/.mcp.json" ]]; then
+      jq -r --arg n "$1" '.mcpServers[$n].url // empty' "$top/.mcp.json" 2>/dev/null || true
+    fi
+  } | head -n 1
+}
+
+# Allowlist entries for a server by name. Remote servers also get their URL:
+# once the list holds any serverUrl entry, a remote server must match by URL
+# and serverName alone no longer lets it through.
+name_entries() {
+  local url
+  jq -cn --arg n "$1" '{serverName: $n}'
+  url="$(server_url "$1")"
+  [[ -z "$url" ]] || jq -cn --arg u "$url" '{serverUrl: $u}'
+}
+
 all=false
 check=false
 servers=()
@@ -104,7 +130,9 @@ for server in ${servers[@]+"${servers[@]}"}; do
   if [[ -n "${CONNECTORS[$key]:-}" ]]; then
     entries+=("$(jq -cn --arg u "${CONNECTORS[$key]}" '{serverUrl: $u}')")
   elif [[ "$server" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    entries+=("$(jq -cn --arg n "$server" '{serverName: $n}')")
+    while IFS= read -r entry; do
+      entries+=("$entry")
+    done < <(name_entries "$server")
   else
     echo "cmcp: '$server' is not a known connector (see -l) or a valid server name" >&2
     exit 1
