@@ -11,11 +11,12 @@
 #
 # If the pane was running one of the programs resurrect is configured to bring
 # back (@resurrect-default-processes — editors and claude), it is relaunched in
-# the replacement shell, inline strategies included: `claude` comes back as
-# `claude --continue`. Anything else replaces to a bare prompt.
+# the replacement shell, inline strategies included. A Claude pane resumes its
+# own session by id (claude-pane.sh). Anything else replaces to a bare prompt.
 #
 # Bound to prefix+C-r; also runnable directly (the `treplace` alias), optionally
-# with an explicit target pane as $1.
+# with an explicit target pane as $1. A command in $2 is relaunched instead of
+# whatever was running (mcp-resume.sh uses this).
 set -uo pipefail
 
 export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.tmux/sockets}"
@@ -31,6 +32,7 @@ _say() {
 }
 
 pane="${1:-${TMUX_PANE:-}}"
+override_cmd="${2:-}"
 if [[ -z "$pane" ]]; then
   _say "not inside a tmux pane"
   exit 1
@@ -61,9 +63,13 @@ pane_title="${meta[2]}"
 # Reuse resurrect's own list, strategies and capture, so prefix+C-r and a restore
 # agree on what is worth bringing back and there is one place to configure it.
 resurrect_dir="$HOME/.tmux/plugins/tmux-resurrect"
-restore_cmd=""
+restore_cmd="$override_cmd"
+# A Claude pane comes back as its own session (by id, with its cmcp servers),
+# not resurrect's `claude --continue`, which picks the newest session in the
+# directory and so the wrong one when two share it.
+[[ -n "$restore_cmd" ]] || restore_cmd="$("$HOME/.shell/scripts/tmux/claude-pane.sh" "$pane_id")"
 pane_pid="$(tmux display-message -p -t "$pane_id" '#{pane_pid}' 2>/dev/null)"
-if [[ -n "$pane_pid" && -x "$resurrect_dir/save_command_strategies/ps.sh" ]]; then
+if [[ -z "$restore_cmd" && -n "$pane_pid" && -x "$resurrect_dir/save_command_strategies/ps.sh" ]]; then
   # That strategy caches `ps` output for 60s, which is fine for a timed save but
   # wrong for a keypress — bust it so we see what is running right now.
   rm -f "${TMPDIR:-/tmp}/tmux-resurrect-ps-cache" 2>/dev/null || true
