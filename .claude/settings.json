@@ -70,13 +70,16 @@
     "disableBypassPermissionsMode": "disable"
   },
   "model": "opus",
-  "fallbackModel": ["opus[1m]", "sonnet[1m]", "haiku[1m]"],
+  "fallbackModel": [
+    "opus[1m]",
+    "sonnet[1m]",
+    "haiku[1m]"
+  ],
   "enableAllProjectMcpServers": false,
   "skillOverrides": {
     "anthropic-skills:tirith-outbound": "off",
     "anthropic-skills:import-memory": "off"
   },
-  "allowedMcpServers": [],
   "hooks": {
     "PreToolUse": [
       {
@@ -210,5 +213,61 @@
       "AWS profile dash is StackGuardian non-production, with write access to QA",
       "AWS profile personal is the user's private AWS account, unrelated to StackGuardian"
     ]
-  }
+  },
+  "deniedMcpServers": [
+    {
+      "serverUrl": "https://api.letsdeel.com/*"
+    },
+    {
+      "serverUrl": "https://api.tella.com/*"
+    },
+    {
+      "serverUrl": "https://mcp.betterstack.com*"
+    },
+    {
+      "serverUrl": "https://mcp.linear.app/*"
+    },
+    {
+      "serverUrl": "https://mcp.stripe.com*"
+    },
+    {
+      "serverUrl": "https://mcp.clerk.com/*"
+    },
+    {
+      "serverUrl": "https://mcp.mintlify.com*"
+    },
+    {
+      "serverUrl": "https://api.oreilly.com/*"
+    },
+    {
+      "serverUrl": "https://mcp.g2.com/*"
+    },
+    {
+      "serverUrl": "https://mcp.hubspot.com/*"
+    },
+    {
+      "serverUrl": "https://api.wisprflow.ai/*"
+    },
+    {
+      "serverUrl": "https://api.app.stackguardian.io/*"
+    },
+    {
+      "serverUrl": "https://mcp.webflow.com/*"
+    },
+    {
+      "serverUrl": "https://eu.api.smith.langchain.com/*"
+    },
+    {
+      "serverUrl": "https://microsoft365.mcp.claude.com/*"
+    },
+    {
+      "serverUrl": "https://mcp.clickhouse.cloud/*"
+    },
+    {
+      "serverUrl": "https://mcp.posthog.com/*"
+    },
+    {
+      "serverUrl": "https://mcp.excalidraw.com/*"
+    }
+  ]
 }

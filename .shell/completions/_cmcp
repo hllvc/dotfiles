@@ -12,6 +12,7 @@ _cmcp() {
 
   if [[ $PREFIX == -* ]]; then
     local -a opts=(
+      '-a:all remote and configured servers'
       '-c:check only, via claude mcp list'
       '-l:list connector aliases'
       '-h:help'
