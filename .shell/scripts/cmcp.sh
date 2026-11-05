@@ -34,6 +34,13 @@ declare -A CONNECTORS=(
   [docs]="https://api.anthropic.com/v1/pages/*"
   [gdrive]="https://drivemcp.googleapis.com/*"
   [gcal]="https://calendarmcp.googleapis.com/*"
+  [aws]="https://aws-mcp.*.api.aws/*"
+  [granola]="https://mcp.granola.ai/*"
+  [gdocs]="https://docsmcp.googleapis.com/*"
+  [gsheets]="https://sheetsmcp.googleapis.com/*"
+  [gslides]="https://slidesmcp.googleapis.com/*"
+  [gmail]="https://gmailmcp.googleapis.com/*"
+  [jam]="https://mcp.jam.dev/*"
 )
 
 usage() {
