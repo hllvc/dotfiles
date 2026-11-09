@@ -55,10 +55,12 @@ done
 
 record="$HOME/.claude/cmcp/$pid"
 if [[ -s "$record" ]]; then
-  { IFS= read -r rec_start; IFS= read -r rec_args; } <"$record"
+  rec_start= rec_args= rec_extra=
+  { IFS= read -r rec_start; IFS= read -r rec_args; IFS= read -r rec_extra; } <"$record"
   # Same `ps` on both sides (the session file's procStart is UTC, ps is local).
   if [[ -n "$rec_args" && "$(echo $rec_start)" == "$(echo $(ps -o lstart= -p "$pid"))" ]]; then
-    printf 'cmcp %s -- --resume %s\n' "$rec_args" "$sid"
+    # rec_extra is already shell-quoted by cmcp (e.g. --plugin-dir <path>)
+    printf 'cmcp %s -- %s--resume %s\n' "$rec_args" "${rec_extra:+$rec_extra }" "$sid"
     exit 0
   fi
 fi

@@ -149,7 +149,18 @@ fi
 # exec keeps this pid, and the start time guards against pid reuse.
 args_used="${servers[*]-}"
 [[ "$all" != true ]] || args_used="-a $args_used"
+# Third line: the claude args after --, shell-quoted, minus the session pick
+# (claude-pane.sh adds its own --resume <id>), e.g. --plugin-dir <path>.
+extra=()
+pass=("$@")
+for (( i = 0; i < ${#pass[@]}; i++ )); do
+  case "${pass[i]}" in
+    -c|--continue|--resume=*) ;;
+    -r|--resume) [[ "${pass[i+1]:-}" == -* ]] || i=$((i + 1)) ;;
+    *) extra+=("$(printf '%q' "${pass[i]}")") ;;
+  esac
+done
 mkdir -p "$HOME/.claude/cmcp"
-printf '%s\n%s\n' "$(ps -o lstart= -p $$)" "${args_used% }" >"$HOME/.claude/cmcp/$$"
+printf '%s\n%s\n%s\n' "$(ps -o lstart= -p $$)" "${args_used% }" "${extra[*]-}" >"$HOME/.claude/cmcp/$$"
 
 exec claude --settings "$settings" "$@"

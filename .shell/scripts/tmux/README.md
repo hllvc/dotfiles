@@ -13,3 +13,4 @@ Tmux helper scripts.
 | `prune-review.sh` | Reviews stale sessions in an fzf multi-select and kills the ones you mark. `--has-stale` only reports whether any exist (the `prefix K` popup uses it). Alias: `tprune` |
 | `todo-popup.sh` | Opens the todo file of the pane's repo (nvim, lua/todo) in a popup; `q` or `M-t` closes it |
 | `replace-pane.sh` | Replaces the current pane with a fresh login shell in place, keeping cwd, title and exported env, and relaunching editors/claude. Alias: `treplace`; `prefix C-r` in tmux |
+| `resurrect-claude.sh` | tmux-resurrect post-save hook: rewrites saved `claude ...` pane commands (ps loses the quoting around `--settings` JSON) to the `claude --resume <id>` / `cmcp ... -- --resume <id>` relaunch from `claude-pane.sh` |
