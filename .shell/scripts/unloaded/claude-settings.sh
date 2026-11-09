@@ -7,6 +7,10 @@
 #   No entries: allowedMcpServers is [], so the session loads no MCP servers.
 #   Entries:    only those servers are allowed (cmcp builds them).
 #
+# Pins model/effort so every launch opens on opus/medium, whatever a /model
+# switch last saved to ~/.claude/settings.json (--settings outranks it; an
+# explicit --model on the command line still wins).
+#
 # Also routes non-repo sessions on a side (~/.repos/<side> root or anywhere
 # under its 00-artifacts, nested repos included) to that side's memory store.
 #
@@ -25,5 +29,5 @@ memory=
 [[ -n "$side" ]] && memory="$HOME/.claude/projects/-Users-hllvc--repos-$side-00-artifacts/memory"
 
 printf '%s\n' "$@" | jq -cs --arg mem "$memory" '
-  {allowedMcpServers: map(select(. != null))}
+  {allowedMcpServers: map(select(. != null)), model: "opus", effortLevel: "medium"}
   + (if $mem == "" then {} else {autoMemoryDirectory: $mem} end)'
