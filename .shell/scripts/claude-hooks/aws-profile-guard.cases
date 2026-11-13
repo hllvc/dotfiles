@@ -17,6 +17,16 @@ ask :: op plugin run -- aws --profile sg-prod sts get-caller-identity
 ask :: aws --profile sg-prod-rw s3 ls
 ask :: aws --profile SG-PROD s3 ls
 ask :: tofu plan && AWS_PROFILE=sg-prod tofu apply
+# Root account profiles ask too
+ask :: aws s3 ls --profile sg-root
+ask :: aws --profile=sg-root sts get-caller-identity
+ask :: aws --profile "sg-root" sts get-caller-identity
+ask :: AWS_PROFILE=sg-root aws s3 ls
+ask :: env AWS_DEFAULT_PROFILE=sg-root aws s3 ls
+ask :: op plugin run -- aws --profile sg-root sts get-caller-identity
+ask :: aws --profile sg-root-rw s3 ls
+ask :: aws --profile SG-ROOT s3 ls
+ask :: aws organizations list-accounts --profile sg-root;
 # A profile that can't be checked asks
 ask :: aws --profile $P s3 ls
 ask :: aws --profile "$(pick-profile)" s3 ls
@@ -26,10 +36,15 @@ ok :: aws --profile sg-prod-ro s3 ls
 ok :: aws --profile=sg-prod-ro s3 ls
 ok :: op plugin run -- aws --profile sg-prod-ro sts get-caller-identity
 ok :: AWS_PROFILE=sg-prod-ro aws s3 ls
+ok :: aws --profile sg-root-ro s3 ls
+ok :: aws --profile=sg-root-ro s3 ls
+ok :: AWS_PROFILE=sg-root-ro aws s3 ls
+ok :: op plugin run -- aws --profile sg-root-ro sts get-caller-identity
 ok :: aws --profile dash s3 ls
 ok :: aws --profile personal s3 ls
 ok :: aws s3 ls
 ok :: AWS_PROFILE=dash tofu plan
 ok :: grep -rn sg-prod README.md
+ok :: grep -rn sg-root README.md
 ok :: git log --oneline
 ok :: ls ~/profile
