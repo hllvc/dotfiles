@@ -15,7 +15,7 @@
 # under its 00-artifacts, nested repos included) to that side's memory store.
 #
 # Anything that runs the claude binary directly (IDEs, other tools) skips
-# this and gets every server not in deniedMcpServers.
+# this and gets every configured server.
 
 set -eo pipefail
 

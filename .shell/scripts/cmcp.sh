@@ -3,8 +3,7 @@
 # cmcp — start Claude Code with selected MCP servers opted in for one session.
 #
 # The claude() wrapper loads no MCP servers (allowedMcpServers: []); cmcp
-# builds the same --settings with the named servers allowed instead. Servers
-# in deniedMcpServers (~/.claude/settings.json) stay off either way.
+# builds the same --settings with the named servers allowed instead.
 #
 # Usage: cmcp [-a] [-c] [-l] [-h] <server>... [-- <claude args>]
 #   server   a claude.ai connector alias (see -l) or a user-added server name
