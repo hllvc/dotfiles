@@ -15,7 +15,7 @@ export HISTSIZE=10000
 export SAVEHIST=$HISTSIZE
 
 # other
-export FZF_DEFAULT_OPTS='--bind=ctrl-l:select,ctrl-h:deselect,ctrl-space:select-all,ctrl-n:clear-query,ctrl-u:preview-up,ctrl-d:preview-down'
+export FZF_DEFAULT_OPTS='--bind=ctrl-l:select,ctrl-h:deselect,ctrl-n:clear-query,ctrl-u:preview-up,ctrl-d:preview-down --bind="ctrl-space:transform([ \$FZF_SELECT_COUNT -ge \$FZF_MATCH_COUNT ] && echo deselect-all || echo select-all)"'
 
 export LANG=en_US.UTF-8
 export EDITOR='nvim'
