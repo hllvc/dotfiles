@@ -579,14 +579,42 @@ _userBinds() { #{{{
   # The --bind options from FZF_DEFAULT_OPTS, one per line. Every fzf call
   # passes them again after sw's own keys, so a personal mapping always wins.
   local opt next=0
-  # shellcheck disable=SC2086 # word splitting is the point
-  for opt in ${FZF_DEFAULT_OPTS-}; do
+  while IFS= read -r -d '' opt; do
     if ((next)); then printf -- '--bind=%s\n' "$opt"; next=0
     elif [[ $opt == --bind=* ]]; then printf '%s\n' "$opt"
     elif [[ $opt == --bind ]]; then next=1; fi
-  done
+  done < <(_shellWords "${FZF_DEFAULT_OPTS-}")
 }
 #}}}: _userBinds
+
+_shellWords() { #{{{
+  # Split $1 into words the way a shell would (quotes, backslashes), without
+  # expanding or running anything. Prints each word NUL-terminated.
+  local s="$1" c word="" quote="" have=0 i
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    if [[ $quote == "'" ]]; then
+      if [[ $c == "'" ]]; then quote=""; else word+="$c"; fi
+    elif [[ $quote == '"' ]]; then
+      if [[ $c == '"' ]]; then quote=""
+      elif [[ $c == '\' && ${s:i+1:1} == [\$\`\"\\] ]]; then word+="${s:i+1:1}"; ((++i))
+      else word+="$c"; fi
+    elif [[ $c == [[:space:]] ]]; then
+      ((have)) && printf '%s\0' "$word"
+      word="" have=0
+    else
+      have=1
+      case $c in
+        "'" | '"') quote="$c" ;;
+        '\') word+="${s:i+1:1}"; ((++i)) ;;
+        *) word+="$c" ;;
+      esac
+    fi
+  done
+  ((have)) && printf '%s\0' "$word"
+  return 0
+}
+#}}}: _shellWords
 
 _fzf() { #{{{
   # Shows and searches the display column; callers cut -f1 for the name.
