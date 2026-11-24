@@ -327,6 +327,10 @@ claude --settings '{"allowedMcpServers":[{"serverName":"testapi"}]}'
 `cmcp` (`.shell/scripts/cmcp.sh`) wraps this: `cmcp notion slack` opens a session
 with just those, `cmcp -c figma` checks what would load, `cmcp -l` lists aliases.
 `claude mcp list` accepts the same `--settings` flag to check what would load.
+Register servers with `cmcp add` / `cmcp add-json` (user scope unless `-s` is
+given) and remove them with `cmcp rm`: `claude mcp add` through the `claude()`
+wrapper fails with "not allowed by enterprise policy", because the wrapper's
+empty allowlist applies to it too.
 Connector URLs: Notion `mcp.notion.com`, Slack `mcp.slack.com`, Fathom
 `api.fathom.ai`, PostHog `mcp.posthog.com`, Figma `mcp.figma.com`, Excalidraw
 `mcp.excalidraw.com`, Claude Docs `api.anthropic.com/v1/pages`.

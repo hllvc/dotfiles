@@ -3,12 +3,31 @@
 # script itself, and MCP servers configured for Claude Code (user scope, this
 # project in ~/.claude.json, and the project's .mcp.json). After `--` the words
 # belong to claude, which has no completion, so only files are offered.
+# Subcommands: add/add-json take free-form claude flags (files only); rm
+# completes -s, its scopes, and configured server names.
 
 _cmcp() {
-  local script=$HOME/.shell/scripts/cmcp.sh i
+  local script=$HOME/.shell/scripts/cmcp.sh i rm=0
+  [[ $words[2] == (rm|remove) ]] && (( CURRENT > 2 )) && rm=1
+  case $words[2] in
+    add|add-json) (( CURRENT > 2 )) && { _files; return } ;;
+  esac
   for (( i = 2; i < CURRENT; i++ )); do
     [[ $words[i] == -- ]] && { _files; return }
   done
+
+  if (( rm )); then
+    if [[ $words[CURRENT-1] == (-s|--scope) ]]; then
+      local -a scopes=(local user project)
+      _describe -t scopes 'scope' scopes
+      return
+    fi
+    if [[ $PREFIX == -* ]]; then
+      local -a ropts=('-s:scope to remove from (local, user, project)')
+      _describe -t options 'cmcp rm option' ropts
+      return
+    fi
+  fi
 
   if [[ $PREFIX == -* ]]; then
     local -a opts=(
@@ -28,6 +47,15 @@ _cmcp() {
     connectors+=("${line%% *}:${${line#* }//:/\\:}")
   done
 
+  if (( CURRENT == 2 )); then
+    local -a subs=(
+      'add:add a server (claude mcp add, user scope by default)'
+      'add-json:add a server from JSON (claude mcp add-json)'
+      'rm:remove a server (claude mcp remove)'
+    )
+    _describe -t subcommands 'cmcp subcommand' subs
+  fi
+
   local top
   top=$(git rev-parse --show-toplevel 2>/dev/null)
   servers=(${(f)"$(jq -r --arg pwd $PWD --arg top "$top" '
@@ -43,6 +71,10 @@ _cmcp() {
   connectors=(${connectors:#(${(~j:|:)used}):*})
   servers=(${servers:|used})
 
+  if (( rm )); then
+    (( $#servers )) && _describe -t servers 'configured MCP server' servers
+    return
+  fi
   _describe -t connectors 'claude.ai connector' connectors
   (( $#servers )) && _describe -t servers 'configured MCP server' servers
 }

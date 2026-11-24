@@ -6,6 +6,8 @@
 # builds the same --settings with the named servers allowed instead.
 #
 # Usage: cmcp [-a] [-c] [-l] [-h] <server>... [-- <claude args>]
+#        cmcp add|add-json [<claude mcp add flags>] <name> ...
+#        cmcp rm [-s <scope>] <name>
 #   server   a claude.ai connector alias (see -l) or a user-added server name
 #   -a       all: every remote server (serverUrl "*") plus every configured
 #            server by name (user scope, this project, .mcp.json)
@@ -14,12 +16,21 @@
 #   -n       print every pickable name (aliases + configured servers), one per line
 #   -h       help
 #
+# Subcommands (config only, run the bare binary so the empty allowlist from
+# the claude() wrapper doesn't reject them as "enterprise policy"):
+#   add        claude mcp add, user scope unless -s/--scope is given
+#   add-json   claude mcp add-json, same scope default
+#   rm         claude mcp remove
+#
 # Examples:
 #   cmcp notion                 # Notion connector only
 #   cmcp notion slack -- -c     # Notion + Slack, continue last session
 #   cmcp testapi                # user-added server, matched by name
 #   cmcp -c figma               # check what would load
 #   cmcp -a                     # everything
+#   cmcp add foo -- npx -y foo-mcp
+#   cmcp add --transport http bar https://example.com/mcp
+#   cmcp rm foo
 
 set -eo pipefail
 
@@ -43,7 +54,7 @@ declare -A CONNECTORS=(
 )
 
 usage() {
-  sed -n '3,24p' "$0" | sed 's/^# \{0,1\}//'
+  awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "$0"
 }
 
 list() {
@@ -92,6 +103,27 @@ name_entries() {
   url="$(server_url "$1")"
   [[ -z "$url" ]] || jq -cn --arg u "$url" '{serverUrl: $u}'
 }
+
+# Config-only subcommands go straight to the binary (no --settings).
+has_scope() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      --) return 1 ;;  # the rest is the server's own command
+      -s|--scope|--scope=*) return 0 ;;
+    esac
+  done
+  return 1
+}
+case "${1:-}" in
+  add|add-json)
+    sub="$1"; shift
+    has_scope "$@" || set -- -s user "$@"
+    exec claude mcp "$sub" "$@" ;;
+  rm|remove)
+    shift
+    exec claude mcp remove "$@" ;;
+esac
 
 all=false
 check=false
