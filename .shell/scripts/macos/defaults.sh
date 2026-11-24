@@ -39,6 +39,7 @@ defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
 defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
 defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
 defaults write NSGlobalDomain com.apple.trackpad.scaling -float 2.5      # tracking speed (max ~3.0)
+defaults write NSGlobalDomain com.apple.mouse.scaling -float 5           # mouse speed (slider max is 3.0, higher works via defaults)
 defaults write NSGlobalDomain com.apple.swipescrolldirection -bool false # natural scrolling OFF
 
 # }}}
