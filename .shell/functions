@@ -142,8 +142,17 @@ bundle_id() {
 
 # No MCP servers by default (use cmcp to opt in), plus per-side memory
 # routing; see ~/.shell/scripts/unloaded/claude-settings.sh.
+#
+# After the session: Claude Code rewrites ~/.claude/settings.json (model,
+# effort), and git flags the file as modified on a size change alone, without
+# asking the clean filter. A no-op add refreshes the index, but only when the
+# filtered diff is empty, so a real settings change is never staged.
 claude() {
   command claude --settings "$("$HOME/.shell/scripts/unloaded/claude-settings.sh")" "$@"
+  local rc=$? repo="$HOME/.repos/private/dotfiles/main"
+  git -C "$repo" diff --quiet -- .claude/settings.json 2>/dev/null &&
+    git -C "$repo" add .claude/settings.json 2>/dev/null
+  return $rc
 }
 
 #}}}: claude
