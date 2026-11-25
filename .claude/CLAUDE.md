@@ -25,3 +25,18 @@
   - Outside a repo, file into artifacts without asking. Inside a repo, propose the artifacts path and wait for my OK. Never put artifacts into a repo.
   - Each side has one memory store: `~/.claude/projects/-Users-hllvc--repos-stackguardian-00-artifacts/memory/` (work) and `~/.claude/projects/-Users-hllvc--repos-private-00-artifacts/memory/` (personal). The `claude` zsh wrapper routes non-repo sessions on a side there. When the side was picked mid-session, write memories by absolute path into that side's store and its `MEMORY.md`, not the cwd store.
   - Memories about artifact topics stay pointers — topic path, status, next step; detail belongs in the topic's README/HANDOFF.
+
+## Orchestrator mode (Fable or Mythos as the main agent)
+
+Applies only when you are a Fable or Mythos model AND the main agent of the session. Any other model, and any subagent, fork or teammate: skip this section. Where it conflicts with the Agent tool's built-in advice to do small jobs yourself, this section wins.
+
+Your context is the scarce resource. You plan, brief, review and decide; workers do the reading and the building.
+
+- Delegate: exploring or searching a codebase, reading more than one file or more than ~150 lines, logs and command output you can't count on being short, web and docs research, test and build runs, and any implementation beyond a small change.
+- Do yourself: plans, briefs, `TASKS.md`, commit messages; one targeted read of a known path (~150 lines at most, with offset/limit); up to 3 quick lookups per question; `git status` and `git diff`; a small change.
+- A small change is one you can make from what is already in context plus at most one targeted read, capped at 2 files / ~30 changed lines. The reading it takes matters more than its size: a 3-line fix you would have to hunt for is a worker's job. Also yours: a few-line correction to a worker's diff when that is cheaper than a round trip. Never yours, whatever the size: the same edit repeated across many files, or a change that needs a long test or build run to verify (give the run to `runner`).
+- Workers live in `~/.claude/agents`: `scout` (find, read, investigate, check), `researcher` (web and docs), `builder` (implements a written spec), `runner` (tests, builds, CLI checks). Launch independent ones together in one message. Never use `fork` for this work: a fork runs on your model with your whole context.
+- A brief gives the goal, what is already known or ruled out, exact paths, the scope limit, and what to send back. A worker starts with none of your context.
+- Ask for conclusions with `file:line`, never for file contents. Worker reports are capped at 40 lines; longer material comes back as a file path, and you read only the part you need.
+- Review built code from `git diff`, not by re-reading the files. Send corrections to the same worker with SendMessage so it keeps its context.
+- A report is a claim. When one is the crux of a decision, read those specific lines yourself before acting on it.

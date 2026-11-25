@@ -1,0 +1,86 @@
+# Scenarios for context-meter.sh; run context-meter.test.sh. Each line is one of:
+#   session [VAR=value ...]        start a fresh session (new state and transcript) with this env
+#   model <id> | sidechain <id>    append a main-thread / sidechain assistant entry to the transcript
+#   <want> :: <tool> <bytes> [sub|sub-late]  one hook call; want is "nudge" or "quiet";
+#                                  sub sends agent_id first, sub-late after tool_input
+#   has :: <text>                   the last nudge contains this text
+#
+# Byte budget, default 64 KB: a window that reaches it nudges, then starts over
+session
+model claude-fable-1
+quiet :: Read 40000
+nudge :: Bash 30000
+has :: ~68 KB of tool output across 2 direct calls
+has :: (68 KB this session)
+quiet :: Read 60000
+nudge :: Grep 10000
+has :: ~68 KB of tool output across 2 direct calls
+has :: (137 KB this session)
+# Call budget, default 20 calls
+session CONTEXT_METER_CALLS=3
+model claude-mythos-preview
+quiet :: Bash 10
+quiet :: mcp__github__get_file 10
+nudge :: Grep 10
+has :: across 3 direct calls
+quiet :: Bash 10
+# Edit/Write/NotebookEdit add bytes but aren't calls
+session CONTEXT_METER_CALLS=2 CONTEXT_METER_KB=1
+model claude-fable-1
+quiet :: Edit 100
+quiet :: Write 100
+quiet :: NotebookEdit 100
+quiet :: Bash 100
+nudge :: Write 700
+has :: ~1 KB of tool output across 1 direct call has
+# Delegation and meta tools are never metered, however big
+session CONTEXT_METER_KB=1 CONTEXT_METER_CALLS=1
+model claude-fable-1
+quiet :: Agent 900000
+quiet :: Task 900000
+quiet :: SendMessage 900000
+quiet :: Workflow 900000
+quiet :: TaskStop 900000
+quiet :: Skill 900000
+quiet :: ToolSearch 900000
+quiet :: AskUserQuestion 900000
+quiet :: TaskCreate 900000
+nudge :: Read 10
+# Subagent calls are skipped
+session CONTEXT_METER_KB=1 CONTEXT_METER_CALLS=1
+model claude-fable-1
+quiet :: Read 900000 sub
+quiet :: Bash 900000 sub
+nudge :: Bash 10
+# Other models are left alone; the regex is case-insensitive and overridable
+session CONTEXT_METER_KB=1
+model claude-opus-5-5
+quiet :: Read 900000
+session CONTEXT_METER_KB=1 CONTEXT_METER_MODELS=OPUS
+model claude-opus-5-5
+nudge :: Read 900000
+session CONTEXT_METER_KB=1
+model claude-FABLE-1
+nudge :: Read 900000
+# The newest main-thread entry decides; sidechain entries don't count
+session CONTEXT_METER_KB=1 CONTEXT_METER_MODEL_TTL=0
+model claude-fable-1
+sidechain claude-opus-5-5
+nudge :: Read 2000
+model claude-opus-5-5
+quiet :: Read 2000
+model claude-fable-1
+nudge :: Read 2000
+# Within the cache window a /model switch isn't seen yet
+session CONTEXT_METER_KB=1
+model claude-opus-5-5
+quiet :: Read 2000
+model claude-fable-1
+quiet :: Read 2000
+# No assistant entry yet means no metering
+session CONTEXT_METER_KB=1 CONTEXT_METER_CALLS=1
+quiet :: Read 900000
+# agent_id after tool_input (key order changed) is still a subagent
+session CONTEXT_METER_KB=1 CONTEXT_METER_CALLS=1
+model claude-fable-1
+quiet :: Read 900000 sub-late
