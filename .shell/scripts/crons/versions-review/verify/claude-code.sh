@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Verify step for claude-code (see dotctl versions verify): checks that the
-# undocumented Claude Code internals teammate-sweep.sh reads still look the way
-# it expects on the installed CLI version.
+# undocumented Claude Code internals teammate-sweep.sh and context-meter.sh read
+# still look the way they expect on the installed CLI version.
 #
 #   claude-code.sh <installed-version>     run from the repo root
 #
@@ -12,9 +12,10 @@
 # that can't run fails; a failure needs a positive witness, mere absence of
 # evidence is pending.
 #
-# - Hook suite: teammate-sweep.test.sh passes under `bash` (PATH) and /bin/bash,
-#   each under /usr/bin/timeout -k 5 60 (it kills the whole process group).
-#   VERIFY_SUITES=0 skips it.
+# - Hook suites: teammate-sweep, context-meter and aws-profile-guard .test.sh
+#   pass under `bash` (PATH) and /bin/bash (3.2, what a session without
+#   Homebrew in PATH runs the hooks with), each run under /usr/bin/timeout -k 5
+#   60 (it kills the whole process group). VERIFY_SUITES=0 skips them all.
 # - Session files: every live $root/sessions/<pid>.json has a string sessionId
 #   and version (a bad one is re-read once after 2 s). Fails too when
 #   interactive `claude` leads have run for a minute or more but no live file
@@ -32,6 +33,14 @@
 #   --parent-session-id this config root knows, doesn't resolve to a tmux member
 #   (rechecked once after 2 s). Teammates on another version's binary are
 #   skipped. Pending when no worker has been seen on this version.
+# - Transcripts: the real context-meter.sh, fed a synthetic PostToolUse call
+#   pointing at $root/projects/*/<sessionId>.jsonl of a live session on the
+#   installed version (temp state, budget 0, any model, no model cache), nudges,
+#   i.e. it read the main thread's model there. Fails when it doesn't for any
+#   session while one transcript's tail (the part the hook reads) has a
+#   non-sidechain, non-synthetic "type"/"role": "assistant" line. Pending when
+#   none has one yet. Only whether the hook nudged is looked at: no transcript
+#   content is printed or kept.
 #
 # root = CLAUDE_CONFIG_DIR or ~/.claude; marker dir from XDG_STATE_HOME; `ps`
 # from PATH. The process table goes to a temp file, never a shell variable.
@@ -46,7 +55,8 @@ fi
 
 root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 seen="${XDG_STATE_HOME:-$HOME/.local/state}/claude/teammate-sweep-seen/$v"
-suite=.shell/scripts/claude-hooks/teammate-sweep.test.sh
+hooks=.shell/scripts/claude-hooks
+suites=(teammate-sweep context-meter aws-profile-guard)
 
 fails=() pends=() notes=()
 fail() { fails+=("$1"); shift; for d in "$@"; do notes+=("  $d"); done; }
@@ -64,7 +74,7 @@ finish() {
     for r in "${pends[@]:1}"; do printf '  also: %s\n' "$r"; done
     exit 3
   fi
-  echo "verified: hook suite, session files, lead side, worker side"
+  echo "verified: hook suites, session files, lead side, worker side, transcripts"
   exit 0
 }
 
@@ -76,28 +86,33 @@ fi
 tmp="$(mktemp -d)" || { fail "cannot create a temp dir"; finish; }
 trap 'rm -rf "$tmp"' EXIT
 
-# --- Hook suite -------------------------------------------------------------
+# --- Hook suites ------------------------------------------------------------
 if [[ "${VERIFY_SUITES:-1}" != 0 ]]; then
+  shells=()
+  for sh in "$(command -v bash)" /bin/bash; do
+    if [[ -x "$sh" ]]; then shells+=("$sh"); else fail "hook suite cannot run: no interpreter ${sh:-bash}"; fi
+  done
   if [[ ! -x /usr/bin/timeout ]]; then
     fail "hook suite cannot run: /usr/bin/timeout missing"
-  elif [[ ! -f "$suite" ]]; then
-    fail "hook suite cannot run: $suite not found from the working directory"
   else
-    for sh in "$(command -v bash)" /bin/bash; do
-      if [[ ! -x "$sh" ]]; then
-        fail "hook suite cannot run: no interpreter ${sh:-bash}"
+    for name in "${suites[@]}"; do
+      suite="$hooks/$name.test.sh"
+      if [[ ! -f "$suite" ]]; then
+        fail "hook suite cannot run: $suite not found from the working directory"
         continue
       fi
-      # Output to a file, so a stray descendant can't hold a pipe open.
-      /usr/bin/timeout -k 5 60 "$sh" "$suite" </dev/null >"$tmp/suite.log" 2>&1
-      rc=$?
-      if ((rc == 124 || rc == 137)); then
-        fail "teammate-sweep.test.sh timed out under $sh"
-      elif ((rc != 0)); then
-        detail=()
-        while IFS= read -r l; do detail+=("$l"); done < <(tail -n 5 "$tmp/suite.log")
-        fail "teammate-sweep.test.sh failed under $sh" ${detail[@]+"${detail[@]}"}
-      fi
+      for sh in ${shells[@]+"${shells[@]}"}; do
+        # Output to a file, so a stray descendant can't hold a pipe open.
+        /usr/bin/timeout -k 5 60 "$sh" "$suite" </dev/null >"$tmp/suite.log" 2>&1
+        rc=$?
+        if ((rc == 124 || rc == 137)); then
+          fail "$name.test.sh timed out under $sh"
+        elif ((rc != 0)); then
+          detail=()
+          while IFS= read -r l; do detail+=("$l"); done < <(tail -n 5 "$tmp/suite.log")
+          fail "$name.test.sh failed under $sh" ${detail[@]+"${detail[@]}"}
+        fi
+      done
     done
   fi
 fi
@@ -259,5 +274,53 @@ if [[ -s "$tmp/unres" ]]; then
   [[ -n "$unres" ]] && fail "a live teammate --agent-id does not resolve to a tmux member" "ids: $unres"
 fi
 [[ -n "$worker_ok" ]] || pend "no teammate seen on the installed version yet"
+
+# --- Transcripts -------------------------------------------------------------
+meter="$hooks/context-meter.sh"
+
+# meter_nudges <transcript> <session id>: the real hook, on one synthetic call
+# with its budget at 0 and any model accepted, nudges, so it found a model.
+meter_nudges() {
+  local out
+  out="$(jq -cn --arg s "$2" --arg t "$1" '
+    {session_id: $s, transcript_path: $t, hook_event_name: "PostToolUse",
+     tool_name: "Read", tool_input: {}, tool_response: "x", tool_use_id: "toolu_verify"}' |
+    env XDG_STATE_HOME="$tmp/meter" CONTEXT_METER_KB=0 CONTEXT_METER_CALLS=1 \
+      CONTEXT_METER_MODELS=. CONTEXT_METER_MODEL_TTL=0 /usr/bin/timeout -k 2 10 "$BASH" "$meter" 2>/dev/null)"
+  jq -e '.hookSpecificOutput.additionalContext | startswith("Context meter:")' <<<"$out" >/dev/null 2>&1
+}
+
+# has_assistant <transcript>: the tail the hook reads has a main-thread,
+# non-synthetic assistant line (looser than the hook's own filter on purpose).
+has_assistant() {
+  tail -c 2097152 "$1" | grep -E '"(type|role)"[[:space:]]*:[[:space:]]*"assistant"' |
+    grep -vE '"isSidechain"[[:space:]]*:[[:space:]]*true|<synthetic>' | grep -q .
+}
+
+if [[ -s "$tmp/cur" ]]; then
+  if [[ ! -f "$meter" ]]; then
+    fail "transcript check cannot run: $meter not found from the working directory"
+  elif [[ ! -x /usr/bin/timeout ]]; then
+    fail "transcript check cannot run: /usr/bin/timeout missing"
+  else
+    meter_ok="" witness="" i=0
+    while read -r p s started; do
+      for t in "$root"/projects/*/"$s".jsonl; do
+        [[ -f "$t" ]] || continue
+        i=$((i + 1))
+        if meter_nudges "$t" "verify-$i"; then
+          meter_ok=1
+          break 2
+        fi
+        has_assistant "$t" && witness="$t"
+      done
+    done <"$tmp/cur"
+    if [[ -z "$meter_ok" && -n "$witness" ]]; then
+      fail "context-meter.sh finds no model in a transcript with assistant messages" "$witness"
+    elif [[ -z "$meter_ok" ]]; then
+      pend "no transcript of a session on the installed version has an assistant message yet"
+    fi
+  fi
+fi
 
 finish

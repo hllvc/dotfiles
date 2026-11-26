@@ -3,9 +3,11 @@
 # Runs claude-code.sh against fixtures: sessions and team configs under a temp
 # CLAUDE_CONFIG_DIR, the seen marker under a temp XDG_STATE_HOME, and a fake
 # `ps` first in PATH printing a fixture process table, so no real session,
-# team, process or state is read. VERIFY_SUITES=0 for the fixture cases (the
-# suite step is checked separately against stub suites in a temp repo root, so
-# this never recurses into teammate-sweep.test.sh). Needs jq.
+# team, process or state is read. Transcripts are fixtures too, read by a copy
+# of the real context-meter.sh placed in each temp repo root. VERIFY_SUITES=0
+# for the fixture cases (the suite step is checked separately against stub
+# suites in a temp repo root, so this never recurses into the hook suites).
+# Needs jq.
 #
 #   claude-code.test.sh
 
@@ -19,6 +21,9 @@ mkdir -p "$tmp/bin"
 printf '#!/bin/sh\ncat "%s/procs"\n' "$tmp" >"$tmp/bin/ps"
 chmod +x "$tmp/bin/ps"
 fake_path="$tmp/bin:$PATH"
+meter_src="$here/../../../claude-hooks/context-meter.sh"
+install_meter() { mkdir -p "$1/.shell/scripts/claude-hooks" && cp "$meter_src" "$1/.shell/scripts/claude-hooks/"; }
+install_meter "$tmp"
 V=2.1.400 OLD=2.1.399
 now_ms="$(($(date +%s) * 1000))"
 declare -i pass=0 fail=0 n=0
@@ -36,12 +41,31 @@ fresh() { # new config root, process table and state
   printf '1 05-01:00:00 /sbin/launchd\n77 10:00 -zsh\n' >"$tmp/procs"
 }
 
-# session <pid> <sid> [version|-] [etime]: a live lead with its sessions file.
+# session <pid> <sid> [version|-] [etime]: a live lead with its sessions file
+# and a transcript the hook can read.
 session() {
   jq -cn --argjson p "$1" --arg s "$2" --arg v "${3:-$V}" --argjson t "$now_ms" '
     {pid: $p, sessionId: $s, cwd: "/tmp", startedAt: ($t - 3600000), kind: "interactive"}
     + (if $v == "-" then {} else {version: $v} end)' >"$root/sessions/$1.json"
   proc "$1" "${4:-01:00:00}" "claude --settings {} --resume $2"
+  transcript "$2" main
+}
+
+# transcript <sid> <kind>: main (a main-thread assistant entry), user (no
+# assistant entry yet), synthetic or sidechain (only those), moved (an
+# assistant entry whose model is no longer at .message.model). Every kind
+# carries a canary that must never show up in the output.
+transcript() {
+  local t="$root/projects/-tmp/$1.jsonl"
+  mkdir -p "${t%/*}"
+  jq -cn '{type: "user", isSidechain: false, message: {role: "user", content: "CANARY-7d1f"}}' >"$t"
+  case "$2" in
+    main) jq -cn '{type: "assistant", isSidechain: false, message: {model: "claude-opus-5-5", role: "assistant", content: []}}' ;;
+    synthetic) jq -cn '{type: "assistant", isSidechain: false, message: {model: "<synthetic>", role: "assistant", content: []}}' ;;
+    sidechain) jq -cn '{type: "assistant", isSidechain: true, message: {model: "claude-opus-5-5", role: "assistant", content: []}}' ;;
+    moved) jq -cn '{type: "assistant", isSidechain: false, model: "claude-opus-5-5", message: {role: "assistant", content: ["CANARY-7d1f"]}}' ;;
+    *) ;;
+  esac >>"$t"
 }
 
 proc() { printf '%s %s %s\n' "$@" >>"$tmp/procs"; } # <pid> <etime> <args>
@@ -83,7 +107,7 @@ expect() { # <description> <exit code> <first line>
     check 0 "$1: want $2 \"$3\", got $rc: $(printf '%s' "$out" | tr '\n' '|')"
 }
 
-OK="verified: hook suite, session files, lead side, worker side"
+OK="verified: hook suites, session files, lead side, worker side, transcripts"
 
 # 1. Everything in place, a live worker resolves: ok
 fresh
@@ -234,11 +258,21 @@ out="$(cd "$tmp" && env PATH=/nonexistent VERIFY_SUITES=0 "$BASH" "$script" "$V"
 rc=$?
 expect "jq missing" 1 "jq missing"
 
-# 11. The suite step, against stub suites in a temp repo root
-suite_run() { # <stub body>
-  local r="$tmp/repo$n"
-  mkdir -p "$r/.shell/scripts/claude-hooks"
-  printf '%s\n' "$1" >"$r/.shell/scripts/claude-hooks/teammate-sweep.test.sh"
+# 11. The suite step, against stub suites in a temp repo root: all three run
+# under both interpreters
+suite_run() { # <failing suite or -> <its stub body> [missing suite]
+  local r="$tmp/repo$n" name
+  install_meter "$r"
+  rm -f "$r"/.shell/scripts/claude-hooks/*.test.sh
+  : >"$tmp/ran"
+  for name in teammate-sweep context-meter aws-profile-guard; do
+    [[ "$name" == "${3:-}" ]] && continue
+    if [[ "$name" == "$1" ]]; then
+      printf '%s\n' "$2" >"$r/.shell/scripts/claude-hooks/$name.test.sh"
+    else
+      printf 'echo "$BASH %s" >>"%s"; echo "9 passed, 0 failed"\n' "$name" "$tmp/ran" >"$r/.shell/scripts/claude-hooks/$name.test.sh"
+    fi
+  done
   out="$(cd "$r" && env CLAUDE_CONFIG_DIR="$root" XDG_STATE_HOME="$tmp/state" PATH="$fake_path" "$BASH" "$script" "$V")"
   rc=$?
 }
@@ -246,22 +280,71 @@ fresh
 session 4242 sid-a
 team alpha 4242 sid-a
 marker "$V"
-suite_run 'echo "9 passed, 0 failed"'
-expect "suite passes" 0 "$OK"
+suite_run - ''
+expect "suites pass" 0 "$OK"
+for name in teammate-sweep context-meter aws-profile-guard; do
+  [[ "$(grep -c " $name\$" "$tmp/ran")" == 2 ]] && grep -qx "/bin/bash $name" "$tmp/ran" &&
+    check 1 || check 0 "$name.test.sh not run under both interpreters: $(tr '\n' '|' <"$tmp/ran")"
+done
 fresh
 session 4242 sid-a
 team alpha 4242 sid-a
 marker "$V"
-suite_run 'echo "8 passed, 1 failed"; exit 1'
+suite_run context-meter 'echo "8 passed, 1 failed"; exit 1'
 first="${out%%$'\n'*}"
-[[ "$rc" == 1 && "$first" == "teammate-sweep.test.sh failed under "*bash && "$out" == *"1 failed"* ]] &&
+[[ "$rc" == 1 && "$first" == "context-meter.test.sh failed under "*bash && "$out" == *"1 failed"* ]] &&
   check 1 || check 0 "suite failure: got $rc: $(printf '%s' "$out" | tr '\n' '|')"
-[[ "$out" == *"also: teammate-sweep.test.sh failed under /bin/bash"* || "$first" == *"under /bin/bash" ]] &&
+[[ "$out" == *"also: context-meter.test.sh failed under /bin/bash"* || "$first" == *"under /bin/bash" ]] &&
   check 1 || check 0 "suite failure does not name /bin/bash: $out"
+[[ "$out" != *"teammate-sweep.test.sh failed"* && "$out" != *"aws-profile-guard.test.sh failed"* ]] &&
+  check 1 || check 0 "passing suites reported as failed: $out"
+# ...one suite missing is a failure that names it
+suite_run - '' aws-profile-guard
+expect "one suite missing" 1 "hook suite cannot run: .shell/scripts/claude-hooks/aws-profile-guard.test.sh not found from the working directory"
 out="$(cd "$tmp" && env CLAUDE_CONFIG_DIR="$root" XDG_STATE_HOME="$tmp/state" PATH="$fake_path" "$BASH" "$script" "$V")"
 rc=$?
 first="${out%%$'\n'*}"
 [[ "$rc" == 1 && "$first" == "hook suite cannot run: "* ]] && check 1 || check 0 "missing suite: got $rc: $out"
+
+# 12. Transcripts: the real context-meter.sh must find a model in one
+fresh
+session 4242 sid-a
+team alpha 4242 sid-a
+marker "$V"
+transcript sid-a user
+run
+expect "pending, no assistant entry yet" 3 "no transcript of a session on the installed version has an assistant message yet"
+# ...nor are synthetic or sidechain-only entries evidence, nor a missing file
+transcript sid-a synthetic
+run
+expect "pending, synthetic only" 3 "no transcript of a session on the installed version has an assistant message yet"
+transcript sid-a sidechain
+run
+expect "pending, sidechain only" 3 "no transcript of a session on the installed version has an assistant message yet"
+rm -f "$root/projects/-tmp/sid-a.jsonl"
+run
+expect "pending, no transcript" 3 "no transcript of a session on the installed version has an assistant message yet"
+# ...sessions on other versions don't count
+session 4243 sid-old "$OLD"
+run
+expect "pending, only an old session's transcript" 3 "no transcript of a session on the installed version has an assistant message yet"
+# Fail: assistant activity the hook gets no model from; the transcript is
+# named, its content never shown
+transcript sid-a moved
+run
+expect "fail, model moved" 1 "context-meter.sh finds no model in a transcript with assistant messages"
+[[ "$out" == *"/projects/-tmp/sid-a.jsonl"* ]] && check 1 || check 0 "transcript not named: $out"
+[[ "$out" != *CANARY* ]] && check 1 || check 0 "transcript content leaked: $out"
+# ...but one readable transcript among them is enough
+session 4244 sid-b
+run
+expect "ok, one readable transcript" 0 "$OK"
+[[ ! -e "$tmp/state/claude/context-meter" ]] && check 1 || check 0 "hook state written outside the verify temp dir"
+# The check needs the hook from the working directory
+transcript sid-b moved
+out="$(cd "$tmp/bin" && env CLAUDE_CONFIG_DIR="$root" XDG_STATE_HOME="$tmp/state" PATH="$fake_path" VERIFY_SUITES=0 "$BASH" "$script" "$V")"
+rc=$?
+expect "hook missing" 1 "transcript check cannot run: .shell/scripts/claude-hooks/context-meter.sh not found from the working directory"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 ((fail == 0))
