@@ -28,8 +28,10 @@ trap 'exit 0' EXIT
 input="$(cat)" || exit 0
 
 # Fast path, no jq: subagent payloads put "agent_id" ahead of "tool_input", so
-# only that header is checked (tool output can't fake it).
-head="${input%%\"tool_input\":*}"
+# only that header is checked (tool output can't fake it). Only the first 4 KB:
+# the removal is quadratic in what it searches when "tool_input" isn't there.
+head="${input:0:4096}"
+head="${head%%\"tool_input\":*}"
 [[ "$head" == *'"agent_id":"'[!\"]* ]] && exit 0
 
 command -v jq >/dev/null || exit 0

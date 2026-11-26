@@ -32,7 +32,7 @@ call() { # <tool> <bytes> [sub]
     + {hook_event_name: "PostToolUse", tool_name: $tool, tool_input: {},
        tool_response: ("x" * $b // ""), tool_use_id: "toolu_1"}
     + (if $sub == "sub-late" then {agent_id: "a0123"} else {} end)' |
-    env ${envs[@]+"${envs[@]}"} bash "$here/context-meter.sh"
+    env ${envs[@]+"${envs[@]}"} "$BASH" "$here/context-meter.sh"
 }
 
 while IFS= read -r line; do
@@ -75,21 +75,28 @@ quiet() { # <description> <command...>
 }
 n+=1 sid="test-$n" transcript="$tmp/t$n.jsonl" envs=(CONTEXT_METER_KB=0)
 : >"$transcript"; entry false claude-fable-1
-quiet "garbage input" bash -c 'echo "not json {" | bash "$1"' _ "$here/context-meter.sh"
-quiet "empty input" bash -c 'bash "$1" </dev/null' _ "$here/context-meter.sh"
-quiet "jq missing" bash -c 'PATH=/nonexistent; "$2" "$1" </dev/null' _ "$here/context-meter.sh" "$(command -v bash)"
-quiet "bad session id" bash -c 'jq -cn "{session_id: \"../x\", tool_name: \"Read\", tool_response: \"x\"}" | bash "$1"' _ "$here/context-meter.sh"
-quiet "bad budget" env CONTEXT_METER_KB=lots bash -c 'jq -cn --arg t "$2" "{session_id: \"s\", transcript_path: \$t, tool_name: \"Read\", tool_response: \"x\"}" | bash "$1"' _ "$here/context-meter.sh" "$transcript"
+quiet "garbage input" "$BASH" -c 'echo "not json {" | "$BASH" "$1"' _ "$here/context-meter.sh"
+quiet "empty input" "$BASH" -c '"$BASH" "$1" </dev/null' _ "$here/context-meter.sh"
+quiet "jq missing" "$BASH" -c 'PATH=/nonexistent; "$2" "$1" </dev/null' _ "$here/context-meter.sh" "$BASH"
+quiet "bad session id" "$BASH" -c 'jq -cn "{session_id: \"../x\", tool_name: \"Read\", tool_response: \"x\"}" | "$BASH" "$1"' _ "$here/context-meter.sh"
+quiet "bad budget" env CONTEXT_METER_KB=lots "$BASH" -c 'jq -cn --arg t "$2" "{session_id: \"s\", transcript_path: \$t, tool_name: \"Read\", tool_response: \"x\"}" | "$BASH" "$1"' _ "$here/context-meter.sh" "$transcript"
 mkdir -p "$tmp/ro" && chmod 555 "$tmp/ro"
-quiet "unwritable state" env XDG_STATE_HOME="$tmp/ro" CONTEXT_METER_KB=0 bash -c 'jq -cn --arg t "$2" "{session_id: \"s\", transcript_path: \$t, tool_name: \"Read\", tool_response: \"x\"}" | bash "$1"' _ "$here/context-meter.sh" "$transcript"
+quiet "unwritable state" env XDG_STATE_HOME="$tmp/ro" CONTEXT_METER_KB=0 "$BASH" -c 'jq -cn --arg t "$2" "{session_id: \"s\", transcript_path: \$t, tool_name: \"Read\", tool_response: \"x\"}" | "$BASH" "$1"' _ "$here/context-meter.sh" "$transcript"
 # A damaged state file starts over instead of going quiet for good.
 printf 'garbage\n' >"$XDG_STATE_HOME/claude/context-meter/$sid"
 out="$(call Read 10)"
 [[ -n "$out" ]] && check 1 || check 0 "damaged state: expected a nudge"
 # A tool_response that merely mentions agent_id is still metered.
 out="$(jq -cn --arg s "$sid" --arg t "$transcript" '{session_id: $s, transcript_path: $t, hook_event_name: "PostToolUse", tool_name: "Read", tool_input: {}, tool_response: {content: "{\"agent_id\":\"a1\"}"}}' |
-  env CONTEXT_METER_KB=0 bash "$here/context-meter.sh")"
+  env CONTEXT_METER_KB=0 "$BASH" "$here/context-meter.sh")"
 [[ -n "$out" ]] && check 1 || check 0 "agent_id inside tool_response: expected a nudge"
+# A big payload without "tool_input" (key order changed) is still metered, and
+# fast: the fast path only searches the head (it used to take minutes at 1 MB).
+to=()
+[[ -x /usr/bin/timeout ]] && to=(/usr/bin/timeout -k 2 10)
+out="$(jq -cn --arg s "$sid" --arg t "$transcript" '{session_id: $s, transcript_path: $t, hook_event_name: "PostToolUse", tool_name: "Read", tool_response: ("x" * 1000000)}' |
+  env CONTEXT_METER_KB=0 ${to[@]+"${to[@]}"} "$BASH" "$here/context-meter.sh")"
+[[ -n "$out" ]] && check 1 || check 0 "1 MB payload without tool_input: expected a nudge within 10 s"
 # Old state files are pruned when a new session starts.
 touch -t 202001010000 "$XDG_STATE_HOME/claude/context-meter/stale"
 n+=1 sid="test-$n"; call Read 10 >/dev/null

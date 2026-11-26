@@ -16,7 +16,7 @@ while IFS= read -r line; do
   want="${line%% :: *}"
   cmd="${line#* :: }"
   out="$(jq -cn --arg c "$cmd" '{hook_event_name: "PreToolUse", tool_name: "Bash", tool_input: {command: $c}}' |
-    bash "$here/aws-profile-guard.sh")"
+    "$BASH" "$here/aws-profile-guard.sh")"
   if [[ -n "$out" ]] && jq -e '.hookSpecificOutput.permissionDecision == "ask"' <<<"$out" >/dev/null 2>&1; then
     got=ask
   elif [[ -z "$out" ]]; then
