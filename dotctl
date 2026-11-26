@@ -848,7 +848,8 @@ usage_versions() {
   cat <<EOF
 Usage: ./dotctl versions [status [--brief|--issues] | review <tool...> |
                           accept <tool...|--all|--triaged> | upgrade <tool> |
-                          pins | auto [-n] | accepted [--days N]]
+                          verify [tool...] | pins | auto [-n] |
+                          accepted [--days N]]
 
 Compares each tool's installed version with the one recorded in .versions —
 the version this repo's config was last checked against. Drift is the cue to
@@ -863,7 +864,7 @@ Subcommands:
              --issues prints the table without the ok rows (nothing at all
              when everything is ok).
   review     Triage the named tools now (the manual trigger, and the only one
-             for review=manual tools like claude-code): no config impact is
+             for review=manual tools like macOS): no config impact is
              accepted and committed, anything else gets a drafted plan in a
              window of the \`updates\` tmux session (personal socket).
   accept     Record the installed version as tested, dated today (an X.Y.x
@@ -871,7 +872,13 @@ Subcommands:
              becomes the installed version), and sync the in-file copies
              (.tmux.conf @target_version, nvim init.lua and README). --triaged takes every tool triage found no config
              impact for. Closes the tool's \`updates\` window unless run from
-             inside it. Does not commit.
+             inside it. Does not commit. A tool with a verify script is
+             verified first: failed aborts with nothing written, pending
+             only prints a note.
+  verify     Run the verify script (versions-review/verify/<tool>.sh) of the
+             named tools, default every tool that has one, against the
+             installed version, and record the result. Exits 1 when any
+             failed, 3 when any is pending, else 0.
   upgrade    Upgrade a brew-pinned tool now: unpin, brew upgrade, pin again.
              Review its changes, then accept.
   pins       Make \`brew pin\` match the pin column. Idempotent; also part of
@@ -899,6 +906,10 @@ States:
   held       a pinned formula has a newer version waiting
   unpinned   the pin column is set but brew has the formula unpinned
   missing    the probe printed nothing (tool not installed?)
+  verify failed
+             the tool's verify script failed, at the installed or an earlier
+             version; it stays until a later run passes. A pending or not yet
+             run verify is only noted in the triage column.
 EOF
 }
 
@@ -907,6 +918,10 @@ readonly VERSIONS_FORMAT='%-25s %-9s %-9s %-11s %-6s %-7s %-6s %-47s %s\n'
 # Triage results of the versions-review agent, one <tool>.json each.
 readonly VERSIONS_CACHE="${VERSIONS_REVIEW_CACHE:-$HOME/Library/Caches/com.hllvc.versions-review}"
 readonly VERSIONS_REVIEW_DIR="$REPO_ROOT/.shell/scripts/crons/versions-review"
+# Verify scripts, <tool>.sh each, found by name; the result goes to
+# $VERSIONS_CACHE/<tool>.verify.
+readonly VERSIONS_VERIFY_DIR="${VERSIONS_REVIEW_VERIFY_DIR:-$VERSIONS_REVIEW_DIR/verify}"
+readonly VERSIONS_VERIFY_TIMEOUT="${VERSIONS_VERIFY_TIMEOUT:-300}"
 
 _versions_require_file() {
   [[ -f "$VERSIONS_FILE" ]] || {
@@ -1078,7 +1093,7 @@ _versions_status() {
   done
   _versions_require_file || return 1
 
-  local brew_state tool tested last checked pin review silent changes probe installed state n held level triage from
+  local brew_state tool tested last checked pin review silent changes probe installed state n held level triage from verify vv vreason
   local -i issues=0
   local -a notes review_list=()
   brew_state="$(_versions_brew_state)"
@@ -1132,6 +1147,30 @@ _versions_status() {
         triage="$(_versions_triage "$tool" "$from" "$installed" "$installed")"
         [[ "$triage" != "-" ]] || triage="untriaged since $from"
       fi
+    fi
+    # Verify result, for a tool with a script: failed is an issue, pending and
+    # not yet run are only noted.
+    if [[ -n "$installed" ]]; then
+      verify="$(_versions_verify_state "$tool" "$installed")"
+      # A note stands alone rather than after the "-" placeholder.
+      if [[ -n "$verify" && "$verify" != ok* && "$triage" == "-" ]]; then
+        triage=""
+      fi
+      case "$verify" in
+      failed*)
+        read -r _ vv vreason <<<"$verify"
+        if [[ "$state" == ok ]]; then
+          issues+=1
+          state="verify failed"
+        else
+          state+=", verify failed"
+        fi
+        triage+="${triage:+; }verify failed at $vv: $vreason"
+        ((!brief)) || echo "$tool: verify failed at $vv — $vreason (./dotctl versions verify $tool)"
+        ;;
+      pending*) triage+="${triage:+; }verify pending" ;;
+      unverified*) triage+="${triage:+; }unverified" ;;
+      esac
     fi
     if ((!brief)) && [[ "$state" != ok || $only_issues -eq 0 ]]; then
       # Header on the first printed row, so --issues stays silent when all ok.
@@ -1237,10 +1276,116 @@ _versions_triaged_tools() {
   return 0
 }
 
+# Last verify result of a tool, read-only: "<state> <version> <reason>", state
+# ok, pending, failed or unverified (no record for the installed version). A
+# failure stays until a later run says otherwise, even after the installed
+# version moved on. Nothing when the tool has no verify script.
+_versions_verify_state() {
+  local tool="$1" installed="$2" v="" result="" reason=""
+  [[ -f "$VERSIONS_VERIFY_DIR/$tool.sh" ]] || return 0
+  if [[ -f "$VERSIONS_CACHE/$tool.verify" ]]; then
+    read -r v result reason <"$VERSIONS_CACHE/$tool.verify" || true
+  fi
+  if [[ "$result" == failed || ("$v" == "$installed" && "$result" =~ ^(ok|pending)$) ]]; then
+    echo "$result $v $reason"
+  else
+    echo "unverified - -"
+  fi
+}
+
+# Run a tool's verify script against a version, from the repo root, and record
+# the result as "<version> <result> <reason>". The script's exit says the
+# result: 0 ok, 3 pending (needs evidence only real use gives), anything else
+# failed; its first output line is the reason. Returns 0, 3 or 1.
+_versions_verify_one() {
+  local tool="$1" v="$2" out result reason file="$VERSIONS_CACHE/$1.verify"
+  local -i rc=0
+  out="$(cd "$REPO_ROOT" && /usr/bin/timeout -k 5 "$VERSIONS_VERIFY_TIMEOUT" \
+    bash "$VERSIONS_VERIFY_DIR/$tool.sh" "$v" </dev/null 2>&1)" || rc=$?
+  case "$rc" in
+  0) result=ok ;;
+  3) result=pending ;;
+  *) result=failed ;;
+  esac
+  reason="${out%%$'\n'*}"
+  if ((rc == 124 || rc == 137)); then
+    reason="timed out after ${VERSIONS_VERIFY_TIMEOUT}s"
+  elif [[ -z "${reason//[[:space:]]/}" ]]; then
+    reason="exit $rc, no reason given"
+  fi
+  [[ ${#reason} -le 100 ]] || reason="${reason:0:99}…"
+  if ! { mkdir -p "$VERSIONS_CACHE" &&
+    printf '%s %s %s\n' "$v" "$result" "$reason" >"$file.tmp" &&
+    mv "$file.tmp" "$file"; }; then
+    echo "versions verify: $tool: could not write $file" >&2
+    return 1
+  fi
+  echo "$tool $v: verify $result — $reason"
+  case "$result" in
+  ok) return 0 ;;
+  pending) return 3 ;;
+  esac
+  return 1
+}
+
+# Verify the named tools, default every tool with a script, at their installed
+# version. Returns 1 if any failed, else 3 if any is pending, else 0.
+_versions_verify() {
+  _versions_require_file || return 1
+  local -a tools=()
+  local t f probe v
+  local -i rc worst=0
+  if (($#)); then
+    for t in "$@"; do
+      [[ -n "$(_versions_row "$t")" ]] || {
+        echo "versions verify: unknown tool: $t" >&2
+        return 1
+      }
+      [[ -f "$VERSIONS_VERIFY_DIR/$t.sh" ]] || {
+        echo "versions verify: $t: no verify script" >&2
+        return 1
+      }
+      tools+=("$t")
+    done
+  else
+    for f in "$VERSIONS_VERIFY_DIR"/*.sh; do
+      t="$(basename "$f" .sh)"
+      [[ "$t" != *.test ]] || continue # a script's own test suite
+      if [[ -z "$(_versions_row "$t")" ]]; then
+        echo "versions verify: ${f#"$REPO_ROOT"/} matches no tool in .versions" >&2
+        continue
+      fi
+      tools+=("$t")
+    done
+    ((${#tools[@]})) || {
+      echo "versions verify: no verify scripts"
+      return 0
+    }
+  fi
+  for t in "${tools[@]}"; do
+    read -r _ _ _ _ _ _ _ _ probe <<<"$(_versions_row "$t")"
+    v="$(_versions_probe "$probe")"
+    if [[ -z "$v" ]]; then
+      echo "versions verify: $t: probe printed nothing ($probe)" >&2
+      worst=1
+      continue
+    fi
+    rc=0
+    _versions_verify_one "$t" "$v" || rc=$?
+    if ((rc == 1)); then
+      worst=1
+    elif ((rc == 3 && worst == 0)); then
+      worst=3
+    fi
+  done
+  return "$worst"
+}
+
 _versions_accept() {
   local -a tools=() accepted=()
   local -i all=0 triaged=0
   local t row probe v
+  local -i rc
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --all) all=1 ;;
@@ -1287,6 +1432,17 @@ _versions_accept() {
       echo "versions accept: $t: probe printed nothing ($probe)" >&2
       return 1
     }
+    # A tool with a verify script must not fail it at the version accepted.
+    if [[ -f "$VERSIONS_VERIFY_DIR/$t.sh" ]]; then
+      rc=0
+      _versions_verify_one "$t" "$v" || rc=$?
+      if ((rc == 3)); then
+        echo "versions accept: $t: verify pending at $v, accepting anyway"
+      elif ((rc != 0)); then
+        echo "versions accept: $t: verify failed at $v, nothing written" >&2
+        return 1
+      fi
+    fi
     accepted+=("$t $v")
   done
 
@@ -1482,6 +1638,7 @@ cmd_versions() {
     "$VERSIONS_REVIEW_DIR/review.sh" "$@"
     ;;
   accept) _versions_accept "$@" ;;
+  verify) _versions_verify "$@" ;;
   upgrade) _versions_upgrade "$@" ;;
   pins) _versions_pins ;;
   auto) _versions_auto "$@" ;;

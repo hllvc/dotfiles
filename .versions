@@ -37,6 +37,10 @@
 #            first X.Y[.Z] token (or the first word, cut to 7 chars for a git
 #            SHA) is compared
 #
+# A tool can also have a verify script, .shell/scripts/crons/versions-review/
+# verify/<tool>.sh, run with the installed version (exit 0 ok, 3 pending,
+# else failed) by the daily agent, accept and `dotctl versions verify`.
+#
 # tool                    tested    last      checked     pin    review  silent changes                                         probe
 tmux                      3.8       -         2026-10-20  patch  strict  any    /opt/homebrew/opt/tmux/CHANGES                  tmux -V
 neovim                    0.12.6    -         2026-10-20  patch  strict  any    nvim:help-news                                  nvim --version

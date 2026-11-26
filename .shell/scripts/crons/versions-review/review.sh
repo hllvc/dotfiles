@@ -30,9 +30,15 @@
 # --auto leaves those alone; the range then starts at the last column (the exact
 # version last accepted), and `review.sh <tool>` triages last → installed.
 #
+# A tool with a verify script (verify/<tool>.sh, see `dotctl versions verify`)
+# is verified first whenever its installed version has no ok result, wildcard
+# patch releases included. A failure is one sticky notification per distinct
+# reason; ok and pending stay quiet.
+#
 # Results are cached per tool for one range (from → target), so a range is
 # triaged and planned once. Env overrides, for testing against a clone:
-# VERSIONS_REVIEW_REPO, VERSIONS_REVIEW_CACHE, VERSIONS_REVIEW_SESSION.
+# VERSIONS_REVIEW_REPO, VERSIONS_REVIEW_CACHE, VERSIONS_REVIEW_SESSION,
+# VERSIONS_REVIEW_VERIFY_DIR.
 
 set -u
 
@@ -42,6 +48,8 @@ set -u
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 readonly REPO="${VERSIONS_REVIEW_REPO:-$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)}"
 readonly CACHE="${VERSIONS_REVIEW_CACHE:-$HOME/Library/Caches/com.hllvc.versions-review}"
+# Where dotctl looks for verify scripts (it reads the same override).
+readonly VERIFY_DIR="${VERSIONS_REVIEW_VERIFY_DIR:-$REPO/.shell/scripts/crons/versions-review/verify}"
 readonly LOG_DIR="$HOME/Library/Logs/com.hllvc.versions-review"
 # launchd's PATH has no ~/.local/bin, where claude lives.
 readonly CLAUDE="${VERSIONS_REVIEW_CLAUDE:-$HOME/.local/bin/claude}"
@@ -162,6 +170,23 @@ _notify_open() {
     esac
   ) >/dev/null 2>&1 &
   disown
+}
+
+# Run the tool's verify script unless its installed version already passed.
+# The record is compared before and after, so a failure notifies once per
+# distinct reason.
+_verify() {
+  local tool="$1" installed="$2" file="$CACHE/$1.verify" before="" after="" v result reason bresult breason
+  [[ -f "$VERIFY_DIR/$tool.sh" ]] || return 0
+  [[ -f "$file" ]] && before="$(<"$file")"
+  [[ "$before" != "$installed ok "* ]] || return 0
+  "$REPO/dotctl" versions verify "$tool" || true
+  [[ -f "$file" ]] && after="$(<"$file")"
+  read -r v result reason <<<"$after"
+  read -r _ bresult breason <<<"$before"
+  if [[ "$result" == failed && ("$bresult" != failed || "$breason" != "$reason") ]]; then
+    _say sticky "Verify failed: $tool $v" "$reason — dotctl versions verify $tool"
+  fi
 }
 
 # ─── triage ───────────────────────────────────────────────────────────────
@@ -360,6 +385,7 @@ _review_tool() {
     echo "$tool: probe printed nothing — skipped"
     return 0
   fi
+  _verify "$tool" "$installed"
   to="$installed"
   [[ "$held" == "-" ]] || to="$held"
   # --auto: a patch release inside an X.Y.x wildcard is not drift. By hand,
