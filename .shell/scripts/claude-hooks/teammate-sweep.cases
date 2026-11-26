@@ -1,0 +1,199 @@
+# Scenarios for teammate-sweep.sh; run teammate-sweep.test.sh. Each line is one of:
+#   session [VAR=value ...]          start fresh (new config root, process table, state,
+#                                    session id) with this env for every stop
+#   lead <pid> [other]               write sessions/<pid>.json for this session id
+#                                    (other: for some other session id) and make
+#                                    <pid> the lead for later team lines
+#   team <name> [<pid>|-]            new team config led by the lead pid (or <pid>;
+#                                    - leaves leadProcess out, the older format);
+#                                    later member lines go to it
+#   member <name> <type> <idle|busy|new> <age>  add or replace a tmux member that
+#                                    joined <age> minutes before the test started
+#                                    (new: no isActive yet), with a live process
+#   proc <name> | noproc <name>      start / kill that member's process, config untouched
+#   gone <name>                      TaskStop: member and process both removed
+#   clear                            /clear: new session id for the same lead pid
+#   compact                          rewrite the current team config without whitespace
+#   filler <n>                       add <n> long unrelated lines to the process table
+#   rewind <min>                     age every recorded raise by <min> minutes
+#   bg <type> ...                    the next stop has these background_tasks
+#   <want> :: stop [active]          one hook call; want is "nudge" or "quiet";
+#                                    active sets stop_hook_active
+#   has :: <text> | lacks :: <text>  the last nudge does / doesn't contain this text
+# Failure modes (garbage or empty stdin, jq missing, truncated config.json,
+# unwritable state, ...) are checked in teammate-sweep.test.sh itself.
+#
+# 1. Raised once, then quiet; stop_hook_active exits before recording
+session
+lead 4242
+team session-21803c55
+member scout scout idle 5
+member build builder idle 3
+quiet :: stop active
+nudge :: stop
+has :: Idle teammates still running: scout (scout), build (builder). `TaskStop <name>` each one you are done with, keep the rest. Reply in one line, then end your turn as before; anything you are waiting on will still notify you.
+quiet :: stop
+quiet :: stop
+# a member going idle later is raised alone
+member late runner idle 1
+nudge :: stop
+has :: running: late (runner).
+lacks :: scout
+quiet :: stop
+# the reminder comes back once the window has passed
+rewind 59
+quiet :: stop
+rewind 2
+nudge :: stop
+has :: scout (scout), build (builder), late (runner).
+quiet :: stop
+# 2. Busy and not-yet-started members are not idle
+session
+lead 4242
+team alpha
+member busy1 scout busy 5
+member fresh builder new 0
+quiet :: stop
+member busy1 scout idle 5
+nudge :: stop
+has :: running: busy1 (scout).
+lacks :: fresh
+# 3. Dead member with a live namesake stays quiet
+session
+lead 4242
+team alpha
+member scout scout idle 5
+member scout-2 scout busy 2
+noproc scout
+quiet :: stop
+proc scout
+nudge :: stop
+has :: running: scout (scout).
+lacks :: scout-2
+# ...and a namesake in another team doesn't keep it alive either
+session
+lead 4242
+team alpha
+member scout scout idle 5
+noproc scout
+team alphabet 9999
+member scout scout idle 5
+quiet :: stop
+# 4. After /clear, survivors are raised once more under the new session id
+session
+lead 4242
+team alpha
+member scout scout idle 5
+member gone1 runner idle 4
+nudge :: stop
+quiet :: stop
+gone gone1
+clear
+nudge :: stop
+has :: running: scout (scout).
+lacks :: gone1
+quiet :: stop
+# 5. Same name spawned again is raised again
+session
+lead 4242
+team alpha
+member scout scout idle 5
+nudge :: stop
+gone scout
+quiet :: stop
+member scout scout busy 0
+quiet :: stop
+member scout scout idle 0
+nudge :: stop
+has :: running: scout (scout).
+# 6. A teammate's own Stop (no sessions json for its id) is quiet
+session
+lead 4242 other
+team alpha 4242
+member scout scout idle 5
+quiet :: stop
+# a stale config sharing the lead pid, an older-format config and another
+# lead's team contribute no names
+session
+lead 4242
+team stale
+member old scout idle 900
+noproc old
+team legacy -
+member leg scout idle 5
+team foreign 9999
+member far scout idle 5
+team alpha
+member scout scout idle 5
+nudge :: stop
+has :: Idle teammates still running: scout (scout).
+lacks :: old
+lacks :: leg
+lacks :: far
+# 7. Waiting on a subagent or workflow is quiet, a shell task still nudges
+session
+lead 4242
+team alpha
+member scout scout idle 5
+bg subagent
+quiet :: stop
+bg workflow
+quiet :: stop
+bg shell subagent
+quiet :: stop
+bg shell
+nudge :: stop
+# 8. TEAMMATE_SWEEP_REMIND_MIN=0 re-raises; a non-numeric value stays quiet
+session TEAMMATE_SWEEP_REMIND_MIN=0
+lead 4242
+team alpha
+member scout scout idle 5
+nudge :: stop
+nudge :: stop
+session TEAMMATE_SWEEP_REMIND_MIN=5
+lead 4242
+team alpha
+member scout scout idle 5
+nudge :: stop
+rewind 4
+quiet :: stop
+rewind 2
+nudge :: stop
+session TEAMMATE_SWEEP_REMIND_MIN=soon
+lead 4242
+team alpha
+member scout scout idle 5
+quiet :: stop
+# Names outside [A-Za-z0-9._-] are skipped
+session
+lead 4242
+team alpha
+member sc$out scout idle 5
+quiet :: stop
+member ok scout idle 5
+nudge :: stop
+lacks :: sc$out
+# Team configs are narrowed by lead pid: 123 doesn't pick up 1234's team, and a
+# compact config (no space after the colon) still matches
+session
+lead 123
+team foreign 1234
+member far scout idle 5
+team tight
+member near builder idle 5
+compact
+nudge :: stop
+has :: Idle teammates still running: near (builder).
+lacks :: far
+# A large process table (a hang here means a scan grows with it under bash 3.2)
+session
+filler 2500
+lead 4242
+team alpha
+member scout scout idle 5
+filler 2500
+member build builder idle 3
+noproc build
+nudge :: stop
+has :: Idle teammates still running: scout (scout).
+lacks :: build

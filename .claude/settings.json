@@ -111,6 +111,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.shell/scripts/claude-hooks/teammate-sweep.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   },
   "worktree": {
