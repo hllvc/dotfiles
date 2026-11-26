@@ -13,14 +13,22 @@
 # - The lead is the pid whose $root/sessions/<pid>.json carries this session_id
 #   (root = CLAUDE_CONFIG_DIR or ~/.claude). Teammates have no such file, so
 #   their own Stop is quiet; looking up by pid is what survives /clear.
-# - Candidates: members of every $root/teams/*/config.json whose
-#   leadProcess.pid is the lead, with backendType "tmux" and isActive strictly
-#   false (the flag is absent on a just-spawned worker). Configs without
-#   leadProcess (older format) never match. grep narrows the configs first.
+# - Members: those of every $root/teams/*/config.json whose leadProcess.pid is
+#   the lead, with backendType "tmux" and a boolean isActive (the flag is absent
+#   on a just-spawned worker). Configs without leadProcess (older format) never
+#   match. grep narrows the configs first. Candidates are the idle ones
+#   (isActive false).
 # - Only members with a live process count: one `ps` capture, matched on the
 #   exact token pair `--agent-id <name>@<team>` (so scout never matches scout-2).
 #   Must stay fast under macOS's /bin/bash 3.2: nothing that grows with the
 #   process table is held or transformed in a shell variable.
+# - Seen marker: when any member, busy or idle, matches a live process, the
+#   whole chain has just worked on the lead's CLI version. It creates an empty
+#   $XDG_STATE_HOME/claude/teammate-sweep-seen/<version>, version read from the
+#   lead's sessions/<pid>.json (x.y.z only). Done before raising, whether or not
+#   anything is raised; any failure is silent. A sibling of the state directory,
+#   so the 7-day prune never removes it. versions-review/verify/claude-code.sh
+#   reads it.
 # - Each name:joinedAt is raised once per TEAMMATE_SWEEP_REMIND_MIN minutes
 #   (default 60, 0 = every Stop); a re-spawned worker with the same name has a
 #   new joinedAt and is raised again.
@@ -71,8 +79,8 @@ while IFS= read -r f; do
 done < <(grep -lF -- "$sid" "$root"/sessions/*.json)
 [[ -n "$pid" ]] || exit 0
 
-# Idle tmux members of this lead's teams: team, name, agentType, joinedAt,
-# separated by \x1f (empty fields survive, unlike with tab). grep narrows the
+# Tmux members of this lead's teams with a boolean isActive: team, name,
+# agentType, joinedAt, isActive, separated by \x1f (empty fields survive, unlike with tab). grep narrows the
 # configs to those mentioning "pid": <pid> (stale ones pile up), then one jq per
 # match confirms leadProcess.pid, so a truncated file drops only itself.
 rows=()
@@ -82,8 +90,8 @@ while IFS= read -r cfg; do
     select(type == "object" and (.leadProcess | type) == "object" and .leadProcess.pid == $pid)
     | (.name // "") as $t
     | (.members // [])[]?
-    | select(type == "object" and .backendType == "tmux" and .isActive == false)
-    | [$t, (.name // ""), (.agentType // ""), (.joinedAt // "")]
+    | select(type == "object" and .backendType == "tmux" and (.isActive | type) == "boolean")
+    | [$t, (.name // ""), (.agentType // ""), (.joinedAt // ""), .isActive]
     | map(tostring | explode | map(select(. >= 32)) | implode) | join("\u001f")
   ' "$cfg")" || continue
   while IFS= read -r row; do
@@ -103,11 +111,13 @@ state="$dir/$sid"
 old=""
 [[ -f "$state" ]] && old="$(<"$state")"
 
-keys=() labels=()
+keys=() labels=() seen=""
 for row in "${rows[@]}"; do
-  IFS=$'\x1f' read -r team name type joined <<<"$row"
+  IFS=$'\x1f' read -r team name type joined idle <<<"$row"
   [[ "$team" =~ ^[A-Za-z0-9._-]+$ && "$name" =~ ^[A-Za-z0-9._-]+$ && "$joined" =~ ^[0-9]+$ ]] || continue
   [[ "$ids" == *$'\n'"$name@$team"$'\n'* ]] || continue
+  seen=1
+  [[ "$idle" == false ]] || continue
   key="$name:$joined"
   raised=""
   while read -r k t; do
@@ -117,6 +127,16 @@ for row in "${rows[@]}"; do
   keys+=("$key")
   if [[ -n "$type" ]]; then labels+=("$name ($type)"); else labels+=("$name"); fi
 done
+
+# Seen marker, a silent side effect: never stops the raise below.
+if [[ -n "$seen" ]]; then
+  ver="$(jq -r '.version | strings' "$root/sessions/$pid.json")"
+  if [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    seen_dir="${XDG_STATE_HOME:-$HOME/.local/state}/claude/teammate-sweep-seen"
+    [[ -e "$seen_dir/$ver" ]] || { mkdir -p "$seen_dir" && : >>"$seen_dir/$ver"; }
+  fi
+fi
+
 ((${#keys[@]})) || exit 0
 
 list="${labels[0]}"

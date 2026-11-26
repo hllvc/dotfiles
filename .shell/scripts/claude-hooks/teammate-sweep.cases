@@ -1,9 +1,10 @@
 # Scenarios for teammate-sweep.sh; run teammate-sweep.test.sh. Each line is one of:
 #   session [VAR=value ...]          start fresh (new config root, process table, state,
 #                                    session id) with this env for every stop
-#   lead <pid> [other]               write sessions/<pid>.json for this session id
-#                                    (other: for some other session id) and make
-#                                    <pid> the lead for later team lines
+#   lead <pid> [other] [version=<v>] write sessions/<pid>.json for this session id
+#                                    (other: for some other session id) with CLI
+#                                    version <v> (default 9.8.7, - leaves it out)
+#                                    and make <pid> the lead for later team lines
 #   team <name> [<pid>|-]            new team config led by the lead pid (or <pid>;
 #                                    - leaves leadProcess out, the older format);
 #                                    later member lines go to it
@@ -20,6 +21,8 @@
 #   <want> :: stop [active]          one hook call; want is "nudge" or "quiet";
 #                                    active sets stop_hook_active
 #   has :: <text> | lacks :: <text>  the last nudge does / doesn't contain this text
+#   seen :: <v> | unseen :: <v>      the seen marker for CLI version <v> exists / doesn't
+#                                    (markers are cleared by each session line)
 # Failure modes (garbage or empty stdin, jq missing, truncated config.json,
 # unwritable state, ...) are checked in teammate-sweep.test.sh itself.
 #
@@ -197,3 +200,51 @@ noproc build
 nudge :: stop
 has :: Idle teammates still running: scout (scout).
 lacks :: build
+# 9. Seen marker: a live member, busy or idle, marks the lead's version, even
+# when nothing is raised
+session
+lead 4242
+team alpha
+member busy1 scout busy 5
+quiet :: stop
+seen :: 9.8.7
+session
+lead 4242 version=2.1.400
+team alpha
+member scout scout idle 5
+nudge :: stop
+quiet :: stop
+seen :: 2.1.400
+unseen :: 9.8.7
+# idle but dead, and just spawned, mark nothing
+session
+lead 4242
+team alpha
+member scout scout idle 5
+noproc scout
+member fresh builder new 0
+quiet :: stop
+unseen :: 9.8.7
+# a lead file without a version, or with a malformed one, nudges as before
+session
+lead 4242 version=-
+team alpha
+member scout scout idle 5
+nudge :: stop
+has :: Idle teammates still running: scout (scout).
+unseen :: 9.8.7
+session
+lead 4242 version=2.1.x
+team alpha
+member scout scout idle 5
+nudge :: stop
+unseen :: 2.1.x
+# a member of an older-format config or another lead's team marks nothing
+session
+lead 4242
+team legacy -
+member leg scout busy 5
+team foreign 9999
+member far scout busy 5
+quiet :: stop
+unseen :: 9.8.7

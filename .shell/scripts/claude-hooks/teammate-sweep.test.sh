@@ -17,13 +17,14 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 export XDG_STATE_HOME="$tmp/state"
 state_dir="$XDG_STATE_HOME/claude/teammate-sweep"
+seen_dir="$XDG_STATE_HOME/claude/teammate-sweep-seen"
 mkdir -p "$tmp/bin"
 printf '#!/bin/sh\ncat "%s/procs"\n' "$tmp" >"$tmp/bin/ps"
 chmod +x "$tmp/bin/ps"
 fake_path="$tmp/bin:$PATH"
 base="$(date +%s)"
 declare -i pass=0 fail=0 n=0 c=0
-sid="" root="" lead="" cur="" bg="[]" last="" envs=()
+sid="" root="" lead="" cur="" bg="[]" last="" ver="" envs=()
 
 check() { # <ok?> <description>
   if [[ "$1" == 1 ]]; then pass+=1; else fail+=1; printf 'FAIL  %s\n' "$2"; fi
@@ -31,8 +32,10 @@ check() { # <ok?> <description>
 
 new_sid() { c+=1; sid="sid-$n-$c"; }
 
-lead_file() { # <pid> <session id>
-  jq -cn --argjson p "$1" --arg s "$2" '{pid: $p, sessionId: $s, cwd: "/tmp", startedAt: 0}' >"$root/sessions/$1.json"
+lead_file() { # <pid> <session id>; version from $ver, left out when "-"
+  jq -cn --argjson p "$1" --arg s "$2" --arg v "$ver" '
+    {pid: $p, sessionId: $s, cwd: "/tmp", startedAt: 0} + (if $v == "-" then {} else {version: $v} end)
+  ' >"$root/sessions/$1.json"
 }
 
 edit_team() { # <jq filter> [jq args ...]
@@ -66,15 +69,23 @@ step() { # <line>
   local line="$1" want out rc got text args
   case "$line" in
     session*)
-      n+=1 c=0 root="$tmp/s$n" lead="" cur="" bg="[]" last=""
+      n+=1 c=0 root="$tmp/s$n" lead="" cur="" bg="[]" last="" ver=9.8.7
+      rm -rf "$seen_dir"
       mkdir -p "$root/sessions" "$root/teams"
       printf '/sbin/launchd\n-zsh\nclaude --resume\nclaude --agent-id scout-2@alpha-x --agent-type scout\n' >"$tmp/procs"
       read -ra envs <<<"${line#session}"
       new_sid
       ;;
     lead\ *)
+      local who="$sid" a
       read -r _ lead args <<<"$line"
-      if [[ "$args" == other ]]; then lead_file "$lead" "someone-else"; else lead_file "$lead" "$sid"; fi
+      for a in $args; do
+        case "$a" in
+          other) who=someone-else ;;
+          version=*) ver="${a#version=}" ;;
+        esac
+      done
+      lead_file "$lead" "$who"
       ;;
     team\ *)
       read -r _ cur args <<<"$line"
@@ -113,6 +124,14 @@ step() { # <line>
     bg\ *)
       read -ra args <<<"${line#bg }"
       bg="$(printf '%s\n' "${args[@]}" | jq -cR '{id: "b1", type: ., status: "running", description: "background work", agent_type: "scout"}' | jq -cs .)"
+      ;;
+    seen\ ::\ * | unseen\ ::\ *)
+      text="${line#* :: }"
+      if [[ "$line" == seen* ]]; then
+        [[ -f "$seen_dir/$text" ]] && check 1 || check 0 "session $n: no seen marker $text: $(ls "$seen_dir" 2>/dev/null | tr '\n' ' ')"
+      else
+        [[ ! -e "$seen_dir/$text" ]] && check 1 || check 0 "session $n: unexpected seen marker $text"
+      fi
       ;;
     has\ ::\ * | lacks\ ::\ *)
       text="${line#* :: }"
@@ -194,11 +213,21 @@ mkdir -p "$state_dir" && printf 'garbage\n\nscout:1 nope\n' >"$state_dir/$sid"
 step "nudge :: stop"
 step "quiet :: stop"
 [[ "$(<"$state_dir/$sid")" =~ ^scout:[0-9]+\ [0-9]+$ ]] && check 1 || check 0 "damaged state not rewritten: $(<"$state_dir/$sid")"
-# Old state files are pruned when a new session's file is created.
+# Old state files are pruned when a new session's file is created; an old seen
+# marker, kept beside the state dir, survives it.
 touch -t 202001010000 "$state_dir/stale"
 fixture
+mkdir -p "$seen_dir" && touch -t 202001010000 "$seen_dir/1.0.0"
 step "nudge :: stop"
 [[ ! -e "$state_dir/stale" ]] && check 1 || check 0 "stale state file not pruned"
+step "seen :: 1.0.0"
+step "seen :: 9.8.7"
+# A seen marker that can't be written changes nothing else.
+fixture
+mkdir -p "$XDG_STATE_HOME/claude" && : >"$seen_dir"
+step "nudge :: stop"
+step "has :: running: scout (scout)."
+rm -f "$seen_dir"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 ((fail == 0))
